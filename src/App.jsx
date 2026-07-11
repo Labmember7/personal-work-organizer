@@ -7,74 +7,20 @@ import {
   Plus, X, Check, Trash2, Pencil, Search, ArrowUpDown,
   ChevronDown, FolderPlus, AlertTriangle, Minus, Copy, ChevronsUpDown, Clock,
 } from "lucide-react";
-
-const STATUSES = [
-  { id: "analyser", label: "À analyser", weight: 0, color: "#8B95A1" },
-  { id: "implementer", label: "À implémenter", weight: 20, color: "#4C7EA8" },
-  { id: "revue", label: "En revue", weight: 45, color: "#35A7A0" },
-  { id: "integrer", label: "À intégrer", weight: 70, color: "#7CA855" },
-  { id: "valider", label: "À valider", weight: 90, color: "#D6C13C" },
-  { id: "termine", label: "Terminé", weight: 100, color: "#4CAF6D" },
-];
-
-const PRIORITIES = [
-  { id: "critique", label: "Critique", color: "#D64545", order: 0 },
-  { id: "haute", label: "Haute", color: "#E08A3C", order: 1 },
-  { id: "moyenne", label: "Moyenne", color: "#D6C13C", order: 2 },
-  { id: "basse", label: "Basse", color: "#4CAF6D", order: 3 },
-];
+import {
+  STATUSES, PRIORITIES, uid, statusOf, prioOf,
+  taskMinutes, formatDuration, parseDurationInput, projectColor,
+} from "./utils";
+import {
+  useLang, doneOfTotal, tasksTotalLabel, allProjectsLabel,
+  selectedCountLabel, statusCountLabel,
+} from "./i18n.jsx";
 
 const DEFAULT_PROJECTS = [];
 const STORAGE_KEY = "suivi-travaux-data";
 
-const PROJECT_COLOR_PALETTE = [
-  "#4C7EA8", "#D6893C", "#7CA855", "#B15FC9",
-  "#35A7A0", "#D6635C", "#C9A63E", "#5B8FD6",
-  "#8B6CD9", "#4FAE8E", "#D65C8F", "#8FA83C",
-];
-
-const uid = () =>
-  (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random();
-
-const statusOf = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
-const prioOf = (id) => PRIORITIES.find((p) => p.id === id) || PRIORITIES[2];
-
-const taskMinutes = (t) => (t.timeLogs || []).reduce((sum, l) => sum + l.minutes, 0);
-
-const formatDuration = (min) => {
-  if (!min) return "0m";
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (h && m) return `${h}h${String(m).padStart(2, "0")}`;
-  if (h) return `${h}h`;
-  return `${m}m`;
-};
-
-const parseDurationInput = (raw) => {
-  const s = raw.trim().toLowerCase();
-  if (!s) return null;
-  let m = s.match(/^(\d+)\s*:\s*(\d{1,2})$/);
-  if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-  m = s.match(/^(\d+(?:[.,]\d+)?)\s*h(?:\s*(\d{1,2})\s*m?)?$/);
-  if (m) {
-    const h = parseFloat(m[1].replace(",", "."));
-    const mins = m[2] ? parseInt(m[2], 10) : 0;
-    return Math.round(h * 60) + mins;
-  }
-  m = s.match(/^(\d+)\s*m(?:in)?$/);
-  if (m) return parseInt(m[1], 10);
-  m = s.match(/^(\d+)$/);
-  if (m) return parseInt(m[1], 10);
-  return null;
-};
-
-const projectColor = (name) => {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  return PROJECT_COLOR_PALETTE[Math.abs(hash) % PROJECT_COLOR_PALETTE.length];
-};
-
 function Gauge({ value }) {
+  const { t } = useLang();
   const R = 52;
   const C = 2 * Math.PI * R;
   const pct = Math.max(0, Math.min(100, value));
@@ -110,7 +56,7 @@ function Gauge({ value }) {
       </text>
       <text x="60" y="74" textAnchor="middle" fontSize="8" fill="#8B95A1"
         fontFamily="'IBM Plex Mono', monospace" letterSpacing="0.5">
-        AVANCEMENT
+        {t("gauge_caption")}
       </text>
     </svg>
   );
@@ -125,7 +71,26 @@ function ProgressBar({ value, height = 6 }) {
   );
 }
 
+function LangSwitch() {
+  const { lang, setLang } = useLang();
+  return (
+    <div className="trk-lang-switch">
+      {["fr", "en"].map((l) => (
+        <button
+          key={l}
+          type="button"
+          className={"trk-lang-btn" + (lang === l ? " active" : "")}
+          onClick={() => setLang(l)}
+        >
+          {l.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function TitleBar({ maximized }) {
+  const { t } = useLang();
   const hasControls = typeof window !== "undefined" && !!window.windowControls;
 
   if (!hasControls) return null;
@@ -133,20 +98,20 @@ function TitleBar({ maximized }) {
   return (
     <div className="trk-titlebar">
       <div className="trk-titlebar-drag">
-        <span className="trk-titlebar-title">Suivi des travaux</span>
+        <span className="trk-titlebar-title">{t("titlebar_title")}</span>
       </div>
       <div className="trk-traffic-lights">
         <button
           className="trk-traffic-btn trk-traffic-minimize"
           onClick={() => window.windowControls.minimize()}
-          title="Réduire"
+          title={t("minimize")}
         >
           <Minus size={8} strokeWidth={3} className="trk-traffic-glyph" />
         </button>
         <button
           className="trk-traffic-btn trk-traffic-maximize"
           onClick={() => window.windowControls.toggleMaximize()}
-          title={maximized ? "Restaurer" : "Agrandir"}
+          title={maximized ? t("restore") : t("maximize")}
         >
           {maximized ? (
             <Copy size={7} strokeWidth={3} className="trk-traffic-glyph" />
@@ -157,7 +122,7 @@ function TitleBar({ maximized }) {
         <button
           className="trk-traffic-btn trk-traffic-close"
           onClick={() => window.windowControls.close()}
-          title="Fermer"
+          title={t("close")}
         >
           <X size={8} strokeWidth={3} className="trk-traffic-glyph" />
         </button>
@@ -168,9 +133,10 @@ function TitleBar({ maximized }) {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const parseDate = (s) => (s ? new Date(s + "T00:00:00") : null);
-const fmtTick = (d) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+const fmtTick = (d, locale) => d.toLocaleDateString(locale, { day: "2-digit", month: "2-digit" });
 
 function GanttChart({ tasks, projects }) {
+  const { t: tr, locale } = useLang();
   const rows = useMemo(() => {
     const eligible = tasks
       .filter((t) => t.echeance)
@@ -211,16 +177,16 @@ function GanttChart({ tasks, projects }) {
     const tickCount = 6;
     const ticks = Array.from({ length: tickCount }, (_, i) => {
       const d = new Date(domainStart.getTime() + (total * i) / (tickCount - 1));
-      return { label: fmtTick(d), left: toPct(d) };
+      return { label: fmtTick(d, locale), left: toPct(d) };
     });
 
     const todayLeft = toPct(today);
 
     return { groups, ticks, todayLeft };
-  }, [tasks, projects]);
+  }, [tasks, projects, locale]);
 
   if (!rows) {
-    return <div className="trk-empty" style={{ padding: 20 }}>Pas encore de tâches avec une échéance</div>;
+    return <div className="trk-empty" style={{ padding: 20 }}>{tr("gantt_empty")}</div>;
   }
 
   return (
@@ -249,7 +215,7 @@ function GanttChart({ tasks, projects }) {
                     <div
                       className="trk-gantt-bar"
                       style={{ left: `${t.left}%`, width: `${t.width}%`, background: st.color }}
-                      title={`${t.titre} — ${st.label} (${t.dateDebut || t.echeance} → ${t.echeance})`}
+                      title={`${t.titre} — ${tr(`status_${st.id}`)} (${t.dateDebut || t.echeance} → ${t.echeance})`}
                     />
                   </div>
                 </div>
@@ -262,7 +228,7 @@ function GanttChart({ tasks, projects }) {
         {STATUSES.map((s) => (
           <span key={s.id} className="trk-gantt-legend-item">
             <span className="trk-gantt-legend-dot" style={{ background: s.color }} />
-            {s.label}
+            {tr(`status_${s.id}`)}
           </span>
         ))}
       </div>
@@ -271,6 +237,7 @@ function GanttChart({ tasks, projects }) {
 }
 
 function StatusFilterDropdown({ selected, onToggle, onClear }) {
+  const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -283,7 +250,7 @@ function StatusFilterDropdown({ selected, onToggle, onClear }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const label = selected.length === 0 ? "Tous statuts" : `${selected.length} statut${selected.length > 1 ? "s" : ""}`;
+  const label = statusCountLabel(t, lang, selected.length);
 
   return (
     <div className="trk-multiselect" ref={ref}>
@@ -300,11 +267,11 @@ function StatusFilterDropdown({ selected, onToggle, onClear }) {
             <label key={s.id} className="trk-multiselect-item">
               <input type="checkbox" checked={selected.includes(s.id)} onChange={() => onToggle(s.id)} />
               <span className="trk-multiselect-dot" style={{ background: s.color }} />
-              {s.label}
+              {t(`status_${s.id}`)}
             </label>
           ))}
           {selected.length > 0 && (
-            <button type="button" className="trk-multiselect-clear" onClick={onClear}>Effacer la sélection</button>
+            <button type="button" className="trk-multiselect-clear" onClick={onClear}>{t("clear_selection")}</button>
           )}
         </div>
       )}
@@ -313,6 +280,7 @@ function StatusFilterDropdown({ selected, onToggle, onClear }) {
 }
 
 function TimeLogPopover({ task, onAdd, onDelete, onClose }) {
+  const { t } = useLang();
   const ref = useRef(null);
   const [duration, setDuration] = useState("");
   const [note, setNote] = useState("");
@@ -345,36 +313,36 @@ function TimeLogPopover({ task, onAdd, onDelete, onClose }) {
   return (
     <div className="trk-timelog-panel" ref={ref} onClick={(e) => e.stopPropagation()}>
       <div className="trk-timelog-total">
-        <span>Temps passé</span>
+        <span>{t("time_spent")}</span>
         <span>{formatDuration(total)}</span>
       </div>
       <form className="trk-timelog-add" onSubmit={submit}>
         <input
           className="trk-timelog-duration-input"
-          placeholder="1h30"
+          placeholder={t("duration_placeholder")}
           value={duration}
           onChange={(e) => { setDuration(e.target.value); setError(false); }}
           autoFocus
         />
         <input
           className="trk-timelog-note-input"
-          placeholder="Note (optionnel)"
+          placeholder={t("note_placeholder")}
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
-        <button type="submit" className="trk-icon-btn" title="Ajouter">
+        <button type="submit" className="trk-icon-btn" title={t("add")}>
           <Plus size={14} />
         </button>
       </form>
-      {error && <div className="trk-timelog-error">Format non reconnu (ex : 1h30, 45m, 90)</div>}
+      {error && <div className="trk-timelog-error">{t("duration_format_error")}</div>}
       <div className="trk-timelog-list">
-        {logs.length === 0 && <div className="trk-timelog-empty">Aucune entrée</div>}
+        {logs.length === 0 && <div className="trk-timelog-empty">{t("no_entry")}</div>}
         {[...logs].sort((a, b) => b.date.localeCompare(a.date)).map((l) => (
           <div key={l.id} className="trk-timelog-entry">
             <span className="trk-timelog-entry-info">
               <strong>{formatDuration(l.minutes)}</strong> · {l.date}{l.note ? ` · ${l.note}` : ""}
             </span>
-            <button className="trk-icon-btn" onClick={() => onDelete(l.id)} title="Supprimer">
+            <button className="trk-icon-btn" onClick={() => onDelete(l.id)} title={t("remove")}>
               <X size={12} />
             </button>
           </div>
@@ -385,6 +353,7 @@ function TimeLogPopover({ task, onAdd, onDelete, onClose }) {
 }
 
 function TimeLogSection({ task, onAdd, onDelete }) {
+  const { t } = useLang();
   const [duration, setDuration] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState(false);
@@ -414,37 +383,37 @@ function TimeLogSection({ task, onAdd, onDelete }) {
   return (
     <div className="trk-timelog-inline">
       <div className="trk-timelog-total">
-        <span>Temps enregistré</span>
+        <span>{t("time_logged")}</span>
         <span>{formatDuration(total)}</span>
       </div>
       <div className="trk-timelog-add">
         <input
           className="trk-timelog-duration-input"
-          placeholder="1h30"
+          placeholder={t("duration_placeholder")}
           value={duration}
           onChange={(e) => { setDuration(e.target.value); setError(false); }}
           onKeyDown={onEnter}
         />
         <input
           className="trk-timelog-note-input"
-          placeholder="Note (optionnel)"
+          placeholder={t("note_placeholder")}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           onKeyDown={onEnter}
         />
-        <button type="button" className="trk-icon-btn" title="Ajouter" onClick={submit}>
+        <button type="button" className="trk-icon-btn" title={t("add")} onClick={submit}>
           <Plus size={14} />
         </button>
       </div>
-      {error && <div className="trk-timelog-error">Format non reconnu (ex : 1h30, 45m, 90)</div>}
+      {error && <div className="trk-timelog-error">{t("duration_format_error")}</div>}
       <div className="trk-timelog-list">
-        {logs.length === 0 && <div className="trk-timelog-empty">Aucune entrée</div>}
+        {logs.length === 0 && <div className="trk-timelog-empty">{t("no_entry")}</div>}
         {[...logs].sort((a, b) => b.date.localeCompare(a.date)).map((l) => (
           <div key={l.id} className="trk-timelog-entry">
             <span className="trk-timelog-entry-info">
               <strong>{formatDuration(l.minutes)}</strong> · {l.date}{l.note ? ` · ${l.note}` : ""}
             </span>
-            <button type="button" className="trk-icon-btn" onClick={() => onDelete(l.id)} title="Supprimer">
+            <button type="button" className="trk-icon-btn" onClick={() => onDelete(l.id)} title={t("remove")}>
               <X size={12} />
             </button>
           </div>
@@ -455,6 +424,7 @@ function TimeLogSection({ task, onAdd, onDelete }) {
 }
 
 export default function App() {
+  const { t, lang } = useLang();
   const [loading, setLoading] = useState(true);
   const [maximized, setMaximized] = useState(false);
   const [tasks, setTasks] = useState([]);
@@ -705,18 +675,18 @@ export default function App() {
   const statusDistribution = useMemo(
     () =>
       STATUSES.map((s) => ({
-        name: s.label,
-        value: tasks.filter((t) => t.statut === s.id).length,
+        name: t(`status_${s.id}`),
+        value: tasks.filter((tk) => tk.statut === s.id).length,
         color: s.color,
       })).filter((d) => d.value > 0),
-    [tasks]
+    [tasks, lang]
   );
 
   const perProjectStacked = useMemo(() => {
     return projects.map((p) => {
       const row = { projet: p };
       STATUSES.forEach((s) => {
-        row[s.label] = tasks.filter((t) => t.projet === p && t.statut === s.id).length;
+        row[s.id] = tasks.filter((tk) => tk.projet === p && tk.statut === s.id).length;
       });
       return row;
     });
@@ -726,7 +696,7 @@ export default function App() {
     () =>
       projects.map((p) => ({
         projet: p,
-        minutes: tasks.filter((t) => t.projet === p).reduce((sum, t) => sum + taskMinutes(t), 0),
+        minutes: tasks.filter((tk) => tk.projet === p).reduce((sum, tk) => sum + taskMinutes(tk), 0),
       })),
     [projects, tasks]
   );
@@ -734,11 +704,11 @@ export default function App() {
   const priorityDistribution = useMemo(
     () =>
       PRIORITIES.map((p) => ({
-        name: p.label,
-        value: tasks.filter((t) => t.priorite === p.id).length,
+        name: t(`prio_${p.id}`),
+        value: tasks.filter((tk) => tk.priorite === p.id).length,
         fill: p.color,
       })),
-    [tasks]
+    [tasks, lang]
   );
 
   const doneCount = tasks.filter((t) => t.statut === "termine").length;
@@ -882,6 +852,25 @@ export default function App() {
           font-size: 12px;
           color: var(--text-dim);
         }
+        .trk-lang-switch {
+          display: flex;
+          gap: 4px;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 3px;
+        }
+        .trk-lang-btn {
+          background: none;
+          border: none;
+          color: var(--text-dim);
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 11px;
+          padding: 4px 9px;
+          border-radius: 5px;
+          cursor: pointer;
+        }
+        .trk-lang-btn.active { background: var(--accent); color: #0E1216; }
 
         .trk-layout {
           display: grid;
@@ -1492,34 +1481,35 @@ export default function App() {
 
       <div className="trk-content">
       {loading ? (
-        <div className="trk-loading">Chargement du suivi…</div>
+        <div className="trk-loading">{t("loading")}</div>
       ) : (
         <>
           <div className="trk-header">
             <div>
-              <div className="trk-eyebrow">CENTRE DE PILOTAGE</div>
-              <h1 className="trk-title">Suivi des travaux par projet</h1>
+              <div className="trk-eyebrow">{t("eyebrow")}</div>
+              <h1 className="trk-title">{t("app_title")}</h1>
             </div>
             <div className="trk-gauge-block">
               <Gauge value={globalProgress} />
               <div className="trk-gauge-caption">
-                <strong>{doneCount}/{tasks.length} terminées</strong>
-                <span>{tasks.length} tâche{tasks.length !== 1 ? "s" : ""} au total</span>
+                <strong>{doneOfTotal(t, lang, doneCount, tasks.length)}</strong>
+                <span>{tasksTotalLabel(lang, tasks.length)}</span>
               </div>
             </div>
+            <LangSwitch />
           </div>
 
           <div className="trk-layout">
             <aside className="trk-sidebar">
               <div className="trk-sidebar-title">
-                PROJETS
-                {filterProjects.length > 0 && <span className="trk-filter-count"> · {filterProjects.length} sélectionné{filterProjects.length > 1 ? "s" : ""}</span>}
+                {t("projects")}
+                {filterProjects.length > 0 && <span className="trk-filter-count"> · {selectedCountLabel(lang, filterProjects.length)}</span>}
               </div>
               <button
                 className={"trk-all-btn" + (filterProjects.length === 0 ? " active" : "")}
                 onClick={() => setFilterProjects([])}
               >
-                Tous les projets ({tasks.length})
+                {allProjectsLabel(lang, tasks.length)}
               </button>
               {projectProgress.map((p) => (
                 <div
@@ -1527,7 +1517,7 @@ export default function App() {
                   className={"trk-project-card" + (filterProjects.includes(p.name) ? " active" : "")}
                   style={{ "--project-color": projectColor(p.name) }}
                   onClick={() => renamingProject !== p.name && toggleFilterProject(p.name)}
-                  title="Cliquer pour ajouter/retirer ce projet du filtre"
+                  title={t("toggle_project_filter")}
                 >
                   {renamingProject === p.name ? (
                     <div className="trk-add-project-row" onClick={(e) => e.stopPropagation()}>
@@ -1556,7 +1546,7 @@ export default function App() {
                           <button
                             className="trk-project-remove"
                             onClick={(e) => { e.stopPropagation(); startRenameProject(p.name); }}
-                            title="Renommer ce projet"
+                            title={t("rename_project")}
                           >
                             <Pencil size={12} />
                           </button>
@@ -1564,7 +1554,7 @@ export default function App() {
                             <button
                               className="trk-project-remove"
                               onClick={(e) => { e.stopPropagation(); removeProject(p.name); }}
-                              title="Retirer ce projet"
+                              title={t("remove_project")}
                             >
                               <X size={13} />
                             </button>
@@ -1582,7 +1572,7 @@ export default function App() {
                   <input
                     className="trk-add-project-input"
                     autoFocus
-                    placeholder="Nom du projet"
+                    placeholder={t("project_name_placeholder")}
                     value={newProjectName}
                     onChange={(e) => setNewProjectName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addProject()}
@@ -1592,7 +1582,7 @@ export default function App() {
                 </div>
               ) : (
                 <button className="trk-ghost-btn" onClick={() => setAddingProject(true)}>
-                  <FolderPlus size={13} /> Nouveau projet
+                  <FolderPlus size={13} /> {t("new_project")}
                 </button>
               )}
             </aside>
@@ -1602,7 +1592,7 @@ export default function App() {
                 <div className="trk-search">
                   <Search size={14} color="#8B95A1" />
                   <input
-                    placeholder="Rechercher une tâche…"
+                    placeholder={t("search_placeholder")}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
@@ -1613,58 +1603,58 @@ export default function App() {
                   onClear={() => setFilterStatuts([])}
                 />
                 <select className="trk-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                  <option value="priorite">Trier : priorité</option>
-                  <option value="statut">Trier : statut</option>
-                  <option value="projet">Trier : projet</option>
-                  <option value="echeance">Trier : échéance</option>
+                  <option value="priorite">{t("sort_priority")}</option>
+                  <option value="statut">{t("sort_status")}</option>
+                  <option value="projet">{t("sort_project")}</option>
+                  <option value="echeance">{t("sort_due")}</option>
                 </select>
                 <button className="trk-add-btn" onClick={openNewTask}>
-                  <Plus size={15} /> Nouvelle tâche
+                  <Plus size={15} /> {t("new_task")}
                 </button>
               </div>
 
               <div className="trk-task-list">
                 {sortedTasks.length === 0 && (
                   <div className="trk-empty">
-                    Aucune tâche ne correspond. Ajoutez-en une pour démarrer le suivi.
+                    {t("empty_task_list")}
                   </div>
                 )}
-                {sortedTasks.map((t) => {
-                  const st = statusOf(t.statut);
-                  const pr = prioOf(t.priorite);
-                  const pc = projectColor(t.projet);
+                {sortedTasks.map((task) => {
+                  const st = statusOf(task.statut);
+                  const pr = prioOf(task.priorite);
+                  const pc = projectColor(task.projet);
                   return (
-                    <div key={t.id} className="trk-task-row" style={{ "--rail-color": pr.color }}>
+                    <div key={task.id} className="trk-task-row" style={{ "--rail-color": pr.color }}>
                       <div className="trk-task-main">
-                        <p className="trk-task-title">{t.titre}</p>
+                        <p className="trk-task-title">{task.titre}</p>
                         <div className="trk-task-meta">
-                          <span className="trk-tag" style={{ color: pc, background: pc + "22", borderColor: pc + "55" }}>{t.projet}</span>
+                          <span className="trk-tag" style={{ color: pc, background: pc + "22", borderColor: pc + "55" }}>{task.projet}</span>
                           <span className="trk-prio-tag" style={{ color: pr.color, background: pr.color + "22" }}>
-                            {t.priorite === "critique" && <AlertTriangle size={11} style={{ verticalAlign: "-2px", marginRight: 3 }} />}
-                            {pr.label}
+                            {task.priorite === "critique" && <AlertTriangle size={11} style={{ verticalAlign: "-2px", marginRight: 3 }} />}
+                            {t(`prio_${pr.id}`)}
                           </span>
                           <span className="trk-status-pill" style={{ color: st.color, background: st.color + "22" }}>
-                            {st.label}
+                            {t(`status_${st.id}`)}
                           </span>
-                          {t.assigne && <span>{t.assigne}</span>}
-                          {t.echeance && <span className="trk-mono">{t.echeance}</span>}
+                          {task.assigne && <span>{task.assigne}</span>}
+                          {task.echeance && <span className="trk-mono">{task.echeance}</span>}
                           <div className="trk-timelog-wrap">
                             <button
                               type="button"
-                              className={"trk-time-badge" + (taskMinutes(t) ? " has-time" : "")}
+                              className={"trk-time-badge" + (taskMinutes(task) ? " has-time" : "")}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setTimeLogTaskId(timeLogTaskId === t.id ? null : t.id);
+                                setTimeLogTaskId(timeLogTaskId === task.id ? null : task.id);
                               }}
-                              title="Enregistrer du temps"
+                              title={t("record_time")}
                             >
-                              <Clock size={11} /> {formatDuration(taskMinutes(t))}
+                              <Clock size={11} /> {formatDuration(taskMinutes(task))}
                             </button>
-                            {timeLogTaskId === t.id && (
+                            {timeLogTaskId === task.id && (
                               <TimeLogPopover
-                                task={t}
-                                onAdd={(minutes, note) => addTimeLog(t.id, minutes, note)}
-                                onDelete={(logId) => deleteTimeLog(t.id, logId)}
+                                task={task}
+                                onAdd={(minutes, note) => addTimeLog(task.id, minutes, note)}
+                                onDelete={(logId) => deleteTimeLog(task.id, logId)}
                                 onClose={() => setTimeLogTaskId(null)}
                               />
                             )}
@@ -1672,16 +1662,16 @@ export default function App() {
                         </div>
                       </div>
                       <div className="trk-task-actions">
-                        {confirmDelete === t.id ? (
+                        {confirmDelete === task.id ? (
                           <div className="trk-confirm">
-                            <span className="trk-confirm-label">Supprimer ?</span>
-                            <button className="trk-icon-btn" onClick={() => deleteTask(t.id)}><Check size={14} /></button>
+                            <span className="trk-confirm-label">{t("delete_confirm")}</span>
+                            <button className="trk-icon-btn" onClick={() => deleteTask(task.id)}><Check size={14} /></button>
                             <button className="trk-icon-btn" onClick={() => setConfirmDelete(null)}><X size={14} /></button>
                           </div>
                         ) : (
                           <>
-                            <button className="trk-icon-btn" onClick={() => openEditTask(t)}><Pencil size={14} /></button>
-                            <button className="trk-icon-btn" onClick={() => setConfirmDelete(t.id)}><Trash2 size={14} /></button>
+                            <button className="trk-icon-btn" onClick={() => openEditTask(task)}><Pencil size={14} /></button>
+                            <button className="trk-icon-btn" onClick={() => setConfirmDelete(task.id)}><Trash2 size={14} /></button>
                           </>
                         )}
                       </div>
@@ -1694,9 +1684,9 @@ export default function App() {
 
           <section className="trk-charts">
             <div className="trk-chart-card">
-              <div className="trk-chart-title">RÉPARTITION GLOBALE PAR STATUT</div>
+              <div className="trk-chart-title">{t("chart_status_distribution")}</div>
               {statusDistribution.length === 0 ? (
-                <div className="trk-empty" style={{ padding: 20 }}>Pas encore de données</div>
+                <div className="trk-empty" style={{ padding: 20 }}>{t("no_data")}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
@@ -1711,9 +1701,9 @@ export default function App() {
             </div>
 
             <div className="trk-chart-card">
-              <div className="trk-chart-title">AVANCEMENT PAR PROJET (PAR STATUT)</div>
+              <div className="trk-chart-title">{t("chart_project_progress")}</div>
               {tasks.length === 0 ? (
-                <div className="trk-empty" style={{ padding: 20 }}>Pas encore de données</div>
+                <div className="trk-empty" style={{ padding: 20 }}>{t("no_data")}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={perProjectStacked} layout="vertical" margin={{ left: 4 }}>
@@ -1722,7 +1712,7 @@ export default function App() {
                     <YAxis type="category" dataKey="projet" tick={{ fill: "#E8EBEE", fontSize: 11 }} width={70} />
                     <Tooltip contentStyle={{ background: "#181E26", border: "1px solid #2A323D", fontSize: 12 }} labelStyle={{ color: "#E8EBEE" }} />
                     {STATUSES.map((s) => (
-                      <Bar key={s.id} dataKey={s.label} stackId="a" fill={s.color} />
+                      <Bar key={s.id} dataKey={s.id} name={t(`status_${s.id}`)} stackId="a" fill={s.color} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
@@ -1730,9 +1720,9 @@ export default function App() {
             </div>
 
             <div className="trk-chart-card">
-              <div className="trk-chart-title">RÉPARTITION PAR PRIORITÉ</div>
+              <div className="trk-chart-title">{t("chart_priority_distribution")}</div>
               {tasks.length === 0 ? (
-                <div className="trk-empty" style={{ padding: 20 }}>Pas encore de données</div>
+                <div className="trk-empty" style={{ padding: 20 }}>{t("no_data")}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={priorityDistribution} margin={{ left: -20 }}>
@@ -1749,9 +1739,9 @@ export default function App() {
             </div>
 
             <div className="trk-chart-card">
-              <div className="trk-chart-title">TEMPS EFFECTIF PAR PROJET</div>
+              <div className="trk-chart-title">{t("chart_time_per_project")}</div>
               {projectTimeDistribution.every((d) => d.minutes === 0) ? (
-                <div className="trk-empty" style={{ padding: 20 }}>Pas encore de temps enregistré</div>
+                <div className="trk-empty" style={{ padding: 20 }}>{t("no_time_logged")}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={projectTimeDistribution} layout="vertical" margin={{ left: 4 }}>
@@ -1767,7 +1757,7 @@ export default function App() {
                       contentStyle={{ background: "#181E26", border: "1px solid #2A323D", fontSize: 12 }}
                       labelStyle={{ color: "#E8EBEE" }}
                       itemStyle={{ color: "#E8EBEE" }}
-                      formatter={(value) => [formatDuration(value), "Temps"]}
+                      formatter={(value) => [formatDuration(value), t("time_tooltip")]}
                     />
                     <Bar dataKey="minutes" radius={[0, 4, 4, 0]}>
                       {projectTimeDistribution.map((d, i) => (
@@ -1781,13 +1771,13 @@ export default function App() {
           </section>
 
           <section className="trk-chart-card trk-gantt-card">
-            <div className="trk-chart-title">ÉVOLUTION DES TÂCHES PAR PROJET (GANTT)</div>
+            <div className="trk-chart-title">{t("chart_gantt")}</div>
             <GanttChart tasks={tasks} projects={projects} />
           </section>
 
           {saveError && (
             <div className="trk-save-error">
-              <AlertTriangle size={13} /> La sauvegarde a échoué, tes dernières modifications ne sont peut-être pas enregistrées.
+              <AlertTriangle size={13} /> {t("save_error")}
             </div>
           )}
 
@@ -1795,22 +1785,22 @@ export default function App() {
             <div className="trk-modal-overlay" onClick={() => setModalOpen(false)}>
               <div className="trk-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="trk-modal-header">
-                  <span className="trk-modal-title">{editing.id ? "Modifier la tâche" : "Nouvelle tâche"}</span>
+                  <span className="trk-modal-title">{editing.id ? t("edit_task") : t("new_task")}</span>
                   <button className="trk-icon-btn" onClick={() => setModalOpen(false)}><X size={16} /></button>
                 </div>
                 <form onSubmit={submitTask}>
                   <div className="trk-field">
-                    <label>Titre</label>
+                    <label>{t("field_title")}</label>
                     <input
                       autoFocus
                       value={editing.titre}
                       onChange={(e) => setEditing({ ...editing, titre: e.target.value })}
-                      placeholder="Ex : Corriger la numérotation des slides"
+                      placeholder={t("title_placeholder")}
                       required
                     />
                   </div>
                   <div className="trk-field">
-                    <label>Description (optionnel)</label>
+                    <label>{t("field_description")}</label>
                     <textarea
                       value={editing.description}
                       onChange={(e) => setEditing({ ...editing, description: e.target.value })}
@@ -1818,7 +1808,7 @@ export default function App() {
                   </div>
                   <div className="trk-field-row">
                     <div className="trk-field">
-                      <label>Projet</label>
+                      <label>{t("field_project")}</label>
                       <select
                         value={editing.projet}
                         onChange={(e) => setEditing({ ...editing, projet: e.target.value })}
@@ -1827,27 +1817,27 @@ export default function App() {
                       </select>
                     </div>
                     <div className="trk-field">
-                      <label>Priorité</label>
+                      <label>{t("field_priority")}</label>
                       <select
                         value={editing.priorite}
                         onChange={(e) => setEditing({ ...editing, priorite: e.target.value })}
                       >
-                        {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                        {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{t(`prio_${p.id}`)}</option>)}
                       </select>
                     </div>
                   </div>
                   <div className="trk-field-row">
                     <div className="trk-field">
-                      <label>Statut</label>
+                      <label>{t("field_status")}</label>
                       <select
                         value={editing.statut}
                         onChange={(e) => setEditing({ ...editing, statut: e.target.value })}
                       >
-                        {STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                        {STATUSES.map((s) => <option key={s.id} value={s.id}>{t(`status_${s.id}`)}</option>)}
                       </select>
                     </div>
                     <div className="trk-field">
-                      <label>Début (optionnel)</label>
+                      <label>{t("field_start")}</label>
                       <input
                         type="date"
                         value={editing.dateDebut || ""}
@@ -1857,7 +1847,7 @@ export default function App() {
                   </div>
                   <div className="trk-field-row">
                     <div className="trk-field">
-                      <label>Échéance (optionnel)</label>
+                      <label>{t("field_due")}</label>
                       <input
                         type="date"
                         value={editing.echeance}
@@ -1865,17 +1855,17 @@ export default function App() {
                       />
                     </div>
                     <div className="trk-field">
-                      <label>Assigné à (optionnel)</label>
+                      <label>{t("field_assignee")}</label>
                       <input
                         value={editing.assigne}
                         onChange={(e) => setEditing({ ...editing, assigne: e.target.value })}
-                        placeholder="Nom de la personne"
+                        placeholder={t("assignee_placeholder")}
                       />
                     </div>
                   </div>
                   {editing.id ? (
                     <div className="trk-field">
-                      <label>Temps</label>
+                      <label>{t("field_time")}</label>
                       <TimeLogSection
                         task={editing}
                         onAdd={addTimeLogToEditing}
@@ -1883,11 +1873,11 @@ export default function App() {
                       />
                     </div>
                   ) : (
-                    <div className="trk-timelog-hint">Le suivi du temps sera disponible une fois la tâche ajoutée.</div>
+                    <div className="trk-timelog-hint">{t("time_hint")}</div>
                   )}
                   <div className="trk-modal-actions">
-                    <button type="button" className="trk-btn-secondary" onClick={() => setModalOpen(false)}>Annuler</button>
-                    <button type="submit" className="trk-btn-primary">{editing.id ? "Enregistrer" : "Ajouter"}</button>
+                    <button type="button" className="trk-btn-secondary" onClick={() => setModalOpen(false)}>{t("cancel")}</button>
+                    <button type="submit" className="trk-btn-primary">{editing.id ? t("save") : t("add")}</button>
                   </div>
                 </form>
               </div>
