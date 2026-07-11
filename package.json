@@ -8,9 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "start": "npm run build && electron .",
-    "dist:win": "npm run build && electron-builder --win portable",
-    "dist:linux": "npm run build && electron-builder --linux AppImage",
-    "dist:all": "npm run build && electron-builder --win portable --linux AppImage"
+    "dist:win": "npm run build && electron-builder --win portable --publish never",
+    "dist:linux": "npm run build && electron-builder --linux AppImage --publish never",
+    "dist:all": "npm run build && electron-builder --win portable --linux AppImage --publish never"
   },
   "dependencies": {
     "react": "^18.3.1",
