@@ -1,0 +1,49 @@
+{
+  "name": "suivi-travaux",
+  "version": "1.0.0",
+  "description": "Suivi des travaux par projet - app de bureau portable",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win portable",
+    "dist:linux": "npm run build && electron-builder --linux AppImage",
+    "dist:all": "npm run build && electron-builder --win portable --linux AppImage"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7",
+    "lucide-react": "^0.383.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.bacem.suivitravaux",
+    "productName": "SuiviTravaux",
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "portable",
+      "artifactName": "SuiviTravaux-Windows.exe"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility",
+      "artifactName": "SuiviTravaux-Linux.AppImage"
+    },
+    "asar": true
+  }
+}
