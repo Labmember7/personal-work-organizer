@@ -55,6 +55,15 @@ export const parseDurationInput = (raw) => {
   return null;
 };
 
+export const isValidBackupData = (data) =>
+  !!data && Array.isArray(data.tasks) && Array.isArray(data.projects);
+
+export const buildBackupPayload = (tasks, projects) => ({
+  tasks,
+  projects,
+  exportedAt: new Date().toISOString(),
+});
+
 export const projectColor = (name) => {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;

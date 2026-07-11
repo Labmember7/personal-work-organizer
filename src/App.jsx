@@ -6,10 +6,12 @@ import {
 import {
   Plus, X, Check, Trash2, Pencil, Search, ArrowUpDown,
   ChevronDown, FolderPlus, AlertTriangle, Minus, Copy, ChevronsUpDown, Clock,
+  Download, Upload,
 } from "lucide-react";
 import {
   STATUSES, PRIORITIES, uid, statusOf, prioOf,
   taskMinutes, formatDuration, parseDurationInput, projectColor,
+  isValidBackupData, buildBackupPayload,
 } from "./utils";
 import {
   useLang, doneOfTotal, tasksTotalLabel, allProjectsLabel,
@@ -442,6 +444,9 @@ export default function App() {
   const [renameValue, setRenameValue] = useState("");
   const [saveError, setSaveError] = useState(false);
   const [timeLogTaskId, setTimeLogTaskId] = useState(null);
+  const [pendingImport, setPendingImport] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [ioBusy, setIoBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -503,6 +508,56 @@ export default function App() {
   const saveProjects = (next) => {
     setProjects(next);
     persist(tasks, next);
+  };
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const exportData = async () => {
+    if (!window.dataIO || ioBusy) return;
+    setIoBusy(true);
+    try {
+      const result = await window.dataIO.export(buildBackupPayload(tasks, projects));
+      if (!result.canceled) setToast({ type: "success", text: t("export_success") });
+    } catch (e) {
+      setToast({ type: "error", text: t("export_error") });
+    } finally {
+      setIoBusy(false);
+    }
+  };
+
+  const importData = async () => {
+    if (!window.dataIO || ioBusy) return;
+    setIoBusy(true);
+    try {
+      const result = await window.dataIO.import();
+      if (result.canceled) return;
+      if (result.error || !isValidBackupData(result.data)) {
+        setToast({ type: "error", text: t("import_invalid") });
+        return;
+      }
+      setPendingImport(result.data);
+    } catch (e) {
+      setToast({ type: "error", text: t("import_error") });
+    } finally {
+      setIoBusy(false);
+    }
+  };
+
+  const confirmImport = () => {
+    if (!pendingImport) return;
+    const nextTasks = pendingImport.tasks;
+    const nextProjects = pendingImport.projects;
+    setTasks(nextTasks);
+    setProjects(nextProjects);
+    persist(nextTasks, nextProjects);
+    setFilterProjects([]);
+    setFilterStatuts([]);
+    setPendingImport(null);
+    setToast({ type: "success", text: t("import_success") });
   };
 
   const openNewTask = () => {
@@ -871,6 +926,56 @@ export default function App() {
           cursor: pointer;
         }
         .trk-lang-btn.active { background: var(--accent); color: #0E1216; }
+
+        .trk-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .trk-io-group {
+          display: flex;
+          gap: 6px;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 3px;
+        }
+        .trk-io-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: none;
+          border: none;
+          color: var(--text-dim);
+          font-size: 12px;
+          font-weight: 500;
+          padding: 6px 10px;
+          border-radius: 6px;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        .trk-io-btn:hover:not(:disabled) { color: var(--text); background: var(--panel-alt); }
+        .trk-io-btn:disabled { opacity: 0.5; cursor: default; }
+
+        .trk-toast {
+          position: fixed;
+          bottom: 22px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-left: 3px solid var(--accent);
+          color: var(--text);
+          font-size: 13px;
+          padding: 10px 16px;
+          border-radius: 8px;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+          z-index: 60;
+        }
+        .trk-toast.trk-toast-error { border-left-color: #D64545; }
 
         .trk-layout {
           display: grid;
@@ -1496,7 +1601,29 @@ export default function App() {
                 <span>{tasksTotalLabel(lang, tasks.length)}</span>
               </div>
             </div>
-            <LangSwitch />
+            <div className="trk-header-actions">
+              <div className="trk-io-group">
+                <button
+                  type="button"
+                  className="trk-io-btn"
+                  onClick={importData}
+                  disabled={ioBusy}
+                  title={t("import_data")}
+                >
+                  <Upload size={14} /> {t("import_data")}
+                </button>
+                <button
+                  type="button"
+                  className="trk-io-btn"
+                  onClick={exportData}
+                  disabled={ioBusy}
+                  title={t("export_data")}
+                >
+                  <Download size={14} /> {t("export_data")}
+                </button>
+              </div>
+              <LangSwitch />
+            </div>
           </div>
 
           <div className="trk-layout">
@@ -1778,6 +1905,33 @@ export default function App() {
           {saveError && (
             <div className="trk-save-error">
               <AlertTriangle size={13} /> {t("save_error")}
+            </div>
+          )}
+
+          {pendingImport && (
+            <div className="trk-modal-overlay" onClick={() => setPendingImport(null)}>
+              <div className="trk-modal" style={{ maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
+                <div className="trk-modal-header">
+                  <span className="trk-modal-title">{t("import_confirm_title")}</span>
+                  <button className="trk-icon-btn" onClick={() => setPendingImport(null)}><X size={16} /></button>
+                </div>
+                <p style={{ fontSize: 13, color: "var(--text-dim)", margin: "0 0 4px" }}>
+                  {t("import_confirm_body")}
+                </p>
+                <p className="trk-mono" style={{ fontSize: 12, color: "var(--text)" }}>
+                  {pendingImport.tasks.length} {t("import_task_count")} · {pendingImport.projects.length} {t("import_project_count")}
+                </p>
+                <div className="trk-modal-actions">
+                  <button type="button" className="trk-btn-secondary" onClick={() => setPendingImport(null)}>{t("cancel")}</button>
+                  <button type="button" className="trk-btn-primary" onClick={confirmImport}>{t("import_confirm_action")}</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {toast && (
+            <div className={"trk-toast" + (toast.type === "error" ? " trk-toast-error" : "")}>
+              {toast.type === "error" ? <AlertTriangle size={14} /> : <Check size={14} />} {toast.text}
             </div>
           )}
 

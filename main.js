@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
@@ -124,6 +124,39 @@ ipcMain.handle("config:getProjects", () => {
 ipcMain.handle("config:setProjects", (_e, projects) => {
   writeProjectsConfig(Array.isArray(projects) ? projects : []);
   return { ok: true };
+});
+
+// --- Export / Import : sauvegarde de toutes les données dans un seul
+// fichier JSON, choisi par l'utilisateur via les boîtes de dialogue
+// natives (cohérent avec les autres apps de bureau).
+
+ipcMain.handle("data:export", async (e, payload) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: "Exporter les données",
+    defaultPath: `suivi-travaux-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: "Fichier JSON", extensions: ["json"] }],
+  });
+  if (canceled || !filePath) return { canceled: true };
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
+  return { canceled: false, filePath };
+});
+
+ipcMain.handle("data:import", async (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: "Importer des données",
+    properties: ["openFile"],
+    filters: [{ name: "Fichier JSON", extensions: ["json"] }],
+  });
+  if (canceled || !filePaths.length) return { canceled: true };
+  try {
+    const raw = fs.readFileSync(filePaths[0], "utf-8");
+    const data = JSON.parse(raw);
+    return { canceled: false, filePath: filePaths[0], data };
+  } catch (err) {
+    return { canceled: false, error: "invalid" };
+  }
 });
 
 // --- Fenêtre principale -------------------------------------------------

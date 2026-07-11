@@ -1,0 +1,27 @@
+{
+  "tasks": [
+    {
+      "id": "1555b49a-720a-43ef-b694-e078d802c26b",
+      "projet": "Test",
+      "titre": "Test",
+      "description": "Tes",
+      "priorite": "haute",
+      "statut": "analyser",
+      "assigne": "Me",
+      "dateDebut": "2026-07-15",
+      "echeance": "2026-07-15",
+      "timeLogs": [
+        {
+          "id": "e43defc2-7fd1-449c-a5eb-68c18bd7294a",
+          "minutes": 1,
+          "note": "",
+          "date": "2026-07-11"
+        }
+      ]
+    }
+  ],
+  "projects": [
+    "Test"
+  ],
+  "exportedAt": "2026-07-11T22:01:23.721Z"
+}

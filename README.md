@@ -31,6 +31,7 @@ juste à côté de l'exécutable, ce qui la rend portable sur ta clé/SSD extern
 - Vue gantt et graphiques (répartition par statut, projet, priorité, temps passé)
 - Sélecteur de langue intégré (FR/EN)
 - Stockage local en fichier JSON, portable sur clé USB / SSD externe
+- Export / import de toutes les données en un seul fichier JSON
 
 ### 0. Pré-requis (une seule fois, sur chaque OS où tu vas *builder*)
 
@@ -118,6 +119,24 @@ Lance juste le rendu web (dans le navigateur, sans Electron) pour itérer vite
 sur le visuel — le stockage fichier ne fonctionne que dans l'app Electron
 buildée (`npm start` lance Electron avec le vrai stockage).
 
+### Export / import des données
+
+Les boutons **Importer** / **Exporter** en haut de l'app (à côté du sélecteur
+de langue) permettent de sauvegarder ou restaurer toutes les tâches et
+projets dans un unique fichier `.json`, via les boîtes de dialogue natives
+de l'OS.
+
+- **Exporter** : ouvre une boîte de dialogue "Enregistrer sous" pour choisir
+  où écrire le fichier (nom par défaut : `suivi-travaux-AAAA-MM-JJ.json`).
+- **Importer** : ouvre une boîte de dialogue "Ouvrir", lit le fichier choisi,
+  puis demande confirmation avant de **remplacer entièrement** les tâches et
+  projets actuels (action irréversible — pense à exporter d'abord si tu veux
+  garder une copie de l'état courant).
+
+Utile pour transférer les données entre les deux exécutables (Windows /
+Ubuntu) sans partager le même dossier `data/`, ou pour faire une sauvegarde
+ponctuelle avant une modification importante.
+
 ### Modifier le dashboard plus tard
 
 Tout le contenu du tracker est dans `src/App.jsx`. Après une modif, il suffit
@@ -139,6 +158,7 @@ executable, which makes it portable on your USB key / external SSD.
 - Gantt view and charts (breakdown by status, project, priority, time spent)
 - Built-in language switcher (FR/EN)
 - Local JSON file storage, portable on a USB key / external SSD
+- Export / import of all data as a single JSON file
 
 ### 0. Prerequisites (once, on each OS you'll *build* on)
 
@@ -227,6 +247,23 @@ npm run dev
 Just launches the web render (in the browser, without Electron) to iterate
 quickly on the visuals — file storage only works in the built Electron app
 (`npm start` launches Electron with real storage).
+
+### Data export / import
+
+The **Import** / **Export** buttons at the top of the app (next to the
+language switcher) let you back up or restore all tasks and projects into a
+single `.json` file, using the OS's native file dialogs.
+
+- **Export**: opens a "Save as" dialog to choose where to write the file
+  (default name: `suivi-travaux-YYYY-MM-DD.json`).
+- **Import**: opens an "Open" dialog, reads the chosen file, then asks for
+  confirmation before **fully replacing** the current tasks and projects
+  (irreversible — export first if you want to keep a copy of the current
+  state).
+
+Useful for moving data between the two executables (Windows / Ubuntu)
+without sharing the same `data/` folder, or for a one-off backup before a
+big change.
 
 ### Editing the dashboard later
 

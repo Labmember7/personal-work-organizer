@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   statusOf, prioOf, taskMinutes, formatDuration,
   parseDurationInput, projectColor, STATUSES, PRIORITIES,
+  isValidBackupData, buildBackupPayload,
 } from "./utils";
 
 describe("statusOf", () => {
@@ -80,5 +81,44 @@ describe("projectColor", () => {
   });
   it("returns a value from the palette", () => {
     expect(projectColor("Alpha")).toMatch(/^#[0-9A-F]{6}$/i);
+  });
+});
+
+describe("isValidBackupData", () => {
+  it("accepts an object with tasks and projects arrays", () => {
+    expect(isValidBackupData({ tasks: [], projects: [] })).toBe(true);
+  });
+  it("accepts non-empty arrays", () => {
+    expect(isValidBackupData({ tasks: [{ id: "1" }], projects: ["Alpha"] })).toBe(true);
+  });
+  it("rejects null or undefined", () => {
+    expect(isValidBackupData(null)).toBe(false);
+    expect(isValidBackupData(undefined)).toBe(false);
+  });
+  it("rejects a plain object without the expected shape", () => {
+    expect(isValidBackupData({})).toBe(false);
+  });
+  it("rejects when tasks is missing or not an array", () => {
+    expect(isValidBackupData({ projects: [] })).toBe(false);
+    expect(isValidBackupData({ tasks: "nope", projects: [] })).toBe(false);
+  });
+  it("rejects when projects is missing or not an array", () => {
+    expect(isValidBackupData({ tasks: [] })).toBe(false);
+    expect(isValidBackupData({ tasks: [], projects: "nope" })).toBe(false);
+  });
+  it("rejects an unrelated JSON shape (e.g. a single task object)", () => {
+    expect(isValidBackupData({ id: "1", titre: "Test" })).toBe(false);
+  });
+});
+
+describe("buildBackupPayload", () => {
+  it("wraps tasks and projects with an ISO export timestamp", () => {
+    const tasks = [{ id: "1" }];
+    const projects = ["Alpha"];
+    const payload = buildBackupPayload(tasks, projects);
+    expect(payload.tasks).toBe(tasks);
+    expect(payload.projects).toBe(projects);
+    expect(() => new Date(payload.exportedAt).toISOString()).not.toThrow();
+    expect(new Date(payload.exportedAt).toISOString()).toBe(payload.exportedAt);
   });
 });

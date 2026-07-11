@@ -12,6 +12,11 @@ contextBridge.exposeInMainWorld("config", {
   setProjects: (projects) => ipcRenderer.invoke("config:setProjects", projects),
 });
 
+contextBridge.exposeInMainWorld("dataIO", {
+  export: (payload) => ipcRenderer.invoke("data:export", payload),
+  import: () => ipcRenderer.invoke("data:import"),
+});
+
 contextBridge.exposeInMainWorld("windowControls", {
   minimize: () => ipcRenderer.invoke("window:minimize"),
   toggleMaximize: () => ipcRenderer.invoke("window:toggleMaximize"),
