@@ -7,7 +7,7 @@ import {
   Plus, X, Check, Trash2, Pencil, Search, ArrowUpDown,
   ChevronDown, FolderPlus, AlertTriangle, Minus, Copy, ChevronsUpDown, Clock,
   Download, Upload, List, Columns3, ChevronLeft, ChevronRight, Maximize2,
-  Sun, Moon, ClipboardList,
+  Sun, Moon, ClipboardList, PartyPopper,
 } from "lucide-react";
 import {
   STATUSES, PRIORITIES, uid, statusOf, prioOf,
@@ -18,11 +18,12 @@ import {
   useLang, doneOfTotal, tasksTotalLabel, allProjectsLabel,
   selectedCountLabel, statusCountLabel, pageOfLabel,
 } from "./i18n.jsx";
-import { CelebrationOverlay, pickCelebration } from "./celebration.jsx";
+import { CelebrationOverlay, MiniCelebration, pickCelebration } from "./celebration.jsx";
 
 const DEFAULT_PROJECTS = [];
 const STORAGE_KEY = "suivi-travaux-data";
 const THEME_STORAGE_KEY = "suivi-travaux-theme";
+const CELEBRATIONS_STORAGE_KEY = "suivi-travaux-celebrations";
 
 function Gauge({ value }) {
   const { t } = useLang();
@@ -800,6 +801,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState("list");
   const [projectSearch, setProjectSearch] = useState("");
   const [celebration, setCelebration] = useState(null);
+  const [miniCeleb, setMiniCeleb] = useState(null);
   const prevAllDone = useRef(null);
   const [theme, setTheme] = useState(() => {
     try {
@@ -818,6 +820,33 @@ export default function App() {
   }, [theme]);
 
   const toggleTheme = () => setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+
+  const [celebrationsOn, setCelebrationsOn] = useState(() => {
+    try {
+      return localStorage.getItem(CELEBRATIONS_STORAGE_KEY) !== "off";
+    } catch (e) {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CELEBRATIONS_STORAGE_KEY, celebrationsOn ? "on" : "off");
+    } catch (e) {
+      // stockage indisponible, le réglage reste appliqué pour la session
+    }
+  }, [celebrationsOn]);
+
+  const toggleCelebrations = () => {
+    setCelebrationsOn((prev) => {
+      if (prev) {
+        // Coupe aussi tout effet en cours.
+        setCelebration(null);
+        setMiniCeleb(null);
+      }
+      return !prev;
+    });
+  };
 
   useEffect(() => {
     (async () => {
@@ -968,7 +997,10 @@ export default function App() {
     e.preventDefault();
     if (!editing.titre.trim() || !editing.projet.trim()) return;
     if (editing.id) {
-      saveTasks(tasks.map((t) => (t.id === editing.id ? editing : t)));
+      const prev = tasks.find((t) => t.id === editing.id);
+      const next = tasks.map((t) => (t.id === editing.id ? editing : t));
+      saveTasks(next);
+      if (prev && prev.statut !== "termine") celebrateTaskDone(editing.statut, next);
     } else {
       saveTasks([...tasks, { ...editing, id: uid() }]);
     }
@@ -1104,7 +1136,18 @@ export default function App() {
   const moveTask = (id, statut) => {
     const task = tasks.find((t) => t.id === id);
     if (!task || task.statut === statut) return;
-    saveTasks(tasks.map((t) => (t.id === id ? { ...t, statut } : t)));
+    const next = tasks.map((t) => (t.id === id ? { ...t, statut } : t));
+    saveTasks(next);
+    celebrateTaskDone(statut, next);
+  };
+
+  // Mini célébration quand une tâche passe à « terminé », sauf si tout est
+  // terminé (la grande célébration prend le relais).
+  const celebrateTaskDone = (statut, nextTasks) => {
+    if (!celebrationsOn) return;
+    if (statut !== "termine") return;
+    if (nextTasks.every((t) => t.statut === "termine")) return;
+    setMiniCeleb(Date.now());
   };
 
   const globalProgress = useMemo(() => {
@@ -1179,9 +1222,15 @@ export default function App() {
       prevAllDone.current = allDone;
       return;
     }
-    if (allDone && !prevAllDone.current) setCelebration(pickCelebration());
+    if (allDone && !prevAllDone.current && celebrationsOn) setCelebration(pickCelebration());
     prevAllDone.current = allDone;
-  }, [allDone, loading]);
+  }, [allDone, loading, celebrationsOn]);
+
+  // La grande célébration remplace toute mini en attente : sans ça, une mini
+  // masquée par la grande rejouerait toute seule une fois celle-ci terminée.
+  useEffect(() => {
+    if (celebration) setMiniCeleb(null);
+  }, [celebration]);
 
   return (
     <div className={"trk-app" + (maximized ? " trk-app-maximized" : "") + (theme === "light" ? " light" : "")}>
@@ -1497,6 +1546,19 @@ export default function App() {
           transition: color 0.15s, border-color 0.15s, background 0.15s;
         }
         .trk-theme-btn:hover { color: var(--accent); border-color: var(--accent); }
+        .trk-theme-btn.trk-celeb-off {
+          opacity: 0.45;
+          position: relative;
+        }
+        .trk-theme-btn.trk-celeb-off::after {
+          content: "";
+          position: absolute;
+          left: 6px;
+          right: 6px;
+          top: 50%;
+          border-top: 1.5px solid currentColor;
+          transform: rotate(-45deg);
+        }
 
         .trk-toast {
           position: fixed;
@@ -2598,6 +2660,16 @@ export default function App() {
               </div>
               <button
                 type="button"
+                className={"trk-theme-btn" + (celebrationsOn ? "" : " trk-celeb-off")}
+                onClick={toggleCelebrations}
+                title={celebrationsOn ? t("celebrations_disable") : t("celebrations_enable")}
+                aria-label={celebrationsOn ? t("celebrations_disable") : t("celebrations_enable")}
+                aria-pressed={celebrationsOn}
+              >
+                <PartyPopper size={14} />
+              </button>
+              <button
+                type="button"
                 className="trk-theme-btn"
                 onClick={toggleTheme}
                 title={theme === "dark" ? t("theme_light") : t("theme_dark")}
@@ -3011,7 +3083,7 @@ export default function App() {
             </div>
           )}
 
-          {celebration && (
+          {celebration && celebrationsOn && (
             <CelebrationOverlay
               variant={celebration.variant}
               legendary={celebration.legendary}
@@ -3019,6 +3091,10 @@ export default function App() {
               subtitle={t(celebration.legendary ? "celebrate_legendary_sub" : `celebrate_sub_${celebration.msg}`)}
               onDone={() => setCelebration(null)}
             />
+          )}
+
+          {miniCeleb && !celebration && celebrationsOn && (
+            <MiniCelebration key={miniCeleb} onDone={() => setMiniCeleb(null)} />
           )}
 
           {toast && (

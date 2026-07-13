@@ -6,7 +6,17 @@
 
 ## Français
 
-### 1.3.0 — 2026-07-13 (non publiée)
+### 1.3.1 — 2026-07-14 (non publiée)
+
+**Nouveautés**
+- Mini célébration (confettis + carillon) quand une tâche passe à « terminé »
+- Bouton global pour activer / désactiver les célébrations (effets et sons),
+  réglage mémorisé
+
+**Corrections**
+- Une mini célébration ne rejoue plus toute seule après la grande célébration
+
+### 1.3.0 — 2026-07-13
 
 **Nouveautés**
 - Vue kanban avec glisser-déposer des tâches entre colonnes
@@ -44,7 +54,17 @@
 
 ## English
 
-### 1.3.0 — 2026-07-13 (unreleased)
+### 1.3.1 — 2026-07-14 (unreleased)
+
+**New**
+- Mini celebration (confetti + chime) when a task moves to "done"
+- Global button to enable / disable celebrations (effects and sounds),
+  setting remembered
+
+**Fixes**
+- A mini celebration no longer replays on its own after the big celebration
+
+### 1.3.0 — 2026-07-13
 
 **New**
 - Kanban view with drag & drop of tasks between columns

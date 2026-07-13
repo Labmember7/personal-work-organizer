@@ -599,6 +599,117 @@ function stepParticle(p, dt, age) {
   if (p.vr) p.rot += p.vr * dt;
 }
 
+/* ---------------- Mini célébration (une tâche terminée) ---------------- */
+
+const MINI_DURATION = 1700;
+
+function playMiniSound() {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const bus = makeBus(ctx, 0.25);
+    bell(ctx, bus, { freq: N.G5, at: 0, dur: 0.9, vol: 0.14 });
+    bell(ctx, bus, { freq: N.C6, at: 0.09, dur: 1.1, vol: 0.12 });
+    bell(ctx, bus, { freq: N.E6, at: 0.18, dur: 1.3, vol: 0.1 });
+  } catch (e) {
+    // audio indisponible : l'effet reste visuel
+  }
+}
+
+export function MiniCelebration({ onDone }) {
+  const canvasRef = useRef(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  const soundPlayed = useRef(false);
+
+  useEffect(() => {
+    // Idempotent : le son ne rejoue pas si l'effet est ré-exécuté (double montage).
+    if (!soundPlayed.current) {
+      soundPlayed.current = true;
+      playMiniSound();
+    }
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    let raf = 0;
+    let closed = false;
+    const end = setTimeout(() => {
+      closed = true;
+      cancelAnimationFrame(raf);
+      onDoneRef.current?.();
+    }, reduced ? 400 : MINI_DURATION);
+
+    if (!reduced) {
+      const canvas = canvasRef.current;
+      const g = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvas.clientWidth * dpr;
+      canvas.height = canvas.clientHeight * dpr;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+
+      const parts = [];
+      const add = (p) => parts.push({ ...p, born: performance.now() });
+      burst(add, w / 2, h * 0.35, { count: 34, color: () => pick(PALETTE), speed: [0.08, 0.3], life: [700, 1300] });
+      for (let i = 0; i < 14; i++) {
+        add({
+          kind: "rect",
+          x: w / 2 + rand(-30, 30), y: h * 0.35,
+          vx: rand(-0.3, 0.3), vy: rand(-0.5, -0.15),
+          g: 0.0009, drag: 0.998,
+          rot: rand(0, 6.28), vr: rand(-0.01, 0.01),
+          size: rand(4, 8), color: pick(PALETTE),
+          life: rand(900, 1500),
+        });
+      }
+
+      let last = performance.now();
+      const frame = (now) => {
+        if (closed) return;
+        const dt = Math.min(now - last, 50);
+        last = now;
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.clearRect(0, 0, w, h);
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const p = parts[i];
+          const age = now - p.born;
+          if (age > p.life) {
+            parts.splice(i, 1);
+            continue;
+          }
+          stepParticle(p, dt, age);
+          drawParticle(g, p, age);
+        }
+        raf = requestAnimationFrame(frame);
+      };
+      raf = requestAnimationFrame(frame);
+    }
+    return () => {
+      closed = true;
+      clearTimeout(end);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  return (
+    <div className="trk-mini-celebration" aria-hidden="true">
+      <style>{`
+        .trk-mini-celebration {
+          position: fixed;
+          inset: 0;
+          z-index: 70;
+          pointer-events: none;
+        }
+        .trk-mini-celebration canvas {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+        }
+      `}</style>
+      <canvas ref={canvasRef} />
+    </div>
+  );
+}
+
 /* ---------------- Composant overlay ---------------- */
 
 const FADE_OUT_MS = 700;
@@ -608,9 +719,14 @@ export function CelebrationOverlay({ variant, legendary, title, subtitle, onDone
   const rootRef = useRef(null);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+  const soundedVariant = useRef(null);
 
   useEffect(() => {
-    playCelebrationSound(variant);
+    // Idempotent : un seul son par variante, même si l'effet est ré-exécuté.
+    if (soundedVariant.current !== variant) {
+      soundedVariant.current = variant;
+      playCelebrationSound(variant);
+    }
     const anim = ANIMS[variant] || ANIMS.confetti;
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     const duration = reduced ? 2600 : anim.duration;
