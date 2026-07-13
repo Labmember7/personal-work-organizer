@@ -6,20 +6,23 @@ import {
 import {
   Plus, X, Check, Trash2, Pencil, Search, ArrowUpDown,
   ChevronDown, FolderPlus, AlertTriangle, Minus, Copy, ChevronsUpDown, Clock,
-  Download, Upload,
+  Download, Upload, List, Columns3, ChevronLeft, ChevronRight, Maximize2,
+  Sun, Moon, ClipboardList,
 } from "lucide-react";
 import {
   STATUSES, PRIORITIES, uid, statusOf, prioOf,
   taskMinutes, formatDuration, parseDurationInput, projectColor,
-  isValidBackupData, buildBackupPayload,
+  isValidBackupData, buildBackupPayload, taskMatchesQuery, matchesQuery,
 } from "./utils";
 import {
   useLang, doneOfTotal, tasksTotalLabel, allProjectsLabel,
-  selectedCountLabel, statusCountLabel,
+  selectedCountLabel, statusCountLabel, pageOfLabel,
 } from "./i18n.jsx";
+import { CelebrationOverlay, pickCelebration } from "./celebration.jsx";
 
 const DEFAULT_PROJECTS = [];
 const STORAGE_KEY = "suivi-travaux-data";
+const THEME_STORAGE_KEY = "suivi-travaux-theme";
 
 function Gauge({ value }) {
   const { t } = useLang();
@@ -27,7 +30,7 @@ function Gauge({ value }) {
   const C = 2 * Math.PI * R;
   const pct = Math.max(0, Math.min(100, value));
   const dash = C * (pct / 100);
-  const color = pct < 35 ? "#D64545" : pct < 70 ? "#E08A3C" : "#4CAF6D";
+  const color = pct < 35 ? "var(--danger)" : pct < 70 ? "var(--warn)" : "var(--ok)";
   const ticks = Array.from({ length: 24 });
   return (
     <svg viewBox="0 0 120 120" width="120" height="120">
@@ -41,22 +44,22 @@ function Gauge({ value }) {
           const y2 = 60 + 52 * Math.sin(rad);
           return (
             <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke="#2A323D" strokeWidth="1.5" />
+              stroke="var(--border)" strokeWidth="1.5" />
           );
         })}
       </g>
-      <circle cx="60" cy="60" r={R} fill="none" stroke="#1F2530" strokeWidth="9" />
+      <circle cx="60" cy="60" r={R} fill="none" stroke="var(--gauge-track)" strokeWidth="9" />
       <circle
         cx="60" cy="60" r={R} fill="none" stroke={color} strokeWidth="9"
         strokeDasharray={`${dash} ${C}`} strokeLinecap="round"
         transform="rotate(-90 60 60)"
         style={{ transition: "stroke-dasharray 0.5s ease, stroke 0.5s ease" }}
       />
-      <text x="60" y="57" textAnchor="middle" fontSize="22" fontWeight="700" fill="#E8EBEE"
+      <text x="60" y="57" textAnchor="middle" fontSize="22" fontWeight="700" fill="var(--text)"
         fontFamily="'Space Grotesk', sans-serif">
         {Math.round(pct)}%
       </text>
-      <text x="60" y="74" textAnchor="middle" fontSize="8" fill="#8B95A1"
+      <text x="60" y="74" textAnchor="middle" fontSize="8" fill="var(--text-dim)"
         fontFamily="'IBM Plex Mono', monospace" letterSpacing="0.5">
         {t("gauge_caption")}
       </text>
@@ -65,7 +68,7 @@ function Gauge({ value }) {
 }
 
 function ProgressBar({ value, height = 6 }) {
-  const color = value < 35 ? "#D64545" : value < 70 ? "#E08A3C" : "#4CAF6D";
+  const color = value < 35 ? "var(--danger)" : value < 70 ? "var(--warn)" : "var(--ok)";
   return (
     <div className="trk-pbar" style={{ height }}>
       <div className="trk-pbar-fill" style={{ width: `${value}%`, background: color }} />
@@ -83,6 +86,7 @@ function LangSwitch() {
           type="button"
           className={"trk-lang-btn" + (lang === l ? " active" : "")}
           onClick={() => setLang(l)}
+          aria-pressed={lang === l}
         >
           {l.toUpperCase()}
         </button>
@@ -425,6 +429,352 @@ function TimeLogSection({ task, onAdd, onDelete }) {
   );
 }
 
+const PAGE_SIZE = 6;
+const KANBAN_PAGE_SIZE = 3;
+const PROJECT_PAGE_SIZE = 6;
+
+// Pagination réutilisable : découpe items, borne la page courante et
+// revient en page 1 quand resetKey change (filtres, recherche, tri…).
+function usePagination(items, pageSize, resetKey) {
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [resetKey]);
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = useMemo(
+    () => items.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [items, currentPage, pageSize]
+  );
+  return { page: currentPage, setPage, totalPages, pageItems };
+}
+
+function pageNumbers(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  if (start > 2) pages.push("…");
+  for (let p = start; p <= end; p++) pages.push(p);
+  if (end < total - 1) pages.push("…");
+  pages.push(total);
+  return pages;
+}
+
+function Pagination({ page, totalPages, onChange, compact = false }) {
+  const { t, lang } = useLang();
+  if (compact) {
+    return (
+      <div className="trk-pagination trk-pagination-compact">
+        <button
+          type="button"
+          className="trk-page-btn trk-page-nav"
+          disabled={page === 1}
+          onClick={() => onChange(page - 1)}
+          title={t("page_prev")}
+        >
+          <ChevronLeft size={13} />
+        </button>
+        <span className="trk-page-info">{page}/{totalPages}</span>
+        <button
+          type="button"
+          className="trk-page-btn trk-page-nav"
+          disabled={page === totalPages}
+          onClick={() => onChange(page + 1)}
+          title={t("page_next")}
+        >
+          <ChevronRight size={13} />
+        </button>
+      </div>
+    );
+  }
+  if (totalPages <= 1) return null;
+  return (
+    <div className="trk-pagination">
+      <button
+        type="button"
+        className="trk-page-btn trk-page-nav"
+        disabled={page === 1}
+        onClick={() => onChange(page - 1)}
+        title={t("page_prev")}
+      >
+        <ChevronLeft size={15} />
+      </button>
+      {pageNumbers(page, totalPages).map((p, i) =>
+        p === "…" ? (
+          <span key={`e${i}`} className="trk-page-ellipsis">…</span>
+        ) : (
+          <button
+            key={p}
+            type="button"
+            className={"trk-page-btn" + (p === page ? " active" : "")}
+            onClick={() => onChange(p)}
+          >
+            {p}
+          </button>
+        )
+      )}
+      <button
+        type="button"
+        className="trk-page-btn trk-page-nav"
+        disabled={page === totalPages}
+        onClick={() => onChange(page + 1)}
+        title={t("page_next")}
+      >
+        <ChevronRight size={15} />
+      </button>
+      <span className="trk-page-info">{pageOfLabel(lang, page, totalPages)}</span>
+    </div>
+  );
+}
+
+function KanbanCard({ task, dragging, onDragStart, onDragEnd, onEdit, onDelete, confirmId, onAskDelete, onCancelDelete }) {
+  const { t } = useLang();
+  const pr = prioOf(task.priorite);
+  const pc = projectColor(task.projet);
+  return (
+    <div
+      className={"trk-kanban-card" + (dragging ? " dragging" : "") + (task.statut === "termine" ? " done" : "")}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      style={{ "--rail-color": pr.color }}
+    >
+      <p className="trk-kanban-card-title" title={task.titre}>{task.titre}</p>
+      <div className="trk-kanban-card-meta">
+        <span className="trk-tag" style={{ "--pill-color": pc }}>
+          {task.projet}
+        </span>
+        <span className="trk-prio-tag" style={{ "--pill-color": pr.color }}>
+          {task.priorite === "critique" && <AlertTriangle size={10} />}
+          {t(`prio_${pr.id}`)}
+        </span>
+      </div>
+      <div className="trk-kanban-card-footer">
+        <span className="trk-kanban-card-info">
+          {task.echeance && <span className="trk-mono">{task.echeance}</span>}
+          {taskMinutes(task) > 0 && (
+            <span className="trk-mono trk-kanban-time">
+              <Clock size={10} /> {formatDuration(taskMinutes(task))}
+            </span>
+          )}
+        </span>
+        <span className="trk-kanban-card-actions">
+          {confirmId === task.id ? (
+            <>
+              <span className="trk-confirm-label">{t("delete_confirm")}</span>
+              <button className="trk-icon-btn trk-icon-danger" onClick={() => onDelete(task.id)} title={t("confirm_delete_yes")} aria-label={t("confirm_delete_yes")}><Check size={12} /></button>
+              <button className="trk-icon-btn" onClick={onCancelDelete} title={t("cancel")} aria-label={t("cancel")}><X size={12} /></button>
+            </>
+          ) : (
+            <>
+              <button className="trk-icon-btn" onClick={() => onEdit(task)} title={t("edit_task")}>
+                <Pencil size={12} />
+              </button>
+              <button className="trk-icon-btn" onClick={() => onAskDelete(task.id)} title={t("remove")}>
+                <Trash2 size={12} />
+              </button>
+            </>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function KanbanColumn({ status, tasks, dragCtx, cardProps }) {
+  const { t } = useLang();
+  const [query, setQuery] = useState("");
+  const [prio, setPrio] = useState("");
+  const { dragId, setDragId, overCol, setOverCol, onMove, endDrag } = dragCtx;
+
+  const visible = useMemo(
+    () => tasks.filter((tk) => (!prio || tk.priorite === prio) && taskMatchesQuery(tk, query)),
+    [tasks, query, prio]
+  );
+  const { page, setPage, totalPages, pageItems } = usePagination(
+    visible, KANBAN_PAGE_SIZE, `${query}|${prio}`
+  );
+
+  return (
+    <div
+      className={"trk-kanban-col" + (overCol === status.id ? " drag-over" : "")}
+      style={{ "--col-color": status.color }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (overCol !== status.id) setOverCol(status.id);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setOverCol(null);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const id = e.dataTransfer.getData("text/plain") || dragId;
+        if (id) onMove(id, status.id);
+        endDrag();
+      }}
+    >
+      <div className="trk-kanban-col-header">
+        <span className="trk-kanban-col-dot" style={{ background: status.color }} />
+        <span className="trk-kanban-col-title">{t(`status_${status.id}`)}</span>
+        <span className="trk-kanban-col-count">
+          {visible.length === tasks.length ? tasks.length : `${visible.length}/${tasks.length}`}
+        </span>
+      </div>
+      <div className="trk-kanban-col-tools">
+        <div className="trk-kanban-col-search">
+          <Search size={11} color="var(--text-dim)" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("col_search_placeholder")}
+          />
+          {query && (
+            <button type="button" className="trk-icon-btn" onClick={() => setQuery("")} title={t("clear_selection")}>
+              <X size={11} />
+            </button>
+          )}
+        </div>
+        <select
+          className={"trk-kanban-col-prio" + (prio ? " active" : "")}
+          value={prio}
+          onChange={(e) => setPrio(e.target.value)}
+        >
+          <option value="">{t("prio_all")}</option>
+          {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{t(`prio_${p.id}`)}</option>)}
+        </select>
+      </div>
+      <div className="trk-kanban-col-body">
+        {pageItems.length === 0 && (
+          <div className="trk-kanban-drop-hint">{t("kanban_empty_col")}</div>
+        )}
+        {pageItems.map((task) => (
+          <KanbanCard
+            key={task.id}
+            task={task}
+            dragging={dragId === task.id}
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", task.id);
+              e.dataTransfer.effectAllowed = "move";
+              setDragId(task.id);
+            }}
+            onDragEnd={endDrag}
+            {...cardProps}
+          />
+        ))}
+      </div>
+      <div className="trk-kanban-col-footer">
+        <Pagination compact page={page} totalPages={totalPages} onChange={setPage} />
+      </div>
+    </div>
+  );
+}
+
+function KanbanBoard({ tasks, onMove, onEdit, onDelete, confirmId, onAskDelete, onCancelDelete }) {
+  const [dragId, setDragId] = useState(null);
+  const [overCol, setOverCol] = useState(null);
+
+  const endDrag = () => {
+    setDragId(null);
+    setOverCol(null);
+  };
+
+  const dragCtx = { dragId, setDragId, overCol, setOverCol, onMove, endDrag };
+  const cardProps = { onEdit, onDelete, confirmId, onAskDelete, onCancelDelete };
+
+  return (
+    <div className="trk-kanban">
+      {STATUSES.map((s) => (
+        <KanbanColumn
+          key={s.id}
+          status={s}
+          tasks={tasks.filter((tk) => tk.statut === s.id)}
+          dragCtx={dragCtx}
+          cardProps={cardProps}
+        />
+      ))}
+    </div>
+  );
+}
+
+
+// Carte de graphique réutilisable : bouton focus -> modal agrandi
+// avec le même graphique en grand et un tableau de détails.
+function ChartCard({ title, empty, emptyLabel, render, details, className = "" }) {
+  const { t } = useLang();
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) return;
+    const handler = (e) => e.key === "Escape" && setFocused(false);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [focused]);
+
+  return (
+    <div className={"trk-chart-card " + className}>
+      <div className="trk-chart-head">
+        <div className="trk-chart-title">{title}</div>
+        {!empty && (
+          <button
+            type="button"
+            className="trk-icon-btn trk-chart-focus-btn"
+            onClick={() => setFocused(true)}
+            title={t("focus_chart")}
+          >
+            <Maximize2 size={13} />
+          </button>
+        )}
+      </div>
+      {empty ? (
+        <div className="trk-empty" style={{ padding: 20 }}>{emptyLabel}</div>
+      ) : (
+        render(200, false)
+      )}
+      {focused && (
+        <div className="trk-modal-overlay" onClick={() => setFocused(false)}>
+          <div className="trk-modal trk-chart-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
+            <div className="trk-modal-header">
+              <span className="trk-modal-title">{title}</span>
+              <button className="trk-icon-btn" onClick={() => setFocused(false)}><X size={16} /></button>
+            </div>
+            <div className="trk-chart-modal-body">
+              {render(380, true)}
+              {details && (
+                <table className="trk-chart-details">
+                  <thead>
+                    <tr>{details.headers.map((h, i) => <th key={i}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {details.rows.map((r, i) => (
+                      <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const pct = (n, total) => (total ? `${Math.round((n / total) * 100)}%` : "0%");
+
+function EmptyState({ label, actionLabel, onAction }) {
+  return (
+    <div className="trk-empty trk-empty-rich">
+      <ClipboardList size={30} strokeWidth={1.4} aria-hidden="true" />
+      <p>{label}</p>
+      {onAction && (
+        <button type="button" className="trk-add-btn" onClick={onAction}>
+          <Plus size={15} /> {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const { t, lang } = useLang();
   const [loading, setLoading] = useState(true);
@@ -447,6 +797,27 @@ export default function App() {
   const [pendingImport, setPendingImport] = useState(null);
   const [toast, setToast] = useState(null);
   const [ioBusy, setIoBusy] = useState(false);
+  const [viewMode, setViewMode] = useState("list");
+  const [projectSearch, setProjectSearch] = useState("");
+  const [celebration, setCelebration] = useState(null);
+  const prevAllDone = useRef(null);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY) || "dark";
+    } catch (e) {
+      return "dark";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (e) {
+      // stockage indisponible, le thème reste appliqué pour la session
+    }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((prev) => (prev === "dark" ? "light" : "dark"));
 
   useEffect(() => {
     (async () => {
@@ -515,6 +886,18 @@ export default function App() {
     const timer = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!modalOpen && !pendingImport) return;
+    const handler = (e) => {
+      if (e.key !== "Escape") return;
+      setModalOpen(false);
+      setEditing(null);
+      setPendingImport(null);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [modalOpen, pendingImport]);
 
   const exportData = async () => {
     if (!window.dataIO || ioBusy) return;
@@ -713,6 +1096,17 @@ export default function App() {
     return arr;
   }, [filteredTasks, sortBy]);
 
+  const listResetKey = `${filterProjects.join(",")}|${filterStatuts.join(",")}|${search}|${sortBy}`;
+  const {
+    page: currentPage, setPage, totalPages, pageItems: pagedTasks,
+  } = usePagination(sortedTasks, PAGE_SIZE, listResetKey);
+
+  const moveTask = (id, statut) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task || task.statut === statut) return;
+    saveTasks(tasks.map((t) => (t.id === id ? { ...t, statut } : t)));
+  };
+
   const globalProgress = useMemo(() => {
     if (tasks.length === 0) return 0;
     const sum = tasks.reduce((acc, t) => acc + statusOf(t.statut).weight, 0);
@@ -726,6 +1120,15 @@ export default function App() {
       return { name: p, progress: avg, count: pt.length };
     });
   }, [projects, tasks]);
+
+  const visibleProjects = useMemo(
+    () => projectProgress.filter((p) => matchesQuery(p.name, projectSearch)),
+    [projectProgress, projectSearch]
+  );
+  const {
+    page: projectPage, setPage: setProjectPage,
+    totalPages: projectTotalPages, pageItems: pagedProjects,
+  } = usePagination(visibleProjects, PROJECT_PAGE_SIZE, projectSearch);
 
   const statusDistribution = useMemo(
     () =>
@@ -767,13 +1170,26 @@ export default function App() {
   );
 
   const doneCount = tasks.filter((t) => t.statut === "termine").length;
+  const allDone = tasks.length > 0 && doneCount === tasks.length;
+
+  // Célébration au passage à « tout terminé » (jamais au chargement initial).
+  useEffect(() => {
+    if (loading) return;
+    if (prevAllDone.current === null) {
+      prevAllDone.current = allDone;
+      return;
+    }
+    if (allDone && !prevAllDone.current) setCelebration(pickCelebration());
+    prevAllDone.current = allDone;
+  }, [allDone, loading]);
 
   return (
-    <div className={"trk-app" + (maximized ? " trk-app-maximized" : "")}>
+    <div className={"trk-app" + (maximized ? " trk-app-maximized" : "") + (theme === "light" ? " light" : "")}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
         .trk-app {
+          /* Design tokens — dark (default) */
           --bg: #10141A;
           --panel: #181E26;
           --panel-alt: #1D2430;
@@ -781,6 +1197,31 @@ export default function App() {
           --text: #E8EBEE;
           --text-dim: #8B95A1;
           --accent: #35A7A0;
+          --accent-contrast: #0E1216;
+          --inset: #0E1216;
+          --gauge-track: #1F2530;
+          --titlebar-bg: #0C0F14;
+          --overlay: rgba(8, 10, 13, 0.7);
+          --shadow: rgba(0, 0, 0, 0.38);
+          --danger: #D64545;
+          --warn: #E08A3C;
+          --ok: #4CAF6D;
+          /* Layout tokens — spacing scale, control sizing, radii */
+          --space-1: 4px;
+          --space-2: 8px;
+          --space-3: 12px;
+          --space-4: 16px;
+          --space-5: 20px;
+          --control-h: 34px;
+          --control-h-sm: 26px;
+          --radius-sm: 6px;
+          --radius-md: 8px;
+          --radius-lg: 10px;
+          /* Hauteur commune des vues (kanban / liste) ; la sidebar y ajoute
+             la barre d'outils (recherche) pour rester alignée. */
+          --board-h: 520px;
+          --toolbar-h: calc(var(--control-h) + 14px);
+          color-scheme: dark;
           font-family: 'Inter', sans-serif;
           background: var(--bg);
           color: var(--text);
@@ -791,7 +1232,27 @@ export default function App() {
           border: 1px solid var(--border);
           border-radius: 20px;
           overflow: hidden;
-          transition: border-radius 0.15s ease;
+          transition: border-radius 0.15s ease, background 0.25s ease, color 0.25s ease;
+        }
+        .trk-app.light {
+          /* Design tokens — light */
+          --bg: #EFF2F6;
+          --panel: #FFFFFF;
+          --panel-alt: #EDF0F4;
+          --border: #D7DDE5;
+          --text: #1B2430;
+          --text-dim: #5B6675;
+          --accent: #1E8C85;
+          --accent-contrast: #FFFFFF;
+          --inset: #E1E6EC;
+          --gauge-track: #E1E6EC;
+          --titlebar-bg: #E6EAEF;
+          --overlay: rgba(27, 36, 48, 0.45);
+          --shadow: rgba(20, 30, 42, 0.14);
+          --danger: #C23A3A;
+          --warn: #B26B22;
+          --ok: #35855A;
+          color-scheme: light;
         }
         .trk-app.trk-app-maximized {
           border-radius: 0;
@@ -800,6 +1261,55 @@ export default function App() {
         .trk-app * { box-sizing: border-box; }
         .trk-mono { font-family: 'IBM Plex Mono', monospace; }
         .trk-display { font-family: 'Space Grotesk', sans-serif; }
+
+        /* Focus visible au clavier, partout */
+        .trk-app button:focus-visible,
+        .trk-app input:focus-visible,
+        .trk-app select:focus-visible,
+        .trk-app textarea:focus-visible,
+        .trk-app [draggable]:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: 2px;
+          border-radius: 6px;
+        }
+        .trk-search:focus-within,
+        .trk-kanban-col-search:focus-within {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+        }
+        .trk-field input:focus,
+        .trk-field select:focus,
+        .trk-field textarea:focus,
+        .trk-add-project-input:focus,
+        .trk-timelog-add input:focus {
+          border-color: var(--accent);
+          outline: none;
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+        }
+
+        /* Micro-interactions */
+        @keyframes trk-toast-in {
+          from { opacity: 0; transform: translate(-50%, 10px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        @keyframes trk-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes trk-pop-in {
+          from { opacity: 0; transform: translateY(10px) scale(0.98); }
+          to { opacity: 1; transform: none; }
+        }
+        @keyframes trk-row-in {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .trk-app, .trk-app * {
+            animation: none !important;
+            transition: none !important;
+          }
+        }
 
         ::-webkit-scrollbar { width: 10px; height: 10px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -817,7 +1327,7 @@ export default function App() {
           display: flex;
           align-items: center;
           height: 38px;
-          background: #0C0F14;
+          background: var(--titlebar-bg);
           border-bottom: 1px solid var(--border);
           user-select: none;
         }
@@ -868,17 +1378,25 @@ export default function App() {
           color: var(--text-dim);
         }
 
-        .trk-content { padding: 28px; flex: 1; min-height: 0; overflow-y: auto; }
+        .trk-content { padding: 24px; flex: 1; min-height: 0; overflow-y: auto; }
+        @media (max-width: 640px) {
+          .trk-content { padding: var(--space-4); }
+        }
 
         .trk-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          gap: 24px;
-          padding-bottom: 20px;
+          gap: var(--space-5);
+          padding-bottom: var(--space-5);
           border-bottom: 1px solid var(--border);
-          margin-bottom: 20px;
+          margin-bottom: var(--space-5);
           flex-wrap: wrap;
+          row-gap: var(--space-3);
+        }
+        .trk-header-brand {
+          flex: 1 1 auto;
+          min-width: 180px;
         }
         .trk-eyebrow {
           font-family: 'IBM Plex Mono', monospace;
@@ -909,35 +1427,43 @@ export default function App() {
         }
         .trk-lang-switch {
           display: flex;
-          gap: 4px;
+          align-items: stretch;
+          gap: 3px;
+          height: var(--control-h);
           background: var(--panel);
           border: 1px solid var(--border);
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           padding: 3px;
         }
         .trk-lang-btn {
+          display: flex;
+          align-items: center;
           background: none;
           border: none;
           color: var(--text-dim);
           font-family: 'IBM Plex Mono', monospace;
           font-size: 11px;
-          padding: 4px 9px;
-          border-radius: 5px;
+          padding: 0 9px;
+          border-radius: var(--radius-sm);
           cursor: pointer;
         }
-        .trk-lang-btn.active { background: var(--accent); color: #0E1216; }
+        .trk-lang-btn.active { background: var(--accent); color: var(--accent-contrast); }
 
         .trk-header-actions {
           display: flex;
           align-items: center;
           gap: 10px;
+          flex-wrap: wrap;
+          margin-left: auto;
         }
         .trk-io-group {
           display: flex;
-          gap: 6px;
+          align-items: stretch;
+          gap: 3px;
+          height: var(--control-h);
           background: var(--panel);
           border: 1px solid var(--border);
-          border-radius: 8px;
+          border-radius: var(--radius-md);
           padding: 3px;
         }
         .trk-io-btn {
@@ -949,13 +1475,28 @@ export default function App() {
           color: var(--text-dim);
           font-size: 12px;
           font-weight: 500;
-          padding: 6px 10px;
-          border-radius: 6px;
+          padding: 0 10px;
+          border-radius: var(--radius-sm);
           cursor: pointer;
           white-space: nowrap;
         }
         .trk-io-btn:hover:not(:disabled) { color: var(--text); background: var(--panel-alt); }
         .trk-io-btn:disabled { opacity: 0.5; cursor: default; }
+        .trk-theme-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          color: var(--text-dim);
+          border-radius: var(--radius-md);
+          width: var(--control-h);
+          height: var(--control-h);
+          flex-shrink: 0;
+          cursor: pointer;
+          transition: color 0.15s, border-color 0.15s, background 0.15s;
+        }
+        .trk-theme-btn:hover { color: var(--accent); border-color: var(--accent); }
 
         .trk-toast {
           position: fixed;
@@ -972,10 +1513,11 @@ export default function App() {
           font-size: 13px;
           padding: 10px 16px;
           border-radius: 8px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+          box-shadow: 0 8px 24px var(--shadow);
           z-index: 60;
+          animation: trk-toast-in 0.25s ease;
         }
-        .trk-toast.trk-toast-error { border-left-color: #D64545; }
+        .trk-toast.trk-toast-error { border-left-color: var(--danger); }
 
         .trk-layout {
           display: grid;
@@ -985,6 +1527,7 @@ export default function App() {
         }
         @media (max-width: 860px) {
           .trk-layout { grid-template-columns: 1fr; }
+          .trk-sidebar { height: auto; }
         }
 
         .trk-sidebar {
@@ -992,6 +1535,14 @@ export default function App() {
           border: 1px solid var(--border);
           border-radius: 10px;
           padding: 16px;
+          height: calc(var(--board-h) + var(--toolbar-h));
+          display: flex;
+          flex-direction: column;
+        }
+        .trk-project-list {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
         }
         .trk-sidebar-title {
           font-family: 'IBM Plex Mono', monospace;
@@ -1001,7 +1552,7 @@ export default function App() {
           margin-bottom: 12px;
         }
         .trk-project-card {
-          padding: 10px 10px;
+          padding: 10px;
           border-radius: 8px;
           margin-bottom: 6px;
           cursor: pointer;
@@ -1047,7 +1598,7 @@ export default function App() {
         }
         .trk-project-card:hover .trk-project-remove { opacity: 1; }
         .trk-pbar {
-          background: #0E1216;
+          background: var(--inset);
           border-radius: 4px;
           overflow: hidden;
         }
@@ -1069,6 +1620,15 @@ export default function App() {
           margin-bottom: 8px;
         }
         .trk-all-btn.active { color: var(--accent); background: var(--panel-alt); }
+        /* flex: none — .trk-kanban-col-search a flex:1, ce qui la ferait
+           grandir verticalement dans la sidebar en colonne. Deux classes
+           pour l'emporter sur la règle définie plus bas. */
+        .trk-kanban-col-search.trk-project-search { margin-bottom: 8px; flex: none; }
+        .trk-project-pager {
+          display: flex;
+          justify-content: center;
+          margin-top: 8px;
+        }
         .trk-add-project-row {
           margin-top: 10px;
           display: flex;
@@ -1115,10 +1675,11 @@ export default function App() {
           display: flex;
           align-items: center;
           gap: 6px;
+          height: var(--control-h);
           background: var(--panel);
           border: 1px solid var(--border);
-          border-radius: 8px;
-          padding: 7px 10px;
+          border-radius: var(--radius-md);
+          padding: 0 10px;
           flex: 1;
           min-width: 160px;
         }
@@ -1131,11 +1692,12 @@ export default function App() {
           width: 100%;
         }
         .trk-select {
+          height: var(--control-h);
           background: var(--panel);
           border: 1px solid var(--border);
           color: var(--text);
-          border-radius: 8px;
-          padding: 7px 10px;
+          border-radius: var(--radius-md);
+          padding: 0 10px;
           font-size: 13px;
           cursor: pointer;
         }
@@ -1159,7 +1721,7 @@ export default function App() {
           border-radius: 8px;
           padding: 8px;
           min-width: 180px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+          box-shadow: 0 8px 24px var(--shadow);
         }
         .trk-multiselect-item {
           display: flex;
@@ -1199,18 +1761,35 @@ export default function App() {
           display: flex;
           align-items: center;
           gap: 6px;
+          height: var(--control-h);
           background: var(--accent);
-          color: #0E1216;
+          color: var(--accent-contrast);
           border: none;
-          border-radius: 8px;
-          padding: 8px 14px;
+          border-radius: var(--radius-md);
+          padding: 0 14px;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
         }
-        .trk-add-btn:hover { filter: brightness(1.08); }
+        .trk-add-btn {
+          transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+        }
+        .trk-add-btn:hover {
+          filter: brightness(1.08);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
+        }
+        .trk-add-btn:active { transform: none; }
 
-        .trk-task-list { display: flex; flex-direction: column; gap: 8px; }
+        .trk-task-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          height: var(--board-h);
+          min-height: 0;
+          overflow-y: auto;
+        }
+        .trk-task-list .trk-pagination { margin-top: auto; padding-top: 14px; }
         .trk-task-row {
           display: flex;
           align-items: center;
@@ -1220,6 +1799,24 @@ export default function App() {
           border-radius: 8px;
           padding: 12px 14px;
           border-left: 4px solid var(--rail-color, var(--border));
+          animation: trk-row-in 0.2s ease;
+          transition: border-color 0.15s, box-shadow 0.15s, opacity 0.2s;
+        }
+        .trk-task-row:hover {
+          border-color: color-mix(in srgb, var(--rail-color, var(--border)) 45%, var(--border));
+          box-shadow: 0 4px 14px var(--shadow);
+        }
+        .trk-task-row.done { opacity: 0.72; }
+        .trk-task-row.done .trk-task-title {
+          text-decoration: line-through;
+          text-decoration-color: var(--text-dim);
+          color: var(--text-dim);
+        }
+        .trk-kanban-card.done { opacity: 0.72; }
+        .trk-kanban-card.done .trk-kanban-card-title {
+          text-decoration: line-through;
+          text-decoration-color: var(--text-dim);
+          color: var(--text-dim);
         }
         .trk-task-main { flex: 1; min-width: 0; }
         .trk-task-title { font-size: 14px; font-weight: 600; margin: 0 0 4px 0; }
@@ -1232,36 +1829,59 @@ export default function App() {
           align-items: center;
         }
         .trk-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          height: 20px;
           font-family: 'IBM Plex Mono', monospace;
           font-size: 10.5px;
-          padding: 2px 7px;
+          padding: 0 7px;
           border-radius: 4px;
-          background: var(--panel-alt);
-          border: 1px solid var(--border);
+          color: var(--pill-color, var(--text-dim));
+          background: color-mix(in srgb, var(--pill-color, var(--text-dim)) 13%, transparent);
+          border: 1px solid color-mix(in srgb, var(--pill-color, var(--text-dim)) 33%, transparent);
         }
         .trk-prio-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          height: 20px;
           font-size: 10.5px;
           font-weight: 600;
-          padding: 2px 7px;
+          padding: 0 7px;
           border-radius: 4px;
+          color: var(--pill-color, var(--text-dim));
+          background: color-mix(in srgb, var(--pill-color, var(--text-dim)) 13%, transparent);
         }
         .trk-status-pill {
+          display: inline-flex;
+          align-items: center;
+          height: 20px;
           font-size: 10.5px;
-          padding: 2px 8px;
+          padding: 0 8px;
           border-radius: 10px;
           font-weight: 500;
+          color: var(--pill-color, var(--text-dim));
+          background: color-mix(in srgb, var(--pill-color, var(--text-dim)) 13%, transparent);
+        }
+        /* En thème clair, assombrir le texte des pastilles pour garder le contraste */
+        .trk-app.light .trk-tag,
+        .trk-app.light .trk-prio-tag,
+        .trk-app.light .trk-status-pill {
+          color: color-mix(in srgb, var(--pill-color, var(--text-dim)) 62%, black);
         }
         .trk-timelog-wrap { position: relative; display: inline-flex; }
         .trk-time-badge {
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 4px;
+          height: 20px;
           background: var(--panel-alt);
           border: 1px solid var(--border);
           color: var(--text-dim);
           font-size: 10.5px;
           font-family: 'IBM Plex Mono', monospace;
-          padding: 2px 7px;
+          padding: 0 7px;
           border-radius: 4px;
           cursor: pointer;
         }
@@ -1277,7 +1897,7 @@ export default function App() {
           border-radius: 8px;
           padding: 10px;
           min-width: 240px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+          box-shadow: 0 8px 24px var(--shadow);
         }
         .trk-timelog-total {
           display: flex;
@@ -1289,7 +1909,7 @@ export default function App() {
           padding-bottom: 8px;
           border-bottom: 1px solid var(--border);
         }
-        .trk-timelog-add { display: flex; gap: 6px; margin-bottom: 6px; }
+        .trk-timelog-add { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
         .trk-timelog-add input.trk-timelog-duration-input {
           width: 70px;
           flex: 0 0 70px;
@@ -1313,7 +1933,7 @@ export default function App() {
         }
         .trk-timelog-error {
           font-size: 10.5px;
-          color: #D64545;
+          color: var(--danger);
           margin-bottom: 6px;
         }
         .trk-timelog-list {
@@ -1357,7 +1977,292 @@ export default function App() {
           margin-bottom: 12px;
         }
 
-        .trk-task-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .trk-view-switch {
+          display: flex;
+          align-items: stretch;
+          gap: 3px;
+          height: var(--control-h);
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-md);
+          padding: 3px;
+        }
+        .trk-view-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: none;
+          border: none;
+          color: var(--text-dim);
+          font-size: 12px;
+          font-weight: 500;
+          padding: 0 10px;
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+        }
+        .trk-view-btn:hover { color: var(--text); }
+        .trk-view-btn.active { background: var(--accent); color: var(--accent-contrast); }
+        @media (max-width: 640px) {
+          .trk-view-label { display: none; }
+        }
+
+        .trk-pagination {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          margin-top: 14px;
+          flex-wrap: wrap;
+        }
+        .trk-page-btn {
+          min-width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          color: var(--text-dim);
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 12px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.1s;
+        }
+        .trk-page-btn:hover:not(:disabled):not(.active) {
+          color: var(--text);
+          border-color: var(--accent);
+          transform: translateY(-1px);
+        }
+        .trk-page-btn.active {
+          background: var(--accent);
+          border-color: var(--accent);
+          color: var(--accent-contrast);
+          font-weight: 600;
+        }
+        .trk-page-btn:disabled { opacity: 0.35; cursor: default; }
+        .trk-page-ellipsis {
+          color: var(--text-dim);
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 12px;
+          padding: 0 2px;
+        }
+        .trk-page-info {
+          margin-left: 8px;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 11px;
+          color: var(--text-dim);
+        }
+
+        .trk-kanban {
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: minmax(210px, 1fr);
+          gap: 12px;
+          overflow-x: auto;
+          /* Hauteur fixée sur le conteneur (pas les colonnes) : quand la
+             scrollbar horizontale apparaît, elle est absorbée à l'intérieur
+             au lieu d'ajouter 10px sous le tableau. */
+          height: var(--board-h);
+        }
+        .trk-kanban-col {
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-top: 3px solid var(--col-color, var(--border));
+          border-radius: 10px;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+        }
+        @media (max-width: 1100px) {
+          .trk-kanban {
+            grid-auto-flow: row;
+            grid-auto-columns: unset;
+            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            overflow-x: visible;
+            height: auto;
+          }
+          .trk-kanban-col { height: var(--board-h); }
+        }
+        .trk-kanban-col.drag-over {
+          background: var(--panel-alt);
+          border-color: var(--col-color, var(--accent));
+          box-shadow: 0 0 0 1px var(--col-color, var(--accent)) inset;
+        }
+        .trk-kanban-col-header {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          padding: 10px 12px;
+          border-bottom: 1px solid var(--border);
+        }
+        .trk-kanban-col-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .trk-kanban-col-title {
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 10.5px;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          color: var(--text);
+          flex: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .trk-kanban-col-count {
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 10.5px;
+          color: var(--text-dim);
+          background: var(--panel-alt);
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          padding: 1px 7px;
+        }
+        .trk-kanban-col-tools {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 10px;
+          border-bottom: 1px solid var(--border);
+        }
+        .trk-kanban-col-search {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          height: var(--control-h-sm);
+          background: var(--panel-alt);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-sm);
+          padding: 0 7px;
+        }
+        .trk-kanban-col-search input {
+          background: none;
+          border: none;
+          outline: none;
+          color: var(--text);
+          font-size: 11.5px;
+          width: 100%;
+          min-width: 0;
+        }
+        .trk-kanban-col-search .trk-icon-btn { padding: 1px; }
+        .trk-kanban-col-prio {
+          height: var(--control-h-sm);
+          background: var(--panel-alt);
+          border: 1px solid var(--border);
+          color: var(--text-dim);
+          border-radius: var(--radius-sm);
+          padding: 0 4px;
+          font-size: 11px;
+          cursor: pointer;
+          flex: 0 0 auto;
+          max-width: 45%;
+        }
+        .trk-kanban-col-prio.active { color: var(--accent); border-color: var(--accent); }
+        .trk-kanban-col-body {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 10px;
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+        }
+        .trk-kanban-col-footer {
+          margin-top: auto;
+          padding: 6px 10px 8px;
+          border-top: 1px solid var(--border);
+          display: flex;
+          justify-content: center;
+        }
+        .trk-pagination-compact {
+          margin-top: 0;
+          gap: 8px;
+        }
+        .trk-pagination-compact .trk-page-btn {
+          min-width: 24px;
+          height: 24px;
+          border-radius: 6px;
+        }
+        .trk-pagination-compact .trk-page-info { margin-left: 0; }
+        .trk-kanban-drop-hint {
+          border: 1px dashed var(--border);
+          border-radius: 8px;
+          color: var(--text-dim);
+          font-size: 11px;
+          text-align: center;
+          padding: 18px 8px;
+          pointer-events: none;
+        }
+        .trk-kanban-card {
+          background: var(--panel-alt);
+          border: 1px solid var(--border);
+          border-left: 3px solid var(--rail-color, var(--border));
+          border-radius: 8px;
+          padding: 10px 11px;
+          cursor: grab;
+          transition: transform 0.12s, box-shadow 0.12s, opacity 0.12s;
+        }
+        .trk-kanban-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 16px var(--shadow);
+        }
+        .trk-kanban-card:active { cursor: grabbing; }
+        .trk-kanban-card.dragging { opacity: 0.4; }
+        .trk-kanban-card-title {
+          font-size: 12.5px;
+          font-weight: 600;
+          margin: 0 0 7px 0;
+          line-height: 1.35;
+          word-break: break-word;
+          /* Hauteur de carte bornée : titre limité à 2 lignes pour que
+             3 cartes tiennent toujours dans la colonne sans scroll. */
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .trk-kanban-card-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 5px;
+          margin-bottom: 8px;
+        }
+        .trk-kanban-card-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 6px;
+        }
+        .trk-kanban-card-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 10.5px;
+          color: var(--text-dim);
+          min-width: 0;
+        }
+        .trk-kanban-time {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+        }
+        .trk-kanban-card-actions {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          flex-shrink: 0;
+        }
+        .trk-kanban-card-actions .trk-icon-btn { padding: 4px; }
+
+        .trk-task-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .trk-icon-btn {
           background: none;
           border: none;
@@ -1368,7 +2273,13 @@ export default function App() {
           display: flex;
           flex-shrink: 0;
         }
+        .trk-icon-btn { transition: background 0.15s, color 0.15s; }
         .trk-icon-btn:hover { background: var(--panel-alt); color: var(--text); }
+        .trk-icon-btn.trk-icon-danger { color: var(--danger); }
+        .trk-icon-btn.trk-icon-danger:hover {
+          background: color-mix(in srgb, var(--danger) 15%, transparent);
+          color: var(--danger);
+        }
         .trk-confirm { display: flex; gap: 4px; align-items: center; }
         .trk-confirm-label { font-size: 11px; color: var(--text-dim); }
 
@@ -1380,12 +2291,21 @@ export default function App() {
           border: 1px dashed var(--border);
           border-radius: 10px;
         }
+        .trk-empty-rich {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          padding: 48px 20px;
+        }
+        .trk-empty-rich svg { color: var(--text-dim); opacity: 0.7; }
+        .trk-empty-rich p { margin: 0; max-width: 340px; line-height: 1.5; }
 
         .trk-charts {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-          gap: 16px;
-          margin-top: 28px;
+          gap: var(--space-4);
+          margin-top: var(--space-5);
         }
         @media (max-width: 860px) {
           .trk-charts { grid-template-columns: 1fr; }
@@ -1396,13 +2316,55 @@ export default function App() {
           border-radius: 10px;
           padding: 14px;
         }
+        .trk-chart-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
         .trk-chart-title {
           font-family: 'IBM Plex Mono', monospace;
           font-size: 11px;
           letter-spacing: 0.5px;
           color: var(--text-dim);
-          margin-bottom: 10px;
         }
+        .trk-chart-head .trk-chart-title { margin-bottom: 0; }
+        .trk-chart-focus-btn { padding: 4px; }
+        .trk-chart-focus-btn:hover { color: var(--accent); }
+        .trk-chart-modal {
+          max-width: 760px;
+          width: min(760px, 94vw);
+        }
+        .trk-chart-modal-body {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        .trk-chart-details {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12.5px;
+        }
+        .trk-chart-details th {
+          text-align: left;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 10.5px;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          color: var(--text-dim);
+          font-weight: 500;
+          padding: 6px 10px;
+          border-bottom: 1px solid var(--border);
+        }
+        .trk-chart-details td {
+          padding: 7px 10px;
+          border-bottom: 1px solid var(--border);
+          color: var(--text);
+        }
+        .trk-chart-details tr:last-child td { border-bottom: none; }
+        .trk-chart-details tr:hover td { background: var(--panel-alt); }
+        .trk-gantt-focus .trk-gantt-body { max-height: 50vh; }
 
         .trk-gantt-card { margin-top: 16px; }
         .trk-gantt { font-size: 12px; }
@@ -1451,6 +2413,9 @@ export default function App() {
           text-overflow: ellipsis;
           white-space: nowrap;
         }
+        @media (max-width: 640px) {
+          .trk-gantt-header-spacer, .trk-gantt-row-label { width: 110px; }
+        }
         .trk-gantt-track {
           position: relative;
           flex: 1;
@@ -1471,7 +2436,7 @@ export default function App() {
           top: -2px;
           bottom: -2px;
           width: 1px;
-          background: #D64545;
+          background: var(--danger);
         }
         .trk-gantt-legend {
           display: flex;
@@ -1497,12 +2462,13 @@ export default function App() {
         .trk-modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(8,10,13,0.7);
+          background: var(--overlay);
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 50;
           padding: 20px;
+          animation: trk-fade-in 0.18s ease;
         }
         .trk-modal {
           background: var(--panel);
@@ -1513,6 +2479,8 @@ export default function App() {
           max-width: 440px;
           max-height: 90vh;
           overflow-y: auto;
+          box-shadow: 0 18px 48px var(--shadow);
+          animation: trk-pop-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
         }
         .trk-modal-header {
           display: flex;
@@ -1533,14 +2501,18 @@ export default function App() {
           background: var(--panel-alt);
           border: 1px solid var(--border);
           color: var(--text);
-          border-radius: 7px;
+          border-radius: var(--radius-md);
           padding: 8px 10px;
           font-size: 13px;
           font-family: 'Inter', sans-serif;
         }
+        .trk-field input, .trk-field select { height: var(--control-h); padding: 0 10px; }
         .trk-field textarea { resize: vertical; min-height: 60px; }
         .trk-field-row { display: flex; gap: 10px; }
-        .trk-field-row > div { flex: 1; }
+        .trk-field-row > div { flex: 1; min-width: 0; }
+        @media (max-width: 480px) {
+          .trk-field-row { flex-direction: column; gap: 0; }
+        }
         .trk-modal-actions {
           display: flex;
           justify-content: flex-end;
@@ -1548,20 +2520,22 @@ export default function App() {
           margin-top: 18px;
         }
         .trk-btn-secondary {
+          height: var(--control-h);
           background: none;
           border: 1px solid var(--border);
           color: var(--text-dim);
-          border-radius: 7px;
-          padding: 8px 14px;
+          border-radius: var(--radius-md);
+          padding: 0 14px;
           font-size: 13px;
           cursor: pointer;
         }
         .trk-btn-primary {
+          height: var(--control-h);
           background: var(--accent);
           border: none;
-          color: #0E1216;
-          border-radius: 7px;
-          padding: 8px 16px;
+          color: var(--accent-contrast);
+          border-radius: var(--radius-md);
+          padding: 0 16px;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
@@ -1571,7 +2545,7 @@ export default function App() {
           align-items: center;
           gap: 6px;
           font-size: 12px;
-          color: #E08A3C;
+          color: var(--warn);
           margin-top: 10px;
         }
         .trk-loading {
@@ -1590,7 +2564,7 @@ export default function App() {
       ) : (
         <>
           <div className="trk-header">
-            <div>
+            <div className="trk-header-brand">
               <div className="trk-eyebrow">{t("eyebrow")}</div>
               <h1 className="trk-title">{t("app_title")}</h1>
             </div>
@@ -1622,6 +2596,15 @@ export default function App() {
                   <Download size={14} /> {t("export_data")}
                 </button>
               </div>
+              <button
+                type="button"
+                className="trk-theme-btn"
+                onClick={toggleTheme}
+                title={theme === "dark" ? t("theme_light") : t("theme_dark")}
+                aria-label={theme === "dark" ? t("theme_light") : t("theme_dark")}
+              >
+                {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+              </button>
               <LangSwitch />
             </div>
           </div>
@@ -1638,7 +2621,21 @@ export default function App() {
               >
                 {allProjectsLabel(lang, tasks.length)}
               </button>
-              {projectProgress.map((p) => (
+              <div className="trk-kanban-col-search trk-project-search">
+                <Search size={11} color="var(--text-dim)" />
+                <input
+                  value={projectSearch}
+                  onChange={(e) => setProjectSearch(e.target.value)}
+                  placeholder={t("col_search_placeholder")}
+                />
+                {projectSearch && (
+                  <button type="button" className="trk-icon-btn" onClick={() => setProjectSearch("")} title={t("clear_selection")}>
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+              <div className="trk-project-list">
+              {pagedProjects.map((p) => (
                 <div
                   key={p.name}
                   className={"trk-project-card" + (filterProjects.includes(p.name) ? " active" : "")}
@@ -1658,8 +2655,8 @@ export default function App() {
                           if (e.key === "Escape") cancelRenameProject();
                         }}
                       />
-                      <button className="trk-icon-btn" onClick={confirmRenameProject}><Check size={15} /></button>
-                      <button className="trk-icon-btn" onClick={cancelRenameProject}><X size={15} /></button>
+                      <button className="trk-icon-btn" onClick={confirmRenameProject} title={t("save")} aria-label={t("save")}><Check size={15} /></button>
+                      <button className="trk-icon-btn" onClick={cancelRenameProject} title={t("cancel")} aria-label={t("cancel")}><X size={15} /></button>
                     </div>
                   ) : (
                     <>
@@ -1693,6 +2690,12 @@ export default function App() {
                   )}
                 </div>
               ))}
+              </div>
+              {projectTotalPages > 1 && (
+                <div className="trk-project-pager">
+                  <Pagination compact page={projectPage} totalPages={projectTotalPages} onChange={setProjectPage} />
+                </div>
+              )}
 
               {addingProject ? (
                 <div className="trk-add-project-row">
@@ -1704,8 +2707,8 @@ export default function App() {
                     onChange={(e) => setNewProjectName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addProject()}
                   />
-                  <button className="trk-icon-btn" onClick={addProject}><Check size={15} /></button>
-                  <button className="trk-icon-btn" onClick={() => setAddingProject(false)}><X size={15} /></button>
+                  <button className="trk-icon-btn" onClick={addProject} title={t("add")} aria-label={t("add")}><Check size={15} /></button>
+                  <button className="trk-icon-btn" onClick={() => setAddingProject(false)} title={t("cancel")} aria-label={t("cancel")}><X size={15} /></button>
                 </div>
               ) : (
                 <button className="trk-ghost-btn" onClick={() => setAddingProject(true)}>
@@ -1717,7 +2720,7 @@ export default function App() {
             <main className="trk-main">
               <div className="trk-toolbar">
                 <div className="trk-search">
-                  <Search size={14} color="#8B95A1" />
+                  <Search size={14} color="var(--text-dim)" />
                   <input
                     placeholder={t("search_placeholder")}
                     value={search}
@@ -1735,32 +2738,65 @@ export default function App() {
                   <option value="projet">{t("sort_project")}</option>
                   <option value="echeance">{t("sort_due")}</option>
                 </select>
+                <div className="trk-view-switch">
+                  <button
+                    type="button"
+                    className={"trk-view-btn" + (viewMode === "list" ? " active" : "")}
+                    onClick={() => setViewMode("list")}
+                    title={t("view_list")}
+                    aria-pressed={viewMode === "list"}
+                  >
+                    <List size={14} /> <span className="trk-view-label">{t("view_list")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={"trk-view-btn" + (viewMode === "kanban" ? " active" : "")}
+                    onClick={() => setViewMode("kanban")}
+                    title={t("view_kanban")}
+                    aria-pressed={viewMode === "kanban"}
+                  >
+                    <Columns3 size={14} /> <span className="trk-view-label">{t("view_kanban")}</span>
+                  </button>
+                </div>
                 <button className="trk-add-btn" onClick={openNewTask}>
                   <Plus size={15} /> {t("new_task")}
                 </button>
               </div>
 
+              {viewMode === "kanban" ? (
+                sortedTasks.length === 0 ? (
+                  <EmptyState label={t("empty_task_list")} actionLabel={t("new_task")} onAction={openNewTask} />
+                ) : (
+                  <KanbanBoard
+                    tasks={sortedTasks}
+                    onMove={moveTask}
+                    onEdit={openEditTask}
+                    onDelete={deleteTask}
+                    confirmId={confirmDelete}
+                    onAskDelete={setConfirmDelete}
+                    onCancelDelete={() => setConfirmDelete(null)}
+                  />
+                )
+              ) : (
               <div className="trk-task-list">
                 {sortedTasks.length === 0 && (
-                  <div className="trk-empty">
-                    {t("empty_task_list")}
-                  </div>
+                  <EmptyState label={t("empty_task_list")} actionLabel={t("new_task")} onAction={openNewTask} />
                 )}
-                {sortedTasks.map((task) => {
+                {pagedTasks.map((task) => {
                   const st = statusOf(task.statut);
                   const pr = prioOf(task.priorite);
                   const pc = projectColor(task.projet);
                   return (
-                    <div key={task.id} className="trk-task-row" style={{ "--rail-color": pr.color }}>
+                    <div key={task.id} className={"trk-task-row" + (task.statut === "termine" ? " done" : "")} style={{ "--rail-color": pr.color }}>
                       <div className="trk-task-main">
                         <p className="trk-task-title">{task.titre}</p>
                         <div className="trk-task-meta">
-                          <span className="trk-tag" style={{ color: pc, background: pc + "22", borderColor: pc + "55" }}>{task.projet}</span>
-                          <span className="trk-prio-tag" style={{ color: pr.color, background: pr.color + "22" }}>
-                            {task.priorite === "critique" && <AlertTriangle size={11} style={{ verticalAlign: "-2px", marginRight: 3 }} />}
+                          <span className="trk-tag" style={{ "--pill-color": pc }}>{task.projet}</span>
+                          <span className="trk-prio-tag" style={{ "--pill-color": pr.color }}>
+                            {task.priorite === "critique" && <AlertTriangle size={11} />}
                             {t(`prio_${pr.id}`)}
                           </span>
-                          <span className="trk-status-pill" style={{ color: st.color, background: st.color + "22" }}>
+                          <span className="trk-status-pill" style={{ "--pill-color": st.color }}>
                             {t(`status_${st.id}`)}
                           </span>
                           {task.assigne && <span>{task.assigne}</span>}
@@ -1792,98 +2828,137 @@ export default function App() {
                         {confirmDelete === task.id ? (
                           <div className="trk-confirm">
                             <span className="trk-confirm-label">{t("delete_confirm")}</span>
-                            <button className="trk-icon-btn" onClick={() => deleteTask(task.id)}><Check size={14} /></button>
-                            <button className="trk-icon-btn" onClick={() => setConfirmDelete(null)}><X size={14} /></button>
+                            <button className="trk-icon-btn trk-icon-danger" onClick={() => deleteTask(task.id)} title={t("confirm_delete_yes")} aria-label={t("confirm_delete_yes")}><Check size={14} /></button>
+                            <button className="trk-icon-btn" onClick={() => setConfirmDelete(null)} title={t("cancel")} aria-label={t("cancel")}><X size={14} /></button>
                           </div>
                         ) : (
                           <>
-                            <button className="trk-icon-btn" onClick={() => openEditTask(task)}><Pencil size={14} /></button>
-                            <button className="trk-icon-btn" onClick={() => setConfirmDelete(task.id)}><Trash2 size={14} /></button>
+                            <button className="trk-icon-btn" onClick={() => openEditTask(task)} title={t("edit_task")} aria-label={t("edit_task")}><Pencil size={14} /></button>
+                            <button className="trk-icon-btn" onClick={() => setConfirmDelete(task.id)} title={t("remove")} aria-label={t("remove")}><Trash2 size={14} /></button>
                           </>
                         )}
                       </div>
                     </div>
                   );
                 })}
+                <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />
               </div>
+              )}
             </main>
           </div>
 
           <section className="trk-charts">
-            <div className="trk-chart-card">
-              <div className="trk-chart-title">{t("chart_status_distribution")}</div>
-              {statusDistribution.length === 0 ? (
-                <div className="trk-empty" style={{ padding: 20 }}>{t("no_data")}</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
+            <ChartCard
+              title={t("chart_status_distribution")}
+              empty={statusDistribution.length === 0}
+              emptyLabel={t("no_data")}
+              details={{
+                headers: [t("field_status"), t("detail_count"), t("detail_share")],
+                rows: [
+                  ...statusDistribution.map((d) => [d.name, d.value, pct(d.value, tasks.length)]),
+                  [t("detail_total"), tasks.length, "100%"],
+                ],
+              }}
+              render={(height, focused) => (
+                <ResponsiveContainer width="100%" height={height}>
                   <PieChart>
-                    <Pie data={statusDistribution} dataKey="value" nameKey="name" innerRadius={45} outerRadius={70} paddingAngle={2}>
+                    <Pie
+                      data={statusDistribution} dataKey="value" nameKey="name"
+                      innerRadius={focused ? 85 : 45} outerRadius={focused ? 135 : 70}
+                      paddingAngle={2} label={focused}
+                    >
                       {statusDistribution.map((d, i) => <Cell key={i} fill={d.color} stroke="none" />)}
                     </Pie>
-                    <Tooltip contentStyle={{ background: "#181E26", border: "1px solid #2A323D", fontSize: 12 }} labelStyle={{ color: "#E8EBEE" }} itemStyle={{ color: "#E8EBEE" }} />
+                    <Tooltip contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", fontSize: 12 }} labelStyle={{ color: "var(--text)" }} itemStyle={{ color: "var(--text)" }} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
               )}
-            </div>
+            />
 
-            <div className="trk-chart-card">
-              <div className="trk-chart-title">{t("chart_project_progress")}</div>
-              {tasks.length === 0 ? (
-                <div className="trk-empty" style={{ padding: 20 }}>{t("no_data")}</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
+            <ChartCard
+              title={t("chart_project_progress")}
+              empty={tasks.length === 0}
+              emptyLabel={t("no_data")}
+              details={{
+                headers: [t("field_project"), t("detail_count"), t("status_termine"), t("detail_progress")],
+                rows: projectProgress.map((p) => [
+                  p.name,
+                  p.count,
+                  tasks.filter((tk) => tk.projet === p.name && tk.statut === "termine").length,
+                  `${p.progress}%`,
+                ]),
+              }}
+              render={(height, focused) => (
+                <ResponsiveContainer width="100%" height={height}>
                   <BarChart data={perProjectStacked} layout="vertical" margin={{ left: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2A323D" horizontal={false} />
-                    <XAxis type="number" tick={{ fill: "#8B95A1", fontSize: 11 }} allowDecimals={false} />
-                    <YAxis type="category" dataKey="projet" tick={{ fill: "#E8EBEE", fontSize: 11 }} width={70} />
-                    <Tooltip contentStyle={{ background: "#181E26", border: "1px solid #2A323D", fontSize: 12 }} labelStyle={{ color: "#E8EBEE" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                    <XAxis type="number" tick={{ fill: "var(--text-dim)", fontSize: 11 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="projet" tick={{ fill: "var(--text)", fontSize: 11 }} width={focused ? 110 : 70} />
+                    <Tooltip contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", fontSize: 12 }} labelStyle={{ color: "var(--text)" }} />
+                    {focused && <Legend wrapperStyle={{ fontSize: 11 }} />}
                     {STATUSES.map((s) => (
                       <Bar key={s.id} dataKey={s.id} name={t(`status_${s.id}`)} stackId="a" fill={s.color} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
               )}
-            </div>
+            />
 
-            <div className="trk-chart-card">
-              <div className="trk-chart-title">{t("chart_priority_distribution")}</div>
-              {tasks.length === 0 ? (
-                <div className="trk-empty" style={{ padding: 20 }}>{t("no_data")}</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
+            <ChartCard
+              title={t("chart_priority_distribution")}
+              empty={tasks.length === 0}
+              emptyLabel={t("no_data")}
+              details={{
+                headers: [t("field_priority"), t("detail_count"), t("detail_share")],
+                rows: priorityDistribution.map((d) => [d.name, d.value, pct(d.value, tasks.length)]),
+              }}
+              render={(height) => (
+                <ResponsiveContainer width="100%" height={height}>
                   <BarChart data={priorityDistribution} margin={{ left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2A323D" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fill: "#8B95A1", fontSize: 11 }} />
-                    <YAxis tick={{ fill: "#8B95A1", fontSize: 11 }} allowDecimals={false} />
-                    <Tooltip contentStyle={{ background: "#181E26", border: "1px solid #2A323D", fontSize: 12 }} labelStyle={{ color: "#E8EBEE" }} itemStyle={{ color: "#E8EBEE" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: "var(--text-dim)", fontSize: 11 }} />
+                    <YAxis tick={{ fill: "var(--text-dim)", fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", fontSize: 12 }} labelStyle={{ color: "var(--text)" }} itemStyle={{ color: "var(--text)" }} />
                     <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                       {priorityDistribution.map((d, i) => <Cell key={i} fill={d.fill} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
-            </div>
+            />
 
-            <div className="trk-chart-card">
-              <div className="trk-chart-title">{t("chart_time_per_project")}</div>
-              {projectTimeDistribution.every((d) => d.minutes === 0) ? (
-                <div className="trk-empty" style={{ padding: 20 }}>{t("no_time_logged")}</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
+            <ChartCard
+              title={t("chart_time_per_project")}
+              empty={projectTimeDistribution.every((d) => d.minutes === 0)}
+              emptyLabel={t("no_time_logged")}
+              details={{
+                headers: [t("field_project"), t("time_tooltip"), t("detail_share")],
+                rows: (() => {
+                  const total = projectTimeDistribution.reduce((s, d) => s + d.minutes, 0);
+                  return [
+                    ...projectTimeDistribution
+                      .filter((d) => d.minutes > 0)
+                      .map((d) => [d.projet, formatDuration(d.minutes), pct(d.minutes, total)]),
+                    [t("detail_total"), formatDuration(total), "100%"],
+                  ];
+                })(),
+              }}
+              render={(height, focused) => (
+                <ResponsiveContainer width="100%" height={height}>
                   <BarChart data={projectTimeDistribution} layout="vertical" margin={{ left: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2A323D" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                     <XAxis
                       type="number"
-                      tick={{ fill: "#8B95A1", fontSize: 11 }}
+                      tick={{ fill: "var(--text-dim)", fontSize: 11 }}
                       tickFormatter={formatDuration}
                       allowDecimals={false}
                     />
-                    <YAxis type="category" dataKey="projet" tick={{ fill: "#E8EBEE", fontSize: 11 }} width={70} />
+                    <YAxis type="category" dataKey="projet" tick={{ fill: "var(--text)", fontSize: 11 }} width={focused ? 110 : 70} />
                     <Tooltip
-                      contentStyle={{ background: "#181E26", border: "1px solid #2A323D", fontSize: 12 }}
-                      labelStyle={{ color: "#E8EBEE" }}
-                      itemStyle={{ color: "#E8EBEE" }}
+                      contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", fontSize: 12 }}
+                      labelStyle={{ color: "var(--text)" }}
+                      itemStyle={{ color: "var(--text)" }}
                       formatter={(value) => [formatDuration(value), t("time_tooltip")]}
                     />
                     <Bar dataKey="minutes" radius={[0, 4, 4, 0]}>
@@ -1894,13 +2969,20 @@ export default function App() {
                   </BarChart>
                 </ResponsiveContainer>
               )}
-            </div>
+            />
           </section>
 
-          <section className="trk-chart-card trk-gantt-card">
-            <div className="trk-chart-title">{t("chart_gantt")}</div>
-            <GanttChart tasks={tasks} projects={projects} />
-          </section>
+          <ChartCard
+            className="trk-gantt-card"
+            title={t("chart_gantt")}
+            empty={!tasks.some((tk) => tk.echeance)}
+            emptyLabel={t("gantt_empty")}
+            render={(height, focused) => (
+              <div className={focused ? "trk-gantt-focus" : undefined}>
+                <GanttChart tasks={tasks} projects={projects} />
+              </div>
+            )}
+          />
 
           {saveError && (
             <div className="trk-save-error">
@@ -1910,7 +2992,7 @@ export default function App() {
 
           {pendingImport && (
             <div className="trk-modal-overlay" onClick={() => setPendingImport(null)}>
-              <div className="trk-modal" style={{ maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
+              <div className="trk-modal" style={{ maxWidth: 380 }} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("import_confirm_title")}>
                 <div className="trk-modal-header">
                   <span className="trk-modal-title">{t("import_confirm_title")}</span>
                   <button className="trk-icon-btn" onClick={() => setPendingImport(null)}><X size={16} /></button>
@@ -1929,15 +3011,29 @@ export default function App() {
             </div>
           )}
 
+          {celebration && (
+            <CelebrationOverlay
+              variant={celebration.variant}
+              legendary={celebration.legendary}
+              title={t(celebration.legendary ? "celebrate_legendary_title" : `celebrate_title_${celebration.msg}`)}
+              subtitle={t(celebration.legendary ? "celebrate_legendary_sub" : `celebrate_sub_${celebration.msg}`)}
+              onDone={() => setCelebration(null)}
+            />
+          )}
+
           {toast && (
-            <div className={"trk-toast" + (toast.type === "error" ? " trk-toast-error" : "")}>
+            <div
+              className={"trk-toast" + (toast.type === "error" ? " trk-toast-error" : "")}
+              role="status"
+              aria-live="polite"
+            >
               {toast.type === "error" ? <AlertTriangle size={14} /> : <Check size={14} />} {toast.text}
             </div>
           )}
 
           {modalOpen && editing && (
             <div className="trk-modal-overlay" onClick={() => setModalOpen(false)}>
-              <div className="trk-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="trk-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={editing.id ? t("edit_task") : t("new_task")}>
                 <div className="trk-modal-header">
                   <span className="trk-modal-title">{editing.id ? t("edit_task") : t("new_task")}</span>
                   <button className="trk-icon-btn" onClick={() => setModalOpen(false)}><X size={16} /></button>

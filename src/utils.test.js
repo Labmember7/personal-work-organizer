@@ -2,8 +2,24 @@ import { describe, it, expect } from "vitest";
 import {
   statusOf, prioOf, taskMinutes, formatDuration,
   parseDurationInput, projectColor, STATUSES, PRIORITIES,
-  isValidBackupData, buildBackupPayload,
+  isValidBackupData, buildBackupPayload, taskMatchesQuery,
 } from "./utils";
+
+describe("taskMatchesQuery", () => {
+  const task = { titre: "Corriger l'écran", description: "Bug affichage", projet: "API-REST", assigne: "Bacem" };
+  it("matches regardless of case and accents", () => {
+    expect(taskMatchesQuery(task, "ECRAN")).toBe(true);
+  });
+  it("matches across fields with multiple terms", () => {
+    expect(taskMatchesQuery(task, "bacem bug")).toBe(true);
+  });
+  it("rejects when one term matches nothing", () => {
+    expect(taskMatchesQuery(task, "ecran inconnu")).toBe(false);
+  });
+  it("accepts empty query", () => {
+    expect(taskMatchesQuery(task, "  ")).toBe(true);
+  });
+});
 
 describe("statusOf", () => {
   it("finds a known status", () => {

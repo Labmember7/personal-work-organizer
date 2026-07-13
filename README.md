@@ -28,8 +28,12 @@ juste à côté de l'exécutable, ce qui la rend portable sur ta clé/SSD extern
 ### Fonctionnalités
 
 - Suivi de tâches par projet, avec priorités, échéances et statut
-- Vue gantt et graphiques (répartition par statut, projet, priorité, temps passé)
+- Vue liste (avec pagination) et vue kanban avec glisser-déposer entre colonnes
+- Recherche instantanée insensible aux accents/majuscules, filtres par statut et priorité
+- Vue gantt et graphiques (répartition par statut, projet, priorité, temps passé), agrandissables en plein écran
+- Thème clair / sombre
 - Sélecteur de langue intégré (FR/EN)
+- Animation de célébration (avec son) quand toutes les tâches sont terminées — plusieurs variantes aléatoires, dont une variante légendaire rare (1/1000)
 - Stockage local en fichier JSON, portable sur clé USB / SSD externe
 - Export / import de toutes les données en un seul fichier JSON
 
@@ -155,8 +159,12 @@ executable, which makes it portable on your USB key / external SSD.
 ### Features
 
 - Task tracking per project, with priorities, due dates and status
-- Gantt view and charts (breakdown by status, project, priority, time spent)
+- List view (with pagination) and kanban view with drag & drop between columns
+- Instant accent/case-insensitive search, plus status and priority filters
+- Gantt view and charts (breakdown by status, project, priority, time spent), expandable to full screen
+- Light / dark theme
 - Built-in language switcher (FR/EN)
+- Celebration animation (with sound) when every task is done — several random variants, including a rare legendary one (1/1000)
 - Local JSON file storage, portable on a USB key / external SSD
 - Export / import of all data as a single JSON file
 

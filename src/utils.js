@@ -64,6 +64,21 @@ export const buildBackupPayload = (tasks, projects) => ({
   exportedAt: new Date().toISOString(),
 });
 
+const normalizeText = (s) =>
+  String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+// Recherche "intelligente" : insensible aux accents/majuscules, chaque terme
+// doit apparaître dans le texte.
+export const matchesQuery = (text, query) => {
+  const q = normalizeText(query).trim();
+  if (!q) return true;
+  const haystack = normalizeText(text);
+  return q.split(/\s+/).every((term) => haystack.includes(term));
+};
+
+export const taskMatchesQuery = (task, query) =>
+  matchesQuery([task.titre, task.description, task.projet, task.assigne].join(" "), query);
+
 export const projectColor = (name) => {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;

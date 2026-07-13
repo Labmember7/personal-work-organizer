@@ -99,6 +99,33 @@ const dict = {
     import_confirm_action: "Remplacer",
     import_task_count: "tâche(s)",
     import_project_count: "projet(s)",
+
+    view_list: "Liste",
+    view_kanban: "Kanban",
+    page_prev: "Page précédente",
+    page_next: "Page suivante",
+    kanban_empty_col: "Déposer une tâche ici",
+    col_search_placeholder: "Filtrer…",
+    prio_all: "Toutes priorités",
+    focus_chart: "Agrandir le graphique",
+    theme_light: "Passer en thème clair",
+    theme_dark: "Passer en thème sombre",
+    confirm_delete_yes: "Confirmer la suppression",
+    detail_count: "Nombre",
+    detail_share: "Part",
+    detail_progress: "Avancement",
+    detail_total: "Total",
+
+    celebrate_title_1: "Mission accomplie",
+    celebrate_sub_1: "TOUTES LES TÂCHES SONT TERMINÉES",
+    celebrate_title_2: "Victoire totale",
+    celebrate_sub_2: "LE TABLEAU EST PARFAITEMENT VIDE",
+    celebrate_title_3: "Objectif atteint",
+    celebrate_sub_3: "CHAQUE TÂCHE MENÉE À SON TERME",
+    celebrate_title_4: "Exécution impeccable",
+    celebrate_sub_4: "RIEN NE RESTE EN SUSPENS",
+    celebrate_legendary_title: "Un instant légendaire",
+    celebrate_legendary_sub: "LES ASTRES S'ALIGNENT — CÉLÉBRATION D'EXCEPTION",
   },
   en: {
     titlebar_title: "Work tracker",
@@ -196,6 +223,33 @@ const dict = {
     import_confirm_action: "Replace",
     import_task_count: "task(s)",
     import_project_count: "project(s)",
+
+    view_list: "List",
+    view_kanban: "Kanban",
+    page_prev: "Previous page",
+    page_next: "Next page",
+    kanban_empty_col: "Drop a task here",
+    col_search_placeholder: "Filter…",
+    prio_all: "All priorities",
+    focus_chart: "Expand chart",
+    theme_light: "Switch to light theme",
+    theme_dark: "Switch to dark theme",
+    confirm_delete_yes: "Confirm deletion",
+    detail_count: "Count",
+    detail_share: "Share",
+    detail_progress: "Progress",
+    detail_total: "Total",
+
+    celebrate_title_1: "Mission accomplished",
+    celebrate_sub_1: "EVERY TASK COMPLETE",
+    celebrate_title_2: "Total victory",
+    celebrate_sub_2: "THE BOARD STANDS PERFECTLY CLEAR",
+    celebrate_title_3: "Objective achieved",
+    celebrate_sub_3: "EVERY LAST TASK BROUGHT HOME",
+    celebrate_title_4: "Flawless execution",
+    celebrate_sub_4: "NOTHING LEFT UNDONE",
+    celebrate_legendary_title: "A legendary moment",
+    celebrate_legendary_sub: "THE STARS ALIGN — A CELEBRATION FEW WILL EVER SEE",
   },
 };
 
@@ -240,6 +294,9 @@ export const allProjectsLabel = (lang, n) =>
 
 export const selectedCountLabel = (lang, n) =>
   lang === "fr" ? `${n} sélectionné${n > 1 ? "s" : ""}` : `${n} selected`;
+
+export const pageOfLabel = (lang, page, total) =>
+  lang === "fr" ? `Page ${page} / ${total}` : `Page ${page} of ${total}`;
 
 export const statusCountLabel = (t, lang, n) => {
   if (n === 0) return t("all_statuses");
