@@ -1,6 +1,6 @@
 {
   "name": "suivi-travaux",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "Suivi des travaux par projet - app de bureau portable",
   "main": "main.js",
   "private": true,
@@ -11,9 +11,16 @@
     "dist:win": "npm run build && electron-builder --win portable --publish never",
     "dist:linux": "npm run build && electron-builder --linux AppImage --publish never",
     "dist:all": "npm run build && electron-builder --win portable --linux AppImage --publish never",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ main.js preload.js electron/",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
     "dompurify": "^3.4.12",
     "lucide-react": "^0.383.0",
     "marked": "^18.0.6",
@@ -22,9 +29,24 @@
     "recharts": "^2.12.7"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.3.1",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.9.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.64.0",
     "vite": "^5.4.0",
     "vitest": "^2.1.9"
   },
@@ -34,7 +56,9 @@
     "files": [
       "dist/**/*",
       "main.js",
-      "preload.js"
+      "preload.js",
+      "electron/**/*",
+      "!electron/**/*.test.js"
     ],
     "directories": {
       "output": "release"

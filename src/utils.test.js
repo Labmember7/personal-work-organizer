@@ -2,9 +2,37 @@ import { describe, it, expect } from "vitest";
 import {
   statusOf, prioOf, taskMinutes, liveTaskMinutes, formatDuration,
   parseDurationInput, projectColor, STATUSES, PRIORITIES,
-  isValidBackupData, buildBackupPayload, taskMatchesQuery,
+  isValidBackupData, normalizeBackupData, buildBackupPayload, taskMatchesQuery,
   focusMinutes, DAY_WORK_CAP_MINUTES,
+  isDoneStatus, isTaskDone, isSimpleTask, statusesForTask, SIMPLE_STATUSES, uid,
 } from "./utils";
+
+describe("statuts terminés et familles de statuts", () => {
+  it("isDoneStatus reconnaît les deux familles", () => {
+    expect(isDoneStatus("termine")).toBe(true);
+    expect(isDoneStatus("done")).toBe(true);
+    expect(isDoneStatus("revue")).toBe(false);
+    expect(isDoneStatus(undefined)).toBe(false);
+  });
+  it("isTaskDone lit le statut de la tâche", () => {
+    expect(isTaskDone({ statut: "termine" })).toBe(true);
+    expect(isTaskDone({ statut: "todo" })).toBe(false);
+  });
+  it("statusesForTask suit le type de tâche", () => {
+    expect(statusesForTask({ type: "simple" })).toBe(SIMPLE_STATUSES);
+    expect(statusesForTask({ type: "standard" })).toBe(STATUSES);
+    expect(statusesForTask({})).toBe(STATUSES);
+    expect(isSimpleTask({ type: "simple" })).toBe(true);
+  });
+});
+
+describe("uid", () => {
+  it("rend des chaînes uniques", () => {
+    const ids = new Set(Array.from({ length: 100 }, () => uid()));
+    expect(ids.size).toBe(100);
+    for (const id of ids) expect(typeof id).toBe("string");
+  });
+});
 
 describe("focusMinutes", () => {
   const at = (iso) => new Date(iso).getTime();
@@ -99,6 +127,10 @@ describe("formatDuration", () => {
   it("formats hours and minutes", () => {
     expect(formatDuration(90)).toBe("1h30");
   });
+  it("complète les minutes à deux chiffres", () => {
+    expect(formatDuration(65)).toBe("1h05");
+    expect(formatDuration(601)).toBe("10h01");
+  });
 });
 
 describe("parseDurationInput", () => {
@@ -113,6 +145,10 @@ describe("parseDurationInput", () => {
   });
   it("parses decimal hours", () => {
     expect(parseDurationInput("1.5h")).toBe(90);
+  });
+  it("parses decimal hours with a comma (saisie française)", () => {
+    expect(parseDurationInput("1,5h")).toBe(90);
+    expect(parseDurationInput("0,25h")).toBe(15);
   });
   it("parses minutes with m suffix", () => {
     expect(parseDurationInput("45m")).toBe(45);
@@ -141,8 +177,18 @@ describe("isValidBackupData", () => {
   it("accepts an object with tasks and projects arrays", () => {
     expect(isValidBackupData({ tasks: [], projects: [] })).toBe(true);
   });
-  it("accepts non-empty arrays", () => {
-    expect(isValidBackupData({ tasks: [{ id: "1" }], projects: ["Alpha"] })).toBe(true);
+  it("accepts tasks carrying at least a title and a project", () => {
+    expect(
+      isValidBackupData({ tasks: [{ id: "1", titre: "Test", projet: "Alpha" }], projects: ["Alpha"] })
+    ).toBe(true);
+  });
+  it("rejects tasks missing titre or projet (would crash search/sort)", () => {
+    expect(isValidBackupData({ tasks: [{ id: "1" }], projects: ["Alpha"] })).toBe(false);
+    expect(isValidBackupData({ tasks: [{ titre: "Test" }], projects: [] })).toBe(false);
+    expect(isValidBackupData({ tasks: [{ titre: "Test", projet: "  " }], projects: [] })).toBe(false);
+  });
+  it("rejects non-string project entries", () => {
+    expect(isValidBackupData({ tasks: [], projects: [42] })).toBe(false);
   });
   it("rejects null or undefined", () => {
     expect(isValidBackupData(null)).toBe(false);
@@ -161,6 +207,64 @@ describe("isValidBackupData", () => {
   });
   it("rejects an unrelated JSON shape (e.g. a single task object)", () => {
     expect(isValidBackupData({ id: "1", titre: "Test" })).toBe(false);
+  });
+});
+
+describe("normalizeBackupData", () => {
+  it("adds projects referenced by tasks but absent from the projects list", () => {
+    const { projects } = normalizeBackupData({
+      tasks: [{ titre: "T", projet: "Orphelin" }],
+      projects: ["Alpha"],
+    });
+    expect(projects).toEqual(["Alpha", "Orphelin"]);
+  });
+  it("deduplicates and drops blank project names", () => {
+    const { projects } = normalizeBackupData({
+      tasks: [{ titre: "T", projet: "Alpha" }],
+      projects: ["Alpha", "  ", "Alpha"],
+    });
+    expect(projects).toEqual(["Alpha"]);
+  });
+  it("fills missing fields with safe defaults", () => {
+    const { tasks } = normalizeBackupData({
+      tasks: [{ titre: "T", projet: "Alpha" }],
+      projects: ["Alpha"],
+    });
+    const task = tasks[0];
+    expect(task.id).toEqual(expect.any(String));
+    expect(task.type).toBe("standard");
+    expect(task.statut).toBe("analyser");
+    expect(task.priorite).toBe("moyenne");
+    expect(task.description).toBe("");
+    expect(task.timeLogs).toEqual([]);
+  });
+  it("resets unknown statut/priorite instead of crashing later", () => {
+    const { tasks } = normalizeBackupData({
+      tasks: [{ titre: "T", projet: "Alpha", type: "simple", statut: "nope", priorite: "nope" }],
+      projects: [],
+    });
+    expect(tasks[0].statut).toBe("todo");
+    expect(tasks[0].priorite).toBe("moyenne");
+  });
+  it("keeps valid statut for the task's own status family", () => {
+    const { tasks } = normalizeBackupData({
+      tasks: [{ titre: "T", projet: "Alpha", statut: "revue", priorite: "haute" }],
+      projects: [],
+    });
+    expect(tasks[0].statut).toBe("revue");
+    expect(tasks[0].priorite).toBe("haute");
+  });
+  it("drops malformed time logs and normalizes valid ones", () => {
+    const { tasks } = normalizeBackupData({
+      tasks: [{
+        titre: "T", projet: "Alpha",
+        timeLogs: [{ minutes: 30, note: "ok", date: "2026-07-01" }, { note: "sans durée" }, null],
+      }],
+      projects: [],
+    });
+    expect(tasks[0].timeLogs).toHaveLength(1);
+    expect(tasks[0].timeLogs[0]).toMatchObject({ minutes: 30, note: "ok", date: "2026-07-01" });
+    expect(tasks[0].timeLogs[0].id).toEqual(expect.any(String));
   });
 });
 

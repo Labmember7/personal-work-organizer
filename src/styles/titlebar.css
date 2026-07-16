@@ -1,0 +1,56 @@
+.trk-titlebar {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  height: 38px;
+  background: var(--titlebar-bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+.trk-traffic-lights {
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.trk-traffic-btn {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.15);
+}
+.trk-traffic-close { background: #FF5F57; }
+.trk-traffic-minimize { background: #FEBC2E; }
+.trk-traffic-maximize { background: #28C840; }
+.trk-traffic-glyph {
+  opacity: 0;
+  color: rgba(0,0,0,0.55);
+  pointer-events: none;
+}
+.trk-traffic-lights:hover .trk-traffic-glyph { opacity: 1; }
+.trk-traffic-btn:active { filter: brightness(0.85); }
+
+.trk-titlebar-drag {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 14px;
+}
+.trk-titlebar-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+

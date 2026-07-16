@@ -1,0 +1,70 @@
+.trk-app {
+  /* Design tokens — dark (default) */
+  --bg: #10141A;
+  --panel: #181E26;
+  --panel-alt: #1D2430;
+  --border: #2A323D;
+  --text: #E8EBEE;
+  --text-dim: #8B95A1;
+  --accent: #35A7A0;
+  --accent-contrast: #0E1216;
+  --inset: #0E1216;
+  --gauge-track: #1F2530;
+  --titlebar-bg: #0C0F14;
+  --overlay: rgba(8, 10, 13, 0.7);
+  --shadow: rgba(0, 0, 0, 0.38);
+  --danger: #D64545;
+  --warn: #E08A3C;
+  --ok: #4CAF6D;
+  /* Layout tokens — spacing scale, control sizing, radii */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --control-h: 34px;
+  --control-h-sm: 26px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  /* Hauteur commune des vues (kanban / liste) ; la sidebar y ajoute
+     la barre d'outils (recherche) pour rester alignée. */
+  --board-h: 520px;
+  --toolbar-h: calc(var(--control-h) + 14px);
+  color-scheme: dark;
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  transition: border-radius 0.15s ease, background 0.25s ease, color 0.25s ease;
+}
+.trk-app.light {
+  /* Design tokens — light */
+  --bg: #EFF2F6;
+  --panel: #FFFFFF;
+  --panel-alt: #EDF0F4;
+  --border: #D7DDE5;
+  --text: #1B2430;
+  --text-dim: #5B6675;
+  --accent: #1E8C85;
+  --accent-contrast: #FFFFFF;
+  --inset: #E1E6EC;
+  --gauge-track: #E1E6EC;
+  --titlebar-bg: #E6EAEF;
+  --overlay: rgba(27, 36, 48, 0.45);
+  --shadow: rgba(20, 30, 42, 0.14);
+  --danger: #C23A3A;
+  --warn: #B26B22;
+  --ok: #35855A;
+  color-scheme: light;
+}
+.trk-app.trk-app-maximized {
+  border-radius: 0;
+  border: none;
+}

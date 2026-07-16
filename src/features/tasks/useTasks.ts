@@ -1,0 +1,181 @@
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import type { Project, Task, TaskDraft, TimeLog } from "../../lib/types";
+import { isTaskDone, statusesForTask } from "../../lib/statuses";
+import { uid } from "../../lib/uid";
+import { loadValue, saveValue, loadConfigProjects, syncConfigProjects } from "../../services/storage";
+
+const STORAGE_KEY = "suivi-travaux-data";
+
+interface StoredData {
+  tasks?: Task[];
+  projects?: Project[];
+}
+
+export interface TaskStore {
+  loading: boolean;
+  tasks: Task[];
+  projects: Project[];
+  saveError: boolean;
+  tasksRef: MutableRefObject<Task[]>;
+  projectsRef: MutableRefObject<Project[]>;
+  saveTasks: (next: Task[]) => void;
+  saveProjects: (next: Project[]) => void;
+  saveBoth: (nextTasks: Task[], nextProjects: Project[]) => void;
+  upsertTask: (draft: TaskDraft) => void;
+  deleteTask: (id: string) => void;
+  moveTask: (id: string, statut: string) => void;
+  addTimeLog: (taskId: string, minutes: number, note: string) => void;
+  editTimeLog: (taskId: string, logId: string, minutes: number, note: string) => void;
+  deleteTimeLog: (taskId: string, logId: string) => void;
+}
+
+interface UseTasksOptions {
+  /** Appelé quand une tâche vient d'être terminée (déclenche la célébration). */
+  onTaskDone?: (statut: string, nextTasks: Task[]) => void;
+}
+
+// Source de vérité des données : tâches + projets, chargés au démarrage et
+// persistés ensemble (une seule clé du store). Les mutations passent toutes
+// par ici.
+export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
+  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [saveError, setSaveError] = useState(false);
+
+  // État "dernier rendu" pour les callbacks différés (setTimeout de la zone
+  // de focus) : persister un état capturé plus tôt écraserait les
+  // modifications faites entre-temps.
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  const onTaskDoneRef = useRef(onTaskDone);
+  onTaskDoneRef.current = onTaskDone;
+
+  useEffect(() => {
+    (async () => {
+      let initialProjects: Project[] = [];
+      try {
+        const configProjects = await loadConfigProjects();
+        if (configProjects) initialProjects = configProjects;
+      } catch (e) {
+        // config.json absent/illisible, on part des valeurs par défaut
+      }
+      try {
+        const parsed = await loadValue<StoredData>(STORAGE_KEY);
+        if (parsed) {
+          setTasks(parsed.tasks || []);
+          setProjects(parsed.projects && parsed.projects.length ? parsed.projects : initialProjects);
+        } else {
+          setProjects(initialProjects);
+        }
+      } catch (e) {
+        setProjects(initialProjects);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const persist = async (nextTasks: Task[], nextProjects: Project[]) => {
+    try {
+      const ok = await saveValue(STORAGE_KEY, { tasks: nextTasks, projects: nextProjects });
+      setSaveError(!ok);
+    } catch (e) {
+      setSaveError(true);
+    }
+    try {
+      await syncConfigProjects(nextProjects);
+    } catch (e) {
+      // la synchronisation du fichier de config a échoué, la sauvegarde principale reste valide
+    }
+  };
+
+  // Les refs évitent toute capture périmée : saveTasks peut être appelé
+  // depuis un timer sans risquer de persister d'anciens projets (et
+  // inversement pour saveProjects).
+  const saveTasks = (next: Task[]) => {
+    setTasks(next);
+    persist(next, projectsRef.current);
+  };
+
+  const saveProjects = (next: Project[]) => {
+    setProjects(next);
+    persist(tasksRef.current, next);
+  };
+
+  const saveBoth = (nextTasks: Task[], nextProjects: Project[]) => {
+    setTasks(nextTasks);
+    setProjects(nextProjects);
+    persist(nextTasks, nextProjects);
+  };
+
+  // Création ou édition depuis le modal. En édition, les timeLogs du store
+  // font foi : ils sont mutés en direct par les opérations de pointage,
+  // le brouillon du modal peut être en retard.
+  const upsertTask = (draft: TaskDraft) => {
+    if (draft.id) {
+      const saved: Task = { ...draft, id: draft.id };
+      const prev = tasksRef.current.find((t) => t.id === draft.id);
+      const next = tasksRef.current.map((t) =>
+        t.id === draft.id ? { ...saved, timeLogs: t.timeLogs || [] } : t
+      );
+      saveTasks(next);
+      if (prev && !isTaskDone(prev) && isTaskDone(saved)) onTaskDoneRef.current?.(saved.statut ?? "", next);
+    } else {
+      saveTasks([...tasksRef.current, { ...draft, id: uid() }]);
+    }
+  };
+
+  const deleteTask = (id: string) => {
+    saveTasks(tasksRef.current.filter((t) => t.id !== id));
+  };
+
+  const moveTask = (id: string, statut: string) => {
+    const task = tasksRef.current.find((t) => t.id === id);
+    if (!task || task.statut === statut) return;
+    if (!statusesForTask(task).some((s) => s.id === statut)) return;
+    const next = tasksRef.current.map((t) => (t.id === id ? { ...t, statut } : t));
+    saveTasks(next);
+    if (isTaskDone({ statut })) onTaskDoneRef.current?.(statut, next);
+  };
+
+  const addTimeLog = (taskId: string, minutes: number, note: string) => {
+    const entry: TimeLog = { id: uid(), minutes, note, date: new Date().toISOString().slice(0, 10) };
+    saveTasks(
+      tasksRef.current.map((t) =>
+        t.id === taskId ? { ...t, timeLogs: [...(t.timeLogs || []), entry] } : t
+      )
+    );
+  };
+
+  const editTimeLog = (taskId: string, logId: string, minutes: number, note: string) => {
+    saveTasks(
+      tasksRef.current.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              timeLogs: (t.timeLogs || []).map((l) => (l.id === logId ? { ...l, minutes, note } : l)),
+            }
+          : t
+      )
+    );
+  };
+
+  const deleteTimeLog = (taskId: string, logId: string) => {
+    saveTasks(
+      tasksRef.current.map((t) =>
+        t.id === taskId ? { ...t, timeLogs: (t.timeLogs || []).filter((l) => l.id !== logId) } : t
+      )
+    );
+  };
+
+  return {
+    loading, tasks, projects, saveError,
+    tasksRef, projectsRef,
+    saveTasks, saveProjects, saveBoth,
+    upsertTask, deleteTask, moveTask,
+    addTimeLog, editTimeLog, deleteTimeLog,
+  };
+}

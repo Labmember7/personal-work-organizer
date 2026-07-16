@@ -1,0 +1,65 @@
+.trk-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+@media (max-width: 860px) {
+  .trk-charts { grid-template-columns: 1fr; }
+}
+.trk-chart-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+.trk-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.trk-chart-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+.trk-chart-head .trk-chart-title { margin-bottom: 0; }
+.trk-chart-focus-btn { padding: 4px; }
+.trk-chart-focus-btn:hover { color: var(--accent); }
+.trk-modal.trk-chart-modal {
+  max-width: 1180px;
+  width: min(1180px, 96vw);
+}
+.trk-chart-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.trk-chart-details {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.trk-chart-details th {
+  text-align: left;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 500;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.trk-chart-details td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.trk-chart-details tr:last-child td { border-bottom: none; }
+.trk-chart-details tr:hover td { background: var(--panel-alt); }
+.trk-gantt-focus .trk-gantt-body { max-height: 50vh; }
+

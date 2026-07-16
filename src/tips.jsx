@@ -5,6 +5,8 @@ import {
   BarChart3, Download,
 } from "lucide-react";
 import { useLang } from "./i18n.jsx";
+import { useOutsideClick } from "./hooks/useOutsideClick";
+import { useEscapeKey } from "./hooks/useEscapeKey";
 
 export const TUTORIAL_STORAGE_KEY = "suivi-travaux-tutorial-seen";
 
@@ -31,23 +33,17 @@ export function HelpTip({ tipKey }) {
     setOpen((o) => !o);
   };
 
+  useEscapeKey(() => setOpen(false), open);
+  useOutsideClick([popRef, btnRef], () => setOpen(false), open);
+
+  // La bulle est positionnée en fixed depuis le bouton : tout défilement ou
+  // redimensionnement invalide sa position, on la referme simplement.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => e.key === "Escape" && setOpen(false);
-    const onDown = (e) => {
-      if (
-        popRef.current && !popRef.current.contains(e.target) &&
-        btnRef.current && !btnRef.current.contains(e.target)
-      ) setOpen(false);
-    };
     const onScroll = () => setOpen(false);
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onDown);
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onScroll);
     return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDown);
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onScroll);
     };

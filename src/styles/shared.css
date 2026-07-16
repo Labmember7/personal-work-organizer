@@ -1,0 +1,39 @@
+.trk-task-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.trk-icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  flex-shrink: 0;
+}
+.trk-icon-btn { transition: background 0.15s, color 0.15s; }
+.trk-icon-btn:hover { background: var(--panel-alt); color: var(--text); }
+.trk-icon-btn.trk-icon-danger { color: var(--danger); }
+.trk-icon-btn.trk-icon-danger:hover {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+.trk-confirm { display: flex; gap: 4px; align-items: center; }
+.trk-confirm-label { font-size: 11px; color: var(--text-dim); }
+
+.trk-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-dim);
+  font-size: 13px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+.trk-empty-rich {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 20px;
+}
+.trk-empty-rich svg { color: var(--text-dim); opacity: 0.7; }
+.trk-empty-rich p { margin: 0; max-width: 340px; line-height: 1.5; }
+

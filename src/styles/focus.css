@@ -1,0 +1,583 @@
+/* ── Zone de focus ── */
+@keyframes trk-focus-spin { to { transform: rotate(360deg); } }
+@keyframes trk-focus-glow-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+@keyframes trk-focus-drop-in {
+  0% { opacity: 0; transform: translateY(12px) scale(0.96); filter: blur(5px); }
+  55% { opacity: 1; transform: translateY(-2px) scale(1.012); filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+@keyframes trk-focus-ripple {
+  0% { opacity: 0.85; transform: scale(0.92); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+@keyframes trk-focus-child-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes trk-focus-leave {
+  0% { opacity: 1; transform: none; }
+  25% { transform: scale(1.06); }
+  100% { opacity: 0; transform: translateY(-34px) scale(0.8) rotate(3deg); }
+}
+@keyframes trk-focus-drop-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  100% { box-shadow: 0 0 0 18px transparent; }
+}
+@keyframes trk-flame-flicker {
+  0%, 100% { transform: scale(1) rotate(-4deg); opacity: 0.9; }
+  30% { transform: scale(1.18) rotate(4deg); opacity: 1; }
+  60% { transform: scale(0.94) rotate(-2deg); opacity: 0.85; }
+}
+@keyframes trk-smoke-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0, 14px) scale(0.35);
+    filter: blur(3px);
+  }
+  18% { opacity: var(--peak, 0.45); }
+  55% {
+    opacity: calc(var(--peak, 0.45) * 0.55);
+    transform: translate(calc(var(--sway, 10px) * 0.45), -58px) scale(1.4);
+    filter: blur(6px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sway, 10px), -118px) scale(2.4);
+    filter: blur(11px);
+  }
+}
+@keyframes trk-focus-dot {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-2px); }
+}
+@keyframes trk-focus-idle-pulse {
+  0%, 100% { border-color: var(--border); }
+  50% { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+}
+.trk-focus-zone {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 40;
+  width: 310px;
+  border-radius: 16px;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.trk-focus-zone.over { transform: scale(1.04); }
+.trk-focus-zone.leaving .trk-focus-card {
+  animation: trk-focus-leave 0.85s cubic-bezier(0.55, 0, 0.8, 0.4) forwards;
+}
+.trk-focus-zone.leaving .trk-focus-smoke {
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+}
+.trk-focus-shell {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  padding: 1.5px;
+  background: var(--border);
+  box-shadow: 0 10px 30px var(--shadow);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.trk-focus-zone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 16px;
+  box-shadow: 0 0 18px 2px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 0 34px 8px color-mix(in srgb, var(--accent) 14%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.1s cubic-bezier(0.45, 0, 0.55, 1);
+}
+.trk-focus-zone.occupied::after {
+  animation: trk-focus-glow-pulse 4.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+.trk-focus-zone.leaving::after { animation: none; opacity: 0; }
+.trk-focus-zone.occupied .trk-focus-shell::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 340%;
+  aspect-ratio: 1;
+  margin: -170% 0 0 -170%;
+  background: conic-gradient(from 0deg,
+    transparent 0deg, transparent 185deg,
+    color-mix(in srgb, var(--accent) 12%, transparent) 235deg,
+    color-mix(in srgb, var(--accent) 45%, transparent) 275deg,
+    var(--accent) 300deg, #E08A3C 322deg,
+    var(--accent) 340deg,
+    color-mix(in srgb, var(--accent) 35%, transparent) 352deg,
+    transparent 360deg);
+  animation: trk-focus-spin 3.6s linear infinite;
+}
+.trk-focus-zone.leaving .trk-focus-shell::before { background: var(--ok); animation: none; }
+.trk-focus-zone.over .trk-focus-shell {
+  background: var(--accent);
+  animation: trk-focus-drop-pulse 0.9s ease-out infinite;
+}
+.trk-focus-inner {
+  position: relative;
+  border-radius: 14.5px;
+  background: var(--panel);
+  padding: 14px;
+}
+.trk-focus-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  margin-bottom: 9px;
+}
+.trk-focus-head > svg { color: var(--accent); flex-shrink: 0; }
+.trk-focus-help {
+  position: relative;
+  display: inline-flex;
+  color: var(--text-dim);
+  opacity: 0.65;
+  cursor: help;
+  outline: none;
+  transition: opacity 0.25s ease, color 0.25s ease;
+}
+.trk-focus-help:hover, .trk-focus-help:focus-visible {
+  opacity: 1;
+  color: var(--accent);
+}
+.trk-focus-help-tip {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 50%;
+  z-index: 5;
+  transform: translate(-50%, -4px) scale(0.96);
+  width: 200px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px var(--shadow);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.35, 1),
+    transform 0.3s cubic-bezier(0.25, 0.8, 0.35, 1),
+    visibility 0s linear 0.3s;
+}
+.trk-focus-help-tip::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-bottom-color: var(--panel-alt);
+}
+.trk-focus-help:hover .trk-focus-help-tip,
+.trk-focus-help:focus-visible .trk-focus-help-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0) scale(1);
+  transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.35, 1) 0.1s,
+    transform 0.3s cubic-bezier(0.25, 0.8, 0.35, 1) 0.1s,
+    visibility 0s linear 0.1s;
+}
+.trk-focus-cooking {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn);
+  font-size: 9.5px;
+  letter-spacing: 1px;
+}
+.trk-focus-flame {
+  animation: trk-flame-flicker 0.9s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+.trk-focus-dots { display: inline-flex; gap: 2.5px; }
+.trk-focus-dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: trk-focus-dot 1.2s ease-in-out infinite;
+}
+.trk-focus-dots i:nth-child(2) { animation-delay: 0.2s; }
+.trk-focus-dots i:nth-child(3) { animation-delay: 0.4s; }
+.trk-focus-card {
+  position: relative;
+  animation: trk-focus-drop-in 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.2s, filter 0.2s;
+}
+/* Onde d'atterrissage jouée une seule fois à l'arrivée d'une tâche
+   (la carte est re-montée via sa key à chaque entrée). */
+.trk-focus-card::after {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  animation: trk-focus-ripple 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s;
+}
+.trk-focus-card .trk-focus-title { animation: trk-focus-child-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.08s backwards; }
+.trk-focus-card .trk-focus-meta { animation: trk-focus-child-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.16s backwards; }
+.trk-focus-card .trk-focus-actions { animation: trk-focus-child-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.24s backwards; }
+/* Drag de la carte hors de la zone : la carte s'estompe, le feu se met en veille. */
+.trk-focus-zone.drag-out .trk-focus-card {
+  opacity: 0.3;
+  filter: grayscale(0.5);
+}
+.trk-focus-zone.drag-out .trk-focus-smoke { opacity: 0; transition: opacity 0.2s; }
+.trk-focus-zone.drag-out::after { animation: none; opacity: 0; }
+.trk-focus-zone.drag-out .trk-focus-shell::before { animation-play-state: paused; opacity: 0.35; }
+/* Sort de la goutte reflété par la zone : verte = elle y reste,
+   rouge = le lâcher la libère. */
+.trk-focus-zone.drag-home .trk-focus-shell {
+  background: color-mix(in srgb, var(--ok) 60%, var(--border));
+  box-shadow: 0 10px 30px var(--shadow),
+    0 0 24px color-mix(in srgb, var(--ok) 30%, transparent);
+}
+.trk-focus-zone.drag-home .trk-focus-card { opacity: 0.55; filter: none; }
+.trk-focus-zone.drag-away .trk-focus-shell {
+  background: color-mix(in srgb, var(--danger) 55%, var(--border));
+  box-shadow: 0 10px 30px var(--shadow),
+    0 0 20px color-mix(in srgb, var(--danger) 22%, transparent);
+}
+/* Goutte « liquid glass » (façon iOS) qui suit le curseur pendant le
+   drag de la tâche focalisée. Trois couches pour éviter tout conflit
+   de transform : .trk-focus-ghost = position (JS), -deform =
+   étirement directionnel (JS), -body = verre + ondulation (CSS). */
+.trk-focus-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 120;
+  pointer-events: none;
+  will-change: transform;
+  /* Couleur du halo selon le sort au lâcher :
+     dans la zone = reste (ok), dehors = libérée (danger). */
+  --ghost-glow: var(--ok);
+}
+.trk-focus-ghost.away { --ghost-glow: var(--danger); }
+.trk-focus-ghost.away .trk-focus-ghost-body > svg { color: var(--danger); }
+.trk-focus-ghost-deform {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin: -48px 0 0 -48px;
+  will-change: transform;
+}
+.trk-focus-ghost-body {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--text);
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--bg) 55%, transparent);
+  background: color-mix(in srgb, var(--panel) 22%, transparent);
+  backdrop-filter: blur(16px) saturate(1.8) brightness(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.8) brightness(1.08);
+  box-shadow:
+    0 14px 34px var(--shadow),
+    0 0 22px color-mix(in srgb, var(--ghost-glow) 42%, transparent),
+    0 0 48px color-mix(in srgb, var(--ghost-glow) 16%, transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 1.5px 2.5px 5px rgba(255, 255, 255, 0.5),
+    inset -2px -4px 8px rgba(255, 255, 255, 0.16);
+  transition: box-shadow 0.3s ease;
+  animation: trk-ghost-blob 2.6s ease-in-out infinite;
+}
+.trk-focus-ghost-body > svg { color: var(--warn); flex-shrink: 0; }
+.trk-focus-ghost-body > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+/* Réfraction des bords : glints lumineux en haut-gauche / bas-droite. */
+.trk-focus-ghost-body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(130% 95% at 18% -10%, rgba(255, 255, 255, 0.38), transparent 42%),
+    radial-gradient(130% 110% at 85% 120%, rgba(255, 255, 255, 0.22), transparent 46%);
+}
+/* Reflet spéculaire qui dérive lentement sur la surface. */
+.trk-focus-ghost-body::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 8%;
+  width: 34%;
+  height: 40%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.45), transparent);
+  filter: blur(3px);
+  animation: trk-ghost-glint 2.4s ease-in-out infinite;
+}
+/* Ondulation organique : la capsule respire comme une goutte posée. */
+@keyframes trk-ghost-blob {
+  0%, 100% { border-radius: 55% 45% 52% 48% / 52% 58% 42% 48%; }
+  33% { border-radius: 47% 53% 45% 55% / 58% 44% 56% 42%; }
+  66% { border-radius: 53% 47% 57% 43% / 44% 52% 48% 56%; }
+}
+@keyframes trk-ghost-glint {
+  0%, 100% { transform: translateX(0) scale(1); opacity: 0.9; }
+  50% { transform: translateX(130%) scale(0.75, 0.9); opacity: 0.5; }
+}
+/* Au lâcher : la goutte s'écrase, éclabousse et s'évapore. */
+.trk-focus-ghost.pop .trk-focus-ghost-body {
+  animation: trk-ghost-burst 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes trk-ghost-burst {
+  0% { opacity: 1; transform: scale(1); filter: blur(0); }
+  30% { opacity: 0.9; transform: scale(1.12, 0.78); }
+  100% { opacity: 0; transform: scale(1.4, 0.45); filter: blur(8px); }
+}
+.trk-focus-ghost-drops {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: none;
+}
+.trk-focus-ghost.pop .trk-focus-ghost-drops { display: block; }
+.trk-focus-ghost-drops i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--sz, 7px);
+  height: var(--sz, 7px);
+  margin: calc(var(--sz, 7px) / -2) 0 0 calc(var(--sz, 7px) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.2) 72%);
+  animation: trk-ghost-splash 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.trk-focus-ghost-drops i:nth-child(1) { --dx: -44px; --dy: -26px; --sz: 7px; }
+.trk-focus-ghost-drops i:nth-child(2) { --dx: 40px;  --dy: -32px; --sz: 6px; }
+.trk-focus-ghost-drops i:nth-child(3) { --dx: -34px; --dy: 24px;  --sz: 5px; }
+.trk-focus-ghost-drops i:nth-child(4) { --dx: 48px;  --dy: 16px;  --sz: 8px; }
+.trk-focus-ghost-drops i:nth-child(5) { --dx: 4px;   --dy: -46px; --sz: 5px; }
+.trk-focus-ghost-drops i:nth-child(6) { --dx: -8px;  --dy: 38px;  --sz: 6px; }
+@keyframes trk-ghost-splash {
+  0% { opacity: 0.95; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.25); }
+}
+/* Anneau d'onde au point d'impact. */
+.trk-focus-ghost.pop .trk-focus-ghost-drops::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  animation: trk-ghost-ring 0.5s ease-out forwards;
+}
+@keyframes trk-ghost-ring {
+  from { opacity: 0.7; transform: scale(0.4); }
+  to { opacity: 0; transform: scale(1.6); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trk-focus-ghost-body,
+  .trk-focus-ghost-body::after,
+  .trk-focus-ghost-drops i { animation: none; }
+  .trk-focus-ghost-body { border-radius: 999px; }
+  .trk-focus-ghost.pop { display: none; }
+}
+.trk-focus-smoke {
+  position: absolute;
+  bottom: 100%;
+  left: 10px;
+  right: 10px;
+  height: 130px;
+  margin-bottom: -6px;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, black 0%, black 30%, transparent 96%);
+  mask-image: linear-gradient(to top, black 0%, black 30%, transparent 96%);
+}
+.trk-focus-smoke i {
+  position: absolute;
+  bottom: 0;
+  left: var(--x, 50%);
+  width: var(--size, 15px);
+  height: var(--size, 15px);
+  margin-left: calc(var(--size, 15px) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--text-dim) 60%, transparent) 0%,
+    color-mix(in srgb, var(--text-dim) 25%, transparent) 45%,
+    transparent 72%);
+  opacity: 0;
+  animation: trk-smoke-rise var(--dur, 3.4s) cubic-bezier(0.3, 0.1, 0.4, 1) infinite;
+  animation-delay: var(--delay, 0s);
+}
+.trk-focus-smoke i:nth-child(1) { --x: 12%; --size: 14px; --sway: -18px; --dur: 3.6s; --delay: 0s;    --peak: 0.38; }
+.trk-focus-smoke i:nth-child(2) { --x: 26%; --size: 19px; --sway: 14px;  --dur: 4.2s; --delay: 1.1s;  --peak: 0.46; }
+.trk-focus-smoke i:nth-child(3) { --x: 42%; --size: 12px; --sway: -10px; --dur: 3.2s; --delay: 2.2s;  --peak: 0.34; }
+.trk-focus-smoke i:nth-child(4) { --x: 55%; --size: 21px; --sway: 20px;  --dur: 4.6s; --delay: 0.6s;  --peak: 0.5; }
+.trk-focus-smoke i:nth-child(5) { --x: 70%; --size: 15px; --sway: -14px; --dur: 3.8s; --delay: 1.7s;  --peak: 0.4; }
+.trk-focus-smoke i:nth-child(6) { --x: 84%; --size: 18px; --sway: 12px;  --dur: 4.4s; --delay: 2.8s;  --peak: 0.44; }
+.trk-focus-smoke i:nth-child(7) { --x: 94%; --size: 13px; --sway: -20px; --dur: 3.4s; --delay: 0.9s;  --peak: 0.32; }
+.trk-focus-task-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  padding: 0;
+  margin: 0 0 10px;
+  cursor: grab;
+}
+.trk-focus-task-btn:active { cursor: grabbing; }
+.trk-focus-task-btn:hover .trk-focus-title { color: var(--accent); }
+.trk-focus-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: color 0.15s;
+}
+.trk-focus-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.trk-focus-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.trk-focus-reduce-btn { flex-shrink: 0; }
+.trk-focus-zone:not(.occupied) .trk-focus-reduce-btn { margin-left: auto; }
+.trk-focus-reduced { width: auto; }
+.trk-focus-mini {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 46px;
+  min-width: 46px;
+  padding: 0 15px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1.5px solid var(--border);
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 10px 30px var(--shadow);
+  transition: border-color 0.15s, color 0.15s;
+}
+.trk-focus-reduced.occupied .trk-focus-mini {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  color: var(--text);
+  animation: trk-focus-breathe 2.6s ease-in-out infinite;
+}
+.trk-focus-reduced.occupied .trk-focus-mini > svg { color: var(--warn); }
+.trk-focus-reduced.over .trk-focus-mini {
+  border-color: var(--accent);
+  animation: trk-focus-drop-pulse 0.9s ease-out infinite;
+}
+.trk-focus-actions { display: flex; align-items: center; gap: 6px; }
+.trk-focus-done-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--control-h-sm);
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
+  color: var(--ok);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.trk-focus-done-btn:hover { background: color-mix(in srgb, var(--ok) 28%, transparent); }
+.trk-focus-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 6px 12px;
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+  animation: trk-focus-idle-pulse 3s ease-in-out infinite;
+  transition: border-color 0.15s, background 0.15s;
+}
+.trk-focus-zone.over .trk-focus-empty {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.trk-focus-empty-ring {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--border);
+  color: var(--text-dim);
+  margin-bottom: 3px;
+  transition: transform 0.15s, border-color 0.15s, color 0.15s;
+}
+.trk-focus-zone.over .trk-focus-empty-ring {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: scale(1.18) rotate(8deg);
+}
+.trk-focus-empty p { margin: 0; font-size: 12.5px; font-weight: 600; }
+.trk-focus-empty span { font-size: 10.5px; color: var(--text-dim); }
+@media (max-width: 640px) {
+  .trk-focus-zone { right: 12px; bottom: 12px; width: 250px; }
+  .trk-focus-reduced { width: auto; }
+}

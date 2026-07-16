@@ -30,22 +30,38 @@ function getAudioCtx() {
 }
 
 // Bus master avec un écho discret pour donner de l'espace au son.
-function makeBus(ctx, volume) {
-  const master = ctx.createGain();
-  master.gain.value = volume;
+// Construit UNE seule fois : la boucle delay -> feedback -> delay garde le
+// sous-graphe vivant pour toujours, donc en recréer un par son accumulait
+// des nœuds audio (fuite mémoire + CPU audio) sur les longues sessions.
+let sharedBusInput = null;
+function getBusInput(ctx) {
+  if (sharedBusInput) return sharedBusInput;
+  const input = ctx.createGain();
+  input.gain.value = 1;
   const delay = ctx.createDelay(1.5);
   delay.delayTime.value = 0.28;
   const feedback = ctx.createGain();
   feedback.gain.value = 0.32;
   const wet = ctx.createGain();
   wet.gain.value = 0.28;
-  master.connect(ctx.destination);
-  master.connect(delay);
+  input.connect(ctx.destination);
+  input.connect(delay);
   delay.connect(feedback);
   feedback.connect(delay);
   delay.connect(wet);
   wet.connect(ctx.destination);
-  return master;
+  sharedBusInput = input;
+  return input;
+}
+
+// Gain temporaire par son : porte le volume de l'effet, puis est déconnecté
+// une fois la queue de réverbération éteinte pour libérer le sous-graphe.
+function makeBus(ctx, volume, tailMs) {
+  const level = ctx.createGain();
+  level.gain.value = volume;
+  level.connect(getBusInput(ctx));
+  setTimeout(() => level.disconnect(), tailMs);
+  return level;
 }
 
 function tone(ctx, dest, { freq, at, dur, type = "sine", vol = 0.2, attack = 0.015, glideTo = null }) {
@@ -194,7 +210,9 @@ export function playCelebrationSound(variant) {
   try {
     const ctx = getAudioCtx();
     if (!ctx) return;
-    const bus = makeBus(ctx, variant === "legendary" ? 0.5 : 0.4);
+    const legendary = variant === "legendary";
+    // Queue = durée du son le plus long + réverbération de l'écho.
+    const bus = makeBus(ctx, legendary ? 0.5 : 0.4, legendary ? 14000 : 8000);
     (SOUNDS[variant] || SOUNDS.confetti)(ctx, bus);
   } catch (e) {
     // audio indisponible : la célébration reste visuelle
@@ -607,7 +625,7 @@ function playMiniSound() {
   try {
     const ctx = getAudioCtx();
     if (!ctx) return;
-    const bus = makeBus(ctx, 0.25);
+    const bus = makeBus(ctx, 0.25, 5000);
     bell(ctx, bus, { freq: N.G5, at: 0, dur: 0.9, vol: 0.14 });
     bell(ctx, bus, { freq: N.C6, at: 0.09, dur: 1.1, vol: 0.12 });
     bell(ctx, bus, { freq: N.E6, at: 0.18, dur: 1.3, vol: 0.1 });
@@ -730,6 +748,11 @@ export function CelebrationOverlay({ variant, legendary, title, subtitle, onDone
     const anim = ANIMS[variant] || ANIMS.confetti;
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     const duration = reduced ? 2600 : anim.duration;
+
+    // Si l'effet est ré-exécuté pour une nouvelle variante, la classe de
+    // fondu de sortie posée par l'exécution précédente rendrait toute la
+    // nouvelle animation invisible (opacité 0).
+    rootRef.current?.classList.remove("closing");
 
     let raf = 0;
     let closed = false;

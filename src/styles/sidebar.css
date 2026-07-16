@@ -1,0 +1,144 @@
+.trk-layout {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .trk-layout { grid-template-columns: 1fr; }
+  .trk-sidebar { height: auto; }
+}
+
+.trk-sidebar {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  height: calc(var(--board-h) + var(--toolbar-h));
+  display: flex;
+  flex-direction: column;
+}
+.trk-project-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.trk-sidebar-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+.trk-project-card {
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.trk-project-card:hover { background: var(--panel-alt); }
+.trk-project-card.active {
+  background: var(--panel-alt);
+  border-color: var(--project-color, var(--accent));
+}
+.trk-project-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.trk-project-name {
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.trk-project-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.trk-project-count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.trk-project-remove {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px;
+}
+.trk-project-card:hover .trk-project-remove { opacity: 1; }
+.trk-pbar {
+  background: var(--inset);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.trk-pbar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.trk-all-btn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.trk-all-btn.active { color: var(--accent); background: var(--panel-alt); }
+/* flex: none — .trk-kanban-col-search a flex:1, ce qui la ferait
+   grandir verticalement dans la sidebar en colonne. Deux classes
+   pour l'emporter sur la règle définie plus bas. */
+.trk-kanban-col-search.trk-project-search { margin-bottom: 8px; flex: none; }
+.trk-project-pager {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+.trk-add-project-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.trk-add-project-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 8px;
+}
+.trk-ghost-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px dashed var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
+}
+.trk-ghost-btn:hover { color: var(--accent); border-color: var(--accent); }
+

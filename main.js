@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, Menu, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { createStore } = require("./electron/store");
 
 // --- Stockage local portable -----------------------------------------
 // Les données sont écrites dans un dossier "data" situé À CÔTÉ de
@@ -27,7 +28,6 @@ function getDataDir() {
     // (ex: SSD monté en lecture seule) : dossier utilisateur standard.
     path.join(app.getPath("userData"), "data"),
   ];
-  console.log("Candidates for data dir:", candidates);
   for (const dir of candidates) {
     try {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -42,49 +42,26 @@ function getDataDir() {
   throw new Error("Aucun dossier de données accessible en écriture n'a été trouvé.");
 }
 
-function getStoreFile() {
-  return path.join(getDataDir(), "store.json");
-}
-
-function readStore() {
-  const file = getStoreFile();
-  if (!fs.existsSync(file)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf-8"));
-  } catch {
-    return {};
-  }
-}
-
-function writeStore(store) {
-  fs.writeFileSync(getStoreFile(), JSON.stringify(store, null, 2), "utf-8");
-}
+const store = createStore(() => path.join(getDataDir(), "store.json"));
 
 ipcMain.handle("storage:get", (_e, key) => {
-  const store = readStore();
-  if (!(key in store)) return null;
-  return { key, value: store[key], shared: false };
+  const value = store.get(key);
+  if (value === undefined) return null;
+  return { key, value };
 });
 
 ipcMain.handle("storage:set", (_e, key, value) => {
-  const store = readStore();
-  store[key] = value;
-  writeStore(store);
-  return { key, value, shared: false };
+  store.set(key, value);
+  return { key, ok: true };
 });
 
 ipcMain.handle("storage:delete", (_e, key) => {
-  const store = readStore();
-  const existed = key in store;
-  delete store[key];
-  writeStore(store);
-  return { key, deleted: existed, shared: false };
+  const deleted = store.delete(key);
+  return { key, deleted };
 });
 
 ipcMain.handle("storage:list", (_e, prefix) => {
-  const store = readStore();
-  const keys = Object.keys(store).filter((k) => !prefix || k.startsWith(prefix));
-  return { keys, prefix, shared: false };
+  return { keys: store.keys(prefix), prefix };
 });
 
 // --- Config des projets ---------------------------------------------------
@@ -154,7 +131,7 @@ ipcMain.handle("data:import", async (e) => {
     const raw = fs.readFileSync(filePaths[0], "utf-8");
     const data = JSON.parse(raw);
     return { canceled: false, filePath: filePaths[0], data };
-  } catch (err) {
+  } catch {
     return { canceled: false, error: "invalid" };
   }
 });
@@ -177,10 +154,23 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
 
   win.loadFile(path.join(__dirname, "dist", "index.html"));
+
+  // L'app est mono-page : toute navigation (lien dans l'aperçu Markdown…)
+  // ou ouverture de fenêtre est refusée, les liens externes partent vers
+  // le navigateur du système.
+  win.webContents.on("will-navigate", (e, url) => {
+    e.preventDefault();
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
 
   win.on("maximize", () => win.webContents.send("window:maximized-changed", true));
   win.on("unmaximize", () => win.webContents.send("window:maximized-changed", false));
@@ -212,4 +202,14 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+// Les écritures sont regroupées (debounce) : celle en attente est forcée
+// avant la fermeture pour ne rien perdre.
+app.on("before-quit", () => {
+  try {
+    store.flush();
+  } catch {
+    // disque indisponible à la fermeture : rien de plus à tenter
+  }
 });

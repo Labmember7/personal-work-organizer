@@ -2,3 +2,5 @@ node_modules
 release
 dist
 data
+# Exports personnels de données
+suivi-travaux-*.json
