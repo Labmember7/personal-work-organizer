@@ -1,3 +1,13 @@
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+
+marked.setOptions({ breaks: true, gfm: true });
+
+// Rendu markdown -> HTML assaini, utilisé pour l'aperçu de la description
+// d'une tâche (le contenu peut provenir d'un import JSON externe).
+export const renderMarkdown = (text) =>
+  DOMPurify.sanitize(marked.parse(String(text || "")));
+
 export const STATUSES = [
   { id: "analyser", label: "À analyser", weight: 0, color: "#8B95A1" },
   { id: "implementer", label: "À implémenter", weight: 20, color: "#4C7EA8" },

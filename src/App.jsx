@@ -8,12 +8,13 @@ import {
   ChevronDown, FolderPlus, AlertTriangle, Minus, Copy, ChevronsUpDown, Clock,
   Download, Upload, List, Columns3, ChevronLeft, ChevronRight, Maximize2,
   Sun, Moon, ClipboardList, PartyPopper, Flame, Target, Zap, ArrowRight, HelpCircle,
+  Pilcrow, Eye, Columns2,
 } from "lucide-react";
 import {
   STATUSES, SIMPLE_STATUSES, PRIORITIES, uid, statusOf, prioOf,
   isSimpleTask, statusesForTask, isDoneStatus, isTaskDone, focusMinutes,
   taskMinutes, liveTaskMinutes, formatDuration, parseDurationInput, projectColor,
-  isValidBackupData, buildBackupPayload, taskMatchesQuery, matchesQuery,
+  isValidBackupData, buildBackupPayload, taskMatchesQuery, matchesQuery, renderMarkdown,
 } from "./utils";
 import {
   useLang, doneOfTotal, tasksTotalLabel, allProjectsLabel,
@@ -28,6 +29,20 @@ const CELEBRATIONS_STORAGE_KEY = "suivi-travaux-celebrations";
 const FOCUS_STORAGE_KEY = "suivi-travaux-focus";
 const FOCUS_STARTED_STORAGE_KEY = "suivi-travaux-focus-started";
 const FOCUS_REDUCED_STORAGE_KEY = "suivi-travaux-focus-reduced";
+// Type MIME custom marquant un drag initié depuis la carte de la zone de focus.
+const FOCUS_DRAG_TYPE = "application/x-trk-focus";
+
+// Image 1x1 transparente : masque le fantôme natif du drag, remplacé par
+// la pilule « verre liquide » custom qui suit le curseur.
+let emptyDragImage = null;
+const getEmptyDragImage = () => {
+  if (!emptyDragImage) {
+    emptyDragImage = new Image();
+    emptyDragImage.src =
+      "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+  }
+  return emptyDragImage;
+};
 
 // Statuts utilisés par les graphiques : les deux familles fusionnées,
 // avec un seul segment « terminé » (termine + done).
@@ -847,6 +862,72 @@ const pct = (n, total) => (total ? `${Math.round((n / total) * 100)}%` : "0%");
 function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAdvance, onRelease, onEdit }) {
   const { t } = useLang();
   const [over, setOver] = useState(false);
+  const [dragOut, setDragOut] = useState(false);
+  const [dragHome, setDragHome] = useState(true);
+  const [ghostPop, setGhostPop] = useState(false);
+  const zoneRef = useRef(null);
+  const ghostRef = useRef(null);
+  const deformRef = useRef(null);
+  const pointerRef = useRef({ x: 0, y: 0 });
+  const dragTitleRef = useRef("");
+  const popTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(popTimerRef.current), []);
+
+  // Pilote la goutte fantôme pendant le drag : elle court après le curseur
+  // avec inertie (ressort) et s'étire dans le sens du déplacement, comme une
+  // goutte d'eau. Uniquement des transforms via rAF, aucun re-render par frame.
+  useEffect(() => {
+    if (!dragOut) return;
+    const onDragOver = (e) => {
+      pointerRef.current = { x: e.clientX, y: e.clientY };
+    };
+    document.addEventListener("dragover", onDragOver);
+    // Rect figé au début du drag (la zone est fixe et non transformée) :
+    // sert à signaler si le lâcher garderait la tâche (dedans) ou la
+    // libérerait (dehors), sans getBoundingClientRect par frame.
+    const zoneRect = zoneRef.current ? zoneRef.current.getBoundingClientRect() : null;
+    let wasHome = null;
+    let raf;
+    let gx = pointerRef.current.x;
+    let gy = pointerRef.current.y;
+    let vx = 0;
+    let vy = 0;
+    const loop = () => {
+      const { x, y } = pointerRef.current;
+      if (zoneRect) {
+        const home =
+          x >= zoneRect.left && x <= zoneRect.right &&
+          y >= zoneRect.top && y <= zoneRect.bottom;
+        if (home !== wasHome) {
+          wasHome = home;
+          setDragHome(home);
+        }
+      }
+      const nx = gx + (x - gx) * 0.22;
+      const ny = gy + (y - gy) * 0.22;
+      vx = vx * 0.78 + (nx - gx);
+      vy = vy * 0.78 + (ny - gy);
+      gx = nx;
+      gy = ny;
+      if (ghostRef.current) {
+        ghostRef.current.style.transform = `translate3d(${gx.toFixed(1)}px, ${gy.toFixed(1)}px, 0)`;
+      }
+      if (deformRef.current) {
+        const speed = Math.hypot(vx, vy);
+        const stretch = Math.min(speed / 110, 0.18);
+        const ang = ((Math.atan2(vy, vx) * 180) / Math.PI).toFixed(1);
+        deformRef.current.style.transform =
+          `rotate(${ang}deg) scale(${(1 + stretch).toFixed(3)}, ${(1 - stretch * 0.6).toFixed(3)}) rotate(${-ang}deg)`;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => {
+      document.removeEventListener("dragover", onDragOver);
+      cancelAnimationFrame(raf);
+    };
+  }, [dragOut]);
   const [reduced, setReduced] = useState(() => {
     try {
       return localStorage.getItem(FOCUS_REDUCED_STORAGE_KEY) === "1";
@@ -883,7 +964,10 @@ function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAdvance, 
     onDragOver: (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
-      if (!over) setOver(true);
+      // La tâche déjà focalisée peut être relâchée dans la zone (annulation)
+      // sans déclencher le halo d'accueil.
+      const isSelf = Array.from(e.dataTransfer.types).includes(FOCUS_DRAG_TYPE);
+      if (!isSelf && !over) setOver(true);
     },
     onDragLeave: (e) => {
       if (!e.currentTarget.contains(e.relatedTarget)) setOver(false);
@@ -927,11 +1011,13 @@ function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAdvance, 
 
   return (
     <div
+      ref={zoneRef}
       className={
         "trk-focus-zone" +
         (task ? " occupied" : "") +
         (over ? " over" : "") +
-        (leaving ? " leaving" : "")
+        (leaving ? " leaving" : "") +
+        (dragOut ? (dragHome ? " drag-out drag-home" : " drag-out drag-away") : "")
       }
       {...dndProps}
       role="region"
@@ -975,6 +1061,34 @@ function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAdvance, 
                 className="trk-focus-task-btn"
                 onClick={() => onEdit(task)}
                 title={t("edit_task")}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", task.id);
+                  e.dataTransfer.setData(FOCUS_DRAG_TYPE, "1");
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setDragImage(getEmptyDragImage(), 0, 0);
+                  pointerRef.current = { x: e.clientX, y: e.clientY };
+                  dragTitleRef.current = task.titre;
+                  clearTimeout(popTimerRef.current);
+                  setGhostPop(false);
+                  setDragHome(true);
+                  setDragOut(true);
+                }}
+                onDragEnd={(e) => {
+                  setDragOut(false);
+                  // La goutte éclate sur place puis s'évapore.
+                  setGhostPop(true);
+                  clearTimeout(popTimerRef.current);
+                  popTimerRef.current = setTimeout(() => setGhostPop(false), 500);
+                  // Déposée hors de la zone = libération (équivalent du bouton X).
+                  const zone = zoneRef.current;
+                  if (!zone || (e.clientX === 0 && e.clientY === 0)) return;
+                  const r = zone.getBoundingClientRect();
+                  const inside =
+                    e.clientX >= r.left && e.clientX <= r.right &&
+                    e.clientY >= r.top && e.clientY <= r.bottom;
+                  if (!inside) onRelease();
+                }}
               >
                 <p className="trk-focus-title">{task.titre}</p>
                 <div className="trk-focus-meta">
@@ -1012,6 +1126,30 @@ function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAdvance, 
           )}
         </div>
       </div>
+      {(dragOut || ghostPop) && (
+        <div
+          ref={ghostRef}
+          className={
+            "trk-focus-ghost" +
+            (dragHome ? " home" : " away") +
+            (ghostPop ? " pop" : "")
+          }
+          style={{
+            transform: `translate3d(${pointerRef.current.x}px, ${pointerRef.current.y}px, 0)`,
+          }}
+          aria-hidden="true"
+        >
+          <div ref={deformRef} className="trk-focus-ghost-deform">
+            <div className="trk-focus-ghost-body">
+              <Flame size={12} />
+              <span>{dragTitleRef.current}</span>
+            </div>
+            <span className="trk-focus-ghost-drops">
+              <i /><i /><i /><i /><i /><i />
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1030,6 +1168,68 @@ function EmptyState({ label, actionLabel, onAction }) {
   );
 }
 
+function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeholder }) {
+  const { t } = useLang();
+  const html = useMemo(() => renderMarkdown(value), [value]);
+  const modes = [
+    { id: "write", label: t("md_mode_write"), icon: Pilcrow },
+    { id: "preview", label: t("md_mode_preview"), icon: Eye },
+    { id: "split", label: t("md_mode_split"), icon: Columns2 },
+  ];
+  return (
+    <div className={"trk-md-editor" + (mode === "split" ? " trk-md-editor-split" : "")}>
+      <div className="trk-md-toolbar">
+        <div className="trk-md-tabs" role="tablist" aria-label={t("field_description")}>
+          {modes.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              role="tab"
+              aria-selected={mode === m.id}
+              className={"trk-md-tab" + (mode === m.id ? " active" : "")}
+              onClick={() => onModeChange(m.id)}
+            >
+              <m.icon size={13} /> {m.label}
+            </button>
+          ))}
+        </div>
+        <a
+          className="trk-md-hint"
+          href="https://www.markdownguide.org/basic-syntax/"
+          target="_blank"
+          rel="noreferrer"
+          title={t("md_syntax_hint")}
+        >
+          <HelpCircle size={13} /> {t("md_syntax_hint")}
+        </a>
+      </div>
+      <div className="trk-md-panes">
+        {mode !== "preview" && (
+          <textarea
+            id={id}
+            className="trk-md-textarea"
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+          />
+        )}
+        {mode !== "write" && (
+          <div
+            className={"trk-md-preview" + (!value.trim() ? " trk-md-preview-empty" : "")}
+            aria-label={t("md_mode_preview")}
+          >
+            {value.trim() ? (
+              <div dangerouslySetInnerHTML={{ __html: html }} />
+            ) : (
+              t("md_preview_empty")
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const { t, lang } = useLang();
   const [loading, setLoading] = useState(true);
@@ -1042,6 +1242,9 @@ export default function App() {
   const [sortBy, setSortBy] = useState("priorite");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [descMode, setDescMode] = useState("write");
+  const [confirmCloseTask, setConfirmCloseTask] = useState(false);
+  const originalEditingRef = useRef(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [addingProject, setAddingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -1202,13 +1405,19 @@ export default function App() {
     if (!modalOpen && !pendingImport) return;
     const handler = (e) => {
       if (e.key !== "Escape") return;
-      setModalOpen(false);
-      setEditing(null);
+      if (confirmCloseTask) {
+        setConfirmCloseTask(false);
+        return;
+      }
+      if (modalOpen) {
+        requestCloseTaskModal();
+        return;
+      }
       setPendingImport(null);
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [modalOpen, pendingImport]);
+  }, [modalOpen, pendingImport, confirmCloseTask, editing]);
 
   const exportData = async () => {
     if (!window.dataIO || ioBusy) return;
@@ -1255,7 +1464,7 @@ export default function App() {
   };
 
   const openNewTask = () => {
-    setEditing({
+    const draft = {
       id: null,
       type: "standard",
       projet: (filterProjects.length === 1 ? filterProjects[0] : projects[0]) || "",
@@ -1267,13 +1476,32 @@ export default function App() {
       dateDebut: new Date().toISOString().slice(0, 10),
       echeance: "",
       timeLogs: [],
-    });
+    };
+    setEditing(draft);
+    originalEditingRef.current = draft;
+    setDescMode("write");
     setModalOpen(true);
   };
 
   const openEditTask = (t) => {
     setEditing({ ...t });
+    originalEditingRef.current = { ...t };
+    setDescMode("write");
     setModalOpen(true);
+  };
+
+  const isEditingDirty = () =>
+    !!editing && JSON.stringify(editing) !== JSON.stringify(originalEditingRef.current);
+
+  const closeTaskModal = () => {
+    setModalOpen(false);
+    setEditing(null);
+    setConfirmCloseTask(false);
+  };
+
+  const requestCloseTaskModal = () => {
+    if (isEditingDirty()) setConfirmCloseTask(true);
+    else closeTaskModal();
   };
 
   const submitTask = (e) => {
@@ -1287,8 +1515,7 @@ export default function App() {
     } else {
       saveTasks([...tasks, { ...editing, id: uid() }]);
     }
-    setModalOpen(false);
-    setEditing(null);
+    closeTaskModal();
   };
 
   const deleteTask = (id) => {
@@ -3018,6 +3245,146 @@ export default function App() {
         @media (max-width: 480px) {
           .trk-field-row { flex-direction: column; gap: 0; }
         }
+        .trk-modal-task {
+          max-width: 620px;
+          transition: max-width 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+        }
+        .trk-modal-task-wide {
+          max-width: 920px;
+        }
+        .trk-md-editor {
+          border: 1px solid var(--border);
+          border-radius: var(--radius-md);
+          overflow: hidden;
+          background: var(--panel-alt);
+        }
+        .trk-md-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 6px 8px;
+          border-bottom: 1px solid var(--border);
+          background: var(--panel);
+        }
+        .trk-md-tabs {
+          display: flex;
+          gap: 2px;
+        }
+        .trk-md-tab {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          border: none;
+          background: none;
+          color: var(--text-dim);
+          font-size: 12px;
+          font-family: 'Inter', sans-serif;
+          padding: 5px 10px;
+          border-radius: var(--radius-sm, 6px);
+          cursor: pointer;
+          transition: background 0.15s ease, color 0.15s ease;
+        }
+        .trk-md-tab:hover { background: var(--panel-alt); color: var(--text); }
+        .trk-md-tab.active { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 600; }
+        .trk-md-hint {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 11px;
+          color: var(--text-dim);
+          text-decoration: none;
+          white-space: nowrap;
+          padding: 4px 6px;
+          border-radius: var(--radius-sm, 6px);
+          transition: color 0.15s ease, background 0.15s ease;
+        }
+        .trk-md-hint:hover { color: var(--accent); background: var(--panel-alt); }
+        .trk-md-panes {
+          display: flex;
+        }
+        .trk-md-editor-split .trk-md-panes {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+        }
+        .trk-md-editor-split .trk-md-textarea {
+          border-right: 1px solid var(--border);
+        }
+        .trk-md-textarea {
+          flex: 1;
+          width: 100%;
+          min-height: 360px;
+          resize: vertical;
+          border: none;
+          outline: none;
+          background: transparent;
+          color: var(--text);
+          padding: 12px;
+          font-size: 13px;
+          font-family: 'JetBrains Mono', 'Space Mono', monospace;
+          line-height: 1.55;
+        }
+        .trk-md-preview {
+          flex: 1;
+          min-height: 360px;
+          max-height: 600px;
+          overflow-y: auto;
+          padding: 12px 16px;
+          font-size: 13px;
+          line-height: 1.55;
+          color: var(--text);
+        }
+        .trk-md-preview-empty {
+          color: var(--text-dim);
+          font-style: italic;
+          font-size: 12.5px;
+        }
+        .trk-md-preview h1, .trk-md-preview h2, .trk-md-preview h3 {
+          font-family: 'Space Grotesk', sans-serif;
+          margin: 0 0 8px;
+          line-height: 1.3;
+        }
+        .trk-md-preview h1 { font-size: 19px; }
+        .trk-md-preview h2 { font-size: 16.5px; }
+        .trk-md-preview h3 { font-size: 14.5px; }
+        .trk-md-preview p { margin: 0 0 10px; }
+        .trk-md-preview ul, .trk-md-preview ol { margin: 0 0 10px; padding-left: 20px; }
+        .trk-md-preview li { margin-bottom: 3px; }
+        .trk-md-preview li > ul, .trk-md-preview li > ol { margin-top: 3px; margin-bottom: 0; }
+        .trk-md-preview a { color: var(--accent); }
+        .trk-md-preview code {
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-radius: 4px;
+          padding: 1px 5px;
+          font-family: 'JetBrains Mono', 'Space Mono', monospace;
+          font-size: 12px;
+        }
+        .trk-md-preview pre {
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-md);
+          padding: 10px 12px;
+          overflow-x: auto;
+          margin: 0 0 10px;
+        }
+        .trk-md-preview pre code { background: none; border: none; padding: 0; }
+        .trk-md-preview blockquote {
+          margin: 0 0 10px;
+          padding: 4px 12px;
+          border-left: 3px solid var(--accent);
+          color: var(--text-dim);
+        }
+        .trk-md-preview hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+        .trk-md-preview img { max-width: 100%; border-radius: var(--radius-sm, 6px); }
+        .trk-md-preview table { border-collapse: collapse; width: 100%; margin: 0 0 10px; font-size: 12.5px; }
+        .trk-md-preview th, .trk-md-preview td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; }
+        .trk-md-preview p:last-child { margin-bottom: 0; }
+        @media (max-width: 640px) {
+          .trk-modal-task-wide { max-width: 620px; }
+          .trk-md-editor-split .trk-md-panes { grid-template-columns: 1fr; }
+          .trk-md-editor-split .trk-md-textarea { border-right: none; border-bottom: 1px solid var(--border); }
+        }
         .trk-modal-actions {
           display: flex;
           justify-content: flex-end;
@@ -3044,6 +3411,21 @@ export default function App() {
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
+        }
+        .trk-btn-danger {
+          height: var(--control-h);
+          background: var(--danger);
+          border: none;
+          color: #fff;
+          border-radius: var(--radius-md);
+          padding: 0 16px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .trk-modal-overlay-nested {
+          background: var(--overlay);
+          z-index: 60;
         }
         .trk-save-error {
           display: flex;
@@ -3116,10 +3498,17 @@ export default function App() {
           50% { opacity: 1; }
         }
         @keyframes trk-focus-drop-in {
-          0% { opacity: 0; transform: scale(0.55) translateY(16px); }
-          55% { opacity: 1; transform: scale(1.07) translateY(-3px); }
-          78% { transform: scale(0.97); }
-          100% { opacity: 1; transform: none; }
+          0% { opacity: 0; transform: translateY(12px) scale(0.96); filter: blur(5px); }
+          55% { opacity: 1; transform: translateY(-2px) scale(1.012); filter: blur(0); }
+          100% { opacity: 1; transform: none; filter: none; }
+        }
+        @keyframes trk-focus-ripple {
+          0% { opacity: 0.85; transform: scale(0.92); }
+          100% { opacity: 0; transform: scale(1.1); }
+        }
+        @keyframes trk-focus-child-in {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: none; }
         }
         @keyframes trk-focus-leave {
           0% { opacity: 1; transform: none; }
@@ -3168,9 +3557,9 @@ export default function App() {
           z-index: 40;
           width: 310px;
           border-radius: 16px;
-          transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+          transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
         }
-        .trk-focus-zone.over { transform: scale(1.06); }
+        .trk-focus-zone.over { transform: scale(1.04); }
         .trk-focus-zone.leaving .trk-focus-card {
           animation: trk-focus-leave 0.85s cubic-bezier(0.55, 0, 0.8, 0.4) forwards;
         }
@@ -3185,6 +3574,7 @@ export default function App() {
           padding: 1.5px;
           background: var(--border);
           box-shadow: 0 10px 30px var(--shadow);
+          transition: background 0.3s ease, box-shadow 0.3s ease;
         }
         .trk-focus-zone::after {
           content: "";
@@ -3324,7 +3714,203 @@ export default function App() {
         .trk-focus-dots i:nth-child(3) { animation-delay: 0.4s; }
         .trk-focus-card {
           position: relative;
-          animation: trk-focus-drop-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+          animation: trk-focus-drop-in 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+          transition: opacity 0.2s, filter 0.2s;
+        }
+        /* Onde d'atterrissage jouée une seule fois à l'arrivée d'une tâche
+           (la carte est re-montée via sa key à chaque entrée). */
+        .trk-focus-card::after {
+          content: "";
+          position: absolute;
+          inset: -14px;
+          border-radius: 14px;
+          border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+          opacity: 0;
+          pointer-events: none;
+          animation: trk-focus-ripple 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s;
+        }
+        .trk-focus-card .trk-focus-title { animation: trk-focus-child-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.08s backwards; }
+        .trk-focus-card .trk-focus-meta { animation: trk-focus-child-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.16s backwards; }
+        .trk-focus-card .trk-focus-actions { animation: trk-focus-child-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.24s backwards; }
+        /* Drag de la carte hors de la zone : la carte s'estompe, le feu se met en veille. */
+        .trk-focus-zone.drag-out .trk-focus-card {
+          opacity: 0.3;
+          filter: grayscale(0.5);
+        }
+        .trk-focus-zone.drag-out .trk-focus-smoke { opacity: 0; transition: opacity 0.2s; }
+        .trk-focus-zone.drag-out::after { animation: none; opacity: 0; }
+        .trk-focus-zone.drag-out .trk-focus-shell::before { animation-play-state: paused; opacity: 0.35; }
+        /* Sort de la goutte reflété par la zone : verte = elle y reste,
+           rouge = le lâcher la libère. */
+        .trk-focus-zone.drag-home .trk-focus-shell {
+          background: color-mix(in srgb, var(--ok) 60%, var(--border));
+          box-shadow: 0 10px 30px var(--shadow),
+            0 0 24px color-mix(in srgb, var(--ok) 30%, transparent);
+        }
+        .trk-focus-zone.drag-home .trk-focus-card { opacity: 0.55; filter: none; }
+        .trk-focus-zone.drag-away .trk-focus-shell {
+          background: color-mix(in srgb, var(--danger) 55%, var(--border));
+          box-shadow: 0 10px 30px var(--shadow),
+            0 0 20px color-mix(in srgb, var(--danger) 22%, transparent);
+        }
+        /* Goutte « liquid glass » (façon iOS) qui suit le curseur pendant le
+           drag de la tâche focalisée. Trois couches pour éviter tout conflit
+           de transform : .trk-focus-ghost = position (JS), -deform =
+           étirement directionnel (JS), -body = verre + ondulation (CSS). */
+        .trk-focus-ghost {
+          position: fixed;
+          left: 0;
+          top: 0;
+          z-index: 120;
+          pointer-events: none;
+          will-change: transform;
+          /* Couleur du halo selon le sort au lâcher :
+             dans la zone = reste (ok), dehors = libérée (danger). */
+          --ghost-glow: var(--ok);
+        }
+        .trk-focus-ghost.away { --ghost-glow: var(--danger); }
+        .trk-focus-ghost.away .trk-focus-ghost-body > svg { color: var(--danger); }
+        .trk-focus-ghost-deform {
+          position: relative;
+          width: 96px;
+          height: 96px;
+          margin: -48px 0 0 -48px;
+          will-change: transform;
+        }
+        .trk-focus-ghost-body {
+          position: relative;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          width: 100%;
+          height: 100%;
+          padding: 12px;
+          border-radius: 50%;
+          font-size: 10.5px;
+          font-weight: 600;
+          line-height: 1.25;
+          text-align: center;
+          color: var(--text);
+          text-shadow: 0 1px 3px color-mix(in srgb, var(--bg) 55%, transparent);
+          background: color-mix(in srgb, var(--panel) 22%, transparent);
+          backdrop-filter: blur(16px) saturate(1.8) brightness(1.08);
+          -webkit-backdrop-filter: blur(16px) saturate(1.8) brightness(1.08);
+          box-shadow:
+            0 14px 34px var(--shadow),
+            0 0 22px color-mix(in srgb, var(--ghost-glow) 42%, transparent),
+            0 0 48px color-mix(in srgb, var(--ghost-glow) 16%, transparent),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+            inset 1.5px 2.5px 5px rgba(255, 255, 255, 0.5),
+            inset -2px -4px 8px rgba(255, 255, 255, 0.16);
+          transition: box-shadow 0.3s ease;
+          animation: trk-ghost-blob 2.6s ease-in-out infinite;
+        }
+        .trk-focus-ghost-body > svg { color: var(--warn); flex-shrink: 0; }
+        .trk-focus-ghost-body > span {
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          overflow-wrap: anywhere;
+        }
+        /* Réfraction des bords : glints lumineux en haut-gauche / bas-droite. */
+        .trk-focus-ghost-body::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          pointer-events: none;
+          background:
+            radial-gradient(130% 95% at 18% -10%, rgba(255, 255, 255, 0.38), transparent 42%),
+            radial-gradient(130% 110% at 85% 120%, rgba(255, 255, 255, 0.22), transparent 46%);
+        }
+        /* Reflet spéculaire qui dérive lentement sur la surface. */
+        .trk-focus-ghost-body::after {
+          content: "";
+          position: absolute;
+          top: 2px;
+          left: 8%;
+          width: 34%;
+          height: 40%;
+          border-radius: 50%;
+          pointer-events: none;
+          background: radial-gradient(closest-side, rgba(255, 255, 255, 0.45), transparent);
+          filter: blur(3px);
+          animation: trk-ghost-glint 2.4s ease-in-out infinite;
+        }
+        /* Ondulation organique : la capsule respire comme une goutte posée. */
+        @keyframes trk-ghost-blob {
+          0%, 100% { border-radius: 55% 45% 52% 48% / 52% 58% 42% 48%; }
+          33% { border-radius: 47% 53% 45% 55% / 58% 44% 56% 42%; }
+          66% { border-radius: 53% 47% 57% 43% / 44% 52% 48% 56%; }
+        }
+        @keyframes trk-ghost-glint {
+          0%, 100% { transform: translateX(0) scale(1); opacity: 0.9; }
+          50% { transform: translateX(130%) scale(0.75, 0.9); opacity: 0.5; }
+        }
+        /* Au lâcher : la goutte s'écrase, éclabousse et s'évapore. */
+        .trk-focus-ghost.pop .trk-focus-ghost-body {
+          animation: trk-ghost-burst 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        @keyframes trk-ghost-burst {
+          0% { opacity: 1; transform: scale(1); filter: blur(0); }
+          30% { opacity: 0.9; transform: scale(1.12, 0.78); }
+          100% { opacity: 0; transform: scale(1.4, 0.45); filter: blur(8px); }
+        }
+        .trk-focus-ghost-drops {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          display: none;
+        }
+        .trk-focus-ghost.pop .trk-focus-ghost-drops { display: block; }
+        .trk-focus-ghost-drops i {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: var(--sz, 7px);
+          height: var(--sz, 7px);
+          margin: calc(var(--sz, 7px) / -2) 0 0 calc(var(--sz, 7px) / -2);
+          border-radius: 50%;
+          background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.2) 72%);
+          animation: trk-ghost-splash 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .trk-focus-ghost-drops i:nth-child(1) { --dx: -44px; --dy: -26px; --sz: 7px; }
+        .trk-focus-ghost-drops i:nth-child(2) { --dx: 40px;  --dy: -32px; --sz: 6px; }
+        .trk-focus-ghost-drops i:nth-child(3) { --dx: -34px; --dy: 24px;  --sz: 5px; }
+        .trk-focus-ghost-drops i:nth-child(4) { --dx: 48px;  --dy: 16px;  --sz: 8px; }
+        .trk-focus-ghost-drops i:nth-child(5) { --dx: 4px;   --dy: -46px; --sz: 5px; }
+        .trk-focus-ghost-drops i:nth-child(6) { --dx: -8px;  --dy: 38px;  --sz: 6px; }
+        @keyframes trk-ghost-splash {
+          0% { opacity: 0.95; transform: translate(0, 0) scale(1); }
+          100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.25); }
+        }
+        /* Anneau d'onde au point d'impact. */
+        .trk-focus-ghost.pop .trk-focus-ghost-drops::after {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 72px;
+          height: 72px;
+          margin: -36px 0 0 -36px;
+          border-radius: 50%;
+          border: 1.5px solid rgba(255, 255, 255, 0.4);
+          animation: trk-ghost-ring 0.5s ease-out forwards;
+        }
+        @keyframes trk-ghost-ring {
+          from { opacity: 0.7; transform: scale(0.4); }
+          to { opacity: 0; transform: scale(1.6); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .trk-focus-ghost-body,
+          .trk-focus-ghost-body::after,
+          .trk-focus-ghost-drops i { animation: none; }
+          .trk-focus-ghost-body { border-radius: 999px; }
+          .trk-focus-ghost.pop { display: none; }
         }
         .trk-focus-smoke {
           position: absolute;
@@ -3370,8 +3956,9 @@ export default function App() {
           font-family: inherit;
           padding: 0;
           margin: 0 0 10px;
-          cursor: pointer;
+          cursor: grab;
         }
+        .trk-focus-task-btn:active { cursor: grabbing; }
         .trk-focus-task-btn:hover .trk-focus-title { color: var(--accent); }
         .trk-focus-title {
           margin: 0 0 8px;
@@ -4030,11 +4617,17 @@ export default function App() {
           )}
 
           {modalOpen && editing && (
-            <div className="trk-modal-overlay" onClick={() => setModalOpen(false)}>
-              <div className="trk-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={editing.id ? t("edit_task") : t("new_task")}>
+            <div className="trk-modal-overlay" onClick={requestCloseTaskModal}>
+              <div
+                className={"trk-modal trk-modal-task" + (descMode === "split" ? " trk-modal-task-wide" : "")}
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label={editing.id ? t("edit_task") : t("new_task")}
+              >
                 <div className="trk-modal-header">
                   <span className="trk-modal-title">{editing.id ? t("edit_task") : t("new_task")}</span>
-                  <button className="trk-icon-btn" onClick={() => setModalOpen(false)}><X size={16} /></button>
+                  <button className="trk-icon-btn" onClick={requestCloseTaskModal}><X size={16} /></button>
                 </div>
                 <form onSubmit={submitTask}>
                   <div className="trk-field">
@@ -4048,10 +4641,14 @@ export default function App() {
                     />
                   </div>
                   <div className="trk-field">
-                    <label>{t("field_description")}</label>
-                    <textarea
+                    <label htmlFor="task-description">{t("field_description")}</label>
+                    <MarkdownEditor
+                      id="task-description"
                       value={editing.description}
                       onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                      mode={descMode}
+                      onModeChange={setDescMode}
+                      placeholder={t("description_placeholder")}
                     />
                   </div>
                   {!editing.id && (
@@ -4149,11 +4746,36 @@ export default function App() {
                     <div className="trk-timelog-hint">{t("time_hint")}</div>
                   )}
                   <div className="trk-modal-actions">
-                    <button type="button" className="trk-btn-secondary" onClick={() => setModalOpen(false)}>{t("cancel")}</button>
+                    <button type="button" className="trk-btn-secondary" onClick={requestCloseTaskModal}>{t("cancel")}</button>
                     <button type="submit" className="trk-btn-primary">{editing.id ? t("save") : t("add")}</button>
                   </div>
                 </form>
               </div>
+
+              {confirmCloseTask && (
+                <div className="trk-modal-overlay trk-modal-overlay-nested" onClick={() => setConfirmCloseTask(false)}>
+                  <div
+                    className="trk-modal"
+                    style={{ maxWidth: 380 }}
+                    onClick={(e) => e.stopPropagation()}
+                    role="alertdialog"
+                    aria-modal="true"
+                    aria-label={t("unsaved_changes_title")}
+                  >
+                    <div className="trk-modal-header">
+                      <span className="trk-modal-title">{t("unsaved_changes_title")}</span>
+                      <button className="trk-icon-btn" onClick={() => setConfirmCloseTask(false)}><X size={16} /></button>
+                    </div>
+                    <p style={{ fontSize: 13, color: "var(--text-dim)", margin: "0 0 4px" }}>
+                      {t("unsaved_changes_body")}
+                    </p>
+                    <div className="trk-modal-actions">
+                      <button type="button" className="trk-btn-secondary" onClick={() => setConfirmCloseTask(false)}>{t("keep_editing")}</button>
+                      <button type="button" className="trk-btn-danger" onClick={closeTaskModal}>{t("discard_changes")}</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>
