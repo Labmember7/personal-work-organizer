@@ -2,6 +2,9 @@ const { app, BrowserWindow, ipcMain, Menu, dialog, shell } = require("electron")
 const path = require("path");
 const fs = require("fs");
 const { createStore } = require("./electron/store");
+const { createLogger } = require("./electron/logger");
+
+const logger = createLogger();
 
 // --- Stockage local portable -----------------------------------------
 // Les données sont écrites dans un dossier "data" situé À CÔTÉ de
@@ -13,6 +16,11 @@ function resolveBaseDir() {
   // process.execPath y pointe, pas vers le vrai fichier .AppImage sur le disque.
   // La variable APPIMAGE, fournie par le runtime AppImage, donne le vrai chemin.
   if (process.env.APPIMAGE) return path.dirname(process.env.APPIMAGE);
+  // Même problème sur Windows avec la cible "portable" d'electron-builder :
+  // l'exe s'auto-extrait dans %TEMP% et process.execPath pointe là-bas.
+  // PORTABLE_EXECUTABLE_DIR, fournie par le runtime portable, donne le vrai
+  // dossier du .exe sur le disque.
+  if (process.env.PORTABLE_EXECUTABLE_DIR) return process.env.PORTABLE_EXECUTABLE_DIR;
   if (app.isPackaged) return path.dirname(process.execPath);
   return __dirname;
 }
@@ -21,6 +29,16 @@ let cachedDataDir = null;
 
 function getDataDir() {
   if (cachedDataDir) return cachedDataDir;
+
+  logger.log("Résolution du dossier de données", {
+    platform: process.platform,
+    version: app.getVersion(),
+    isPackaged: app.isPackaged,
+    execPath: process.execPath,
+    APPIMAGE: process.env.APPIMAGE ?? null,
+    PORTABLE_EXECUTABLE_DIR: process.env.PORTABLE_EXECUTABLE_DIR ?? null,
+    baseDir: resolveBaseDir(),
+  });
 
   const candidates = [
     path.join(resolveBaseDir(), "data"),
@@ -33,12 +51,22 @@ function getDataDir() {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.accessSync(dir, fs.constants.W_OK);
       cachedDataDir = dir;
+      logger.attachFile(dir);
+      const storeFile = path.join(dir, "store.json");
+      logger.log("Dossier de données retenu:", dir, {
+        storeExists: fs.existsSync(storeFile),
+        storeSize: fs.existsSync(storeFile) ? fs.statSync(storeFile).size : 0,
+      });
       return dir;
-    } catch {
+    } catch (err) {
+      logger.log("Candidat rejeté:", dir, err);
       continue;
     }
   }
 
+  // Aucun dossier accessible : on dépose au moins le journal dans userData.
+  logger.log("Aucun dossier de données accessible en écriture.");
+  logger.attachFile(app.getPath("userData"));
   throw new Error("Aucun dossier de données accessible en écriture n'a été trouvé.");
 }
 
@@ -209,7 +237,12 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   try {
     store.flush();
-  } catch {
+  } catch (err) {
     // disque indisponible à la fermeture : rien de plus à tenter
+    logger.log("Échec du flush à la fermeture:", err);
   }
+});
+
+process.on("uncaughtException", (err) => {
+  logger.log("Exception non interceptée:", err);
 });
