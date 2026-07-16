@@ -21,6 +21,7 @@ import {
   selectedCountLabel, statusCountLabel, pageOfLabel,
 } from "./i18n.jsx";
 import { CelebrationOverlay, MiniCelebration, pickCelebration } from "./celebration.jsx";
+import { HelpTip, Tutorial, TUTORIAL_STORAGE_KEY } from "./tips.jsx";
 
 const DEFAULT_PROJECTS = [];
 const STORAGE_KEY = "suivi-travaux-data";
@@ -794,7 +795,7 @@ function KanbanBoard({ tasks, statuses = STATUSES, onMove, onEdit, onDelete, con
 
 // Carte de graphique réutilisable : bouton focus -> modal agrandi
 // avec le même graphique en grand et un tableau de détails.
-function ChartCard({ title, empty, emptyLabel, render, details, className = "" }) {
+function ChartCard({ title, empty, emptyLabel, render, details, tip, className = "" }) {
   const { t } = useLang();
   const [focused, setFocused] = useState(false);
 
@@ -808,7 +809,7 @@ function ChartCard({ title, empty, emptyLabel, render, details, className = "" }
   return (
     <div className={"trk-chart-card " + className}>
       <div className="trk-chart-head">
-        <div className="trk-chart-title">{title}</div>
+        <div className="trk-chart-title">{title}{tip && <HelpTip tipKey={tip} />}</div>
         {!empty && (
           <button
             type="button"
@@ -1331,6 +1332,24 @@ export default function App() {
       }
       return !prev;
     });
+  };
+
+  // Guide de démarrage : affiché à la première ouverture, rejouable via le « ? » de l'en-tête.
+  const [tutorialOpen, setTutorialOpen] = useState(() => {
+    try {
+      return !localStorage.getItem(TUTORIAL_STORAGE_KEY);
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const closeTutorial = () => {
+    setTutorialOpen(false);
+    try {
+      localStorage.setItem(TUTORIAL_STORAGE_KEY, "1");
+    } catch (e) {
+      // stockage indisponible, le guide réapparaîtra à la prochaine ouverture
+    }
   };
 
   useEffect(() => {
@@ -2201,6 +2220,140 @@ export default function App() {
           top: 50%;
           border-top: 1.5px solid currentColor;
           transform: rotate(-45deg);
+        }
+
+        .trk-help-wrap { display: inline-flex; vertical-align: middle; }
+        .trk-help-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          padding: 0;
+          margin-left: 5px;
+          background: none;
+          border: none;
+          border-radius: 50%;
+          color: var(--text-dim);
+          cursor: pointer;
+          opacity: 0.7;
+          transition: color 0.15s, opacity 0.15s;
+        }
+        .trk-help-btn:hover, .trk-help-btn.active { color: var(--accent); opacity: 1; }
+        .trk-help-pop {
+          position: fixed;
+          z-index: 80;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          border-left: 3px solid var(--accent);
+          border-radius: 10px;
+          padding: 10px 12px;
+          box-shadow: 0 12px 32px var(--shadow);
+          animation: trk-pop-in 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+          text-align: left;
+        }
+        .trk-help-pop-head {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--text);
+          margin-bottom: 6px;
+          letter-spacing: normal;
+          font-family: 'Inter', sans-serif;
+        }
+        .trk-help-pop-head > svg { color: var(--accent); flex-shrink: 0; }
+        .trk-help-pop-head > span { flex: 1; }
+        .trk-help-pop-close {
+          display: inline-flex;
+          background: none;
+          border: none;
+          padding: 2px;
+          color: var(--text-dim);
+          cursor: pointer;
+        }
+        .trk-help-pop-close:hover { color: var(--text); }
+        .trk-help-pop-body {
+          margin: 0;
+          font-size: 12.5px;
+          line-height: 1.55;
+          color: var(--text-dim);
+          font-family: 'Inter', sans-serif;
+          letter-spacing: normal;
+          white-space: normal;
+          text-transform: none;
+        }
+
+        .trk-tuto { max-width: 460px; }
+        .trk-tuto-body {
+          text-align: center;
+          padding: 6px 8px 14px;
+          animation: trk-fade-in 0.2s ease;
+        }
+        .trk-tuto-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          border: 1.5px dashed var(--accent);
+          color: var(--accent);
+          margin-bottom: 12px;
+        }
+        .trk-tuto-step-title {
+          margin: 0 0 8px;
+          font-family: 'Space Grotesk', sans-serif;
+          font-size: 18px;
+          font-weight: 700;
+        }
+        .trk-tuto-step-body {
+          margin: 0 auto;
+          max-width: 360px;
+          font-size: 13.5px;
+          line-height: 1.6;
+          color: var(--text-dim);
+        }
+        .trk-tuto-dots {
+          display: flex;
+          justify-content: center;
+          gap: 7px;
+          margin-bottom: 16px;
+        }
+        .trk-tuto-dot {
+          width: 8px;
+          height: 8px;
+          padding: 0;
+          border: none;
+          border-radius: 50%;
+          background: var(--border);
+          cursor: pointer;
+          transition: background 0.15s, transform 0.15s;
+        }
+        .trk-tuto-dot:hover { transform: scale(1.3); }
+        .trk-tuto-dot.active { background: var(--accent); transform: scale(1.2); }
+        .trk-tuto-actions {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+        .trk-tuto-skip {
+          background: none;
+          border: none;
+          padding: 6px 2px;
+          font-size: 12px;
+          color: var(--text-dim);
+          cursor: pointer;
+        }
+        .trk-tuto-skip:hover { color: var(--text); text-decoration: underline; }
+        .trk-tuto-nav { display: flex; gap: 8px; }
+        .trk-tuto-nav .trk-btn-primary,
+        .trk-tuto-nav .trk-btn-secondary {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
         }
 
         .trk-toast {
@@ -4092,7 +4245,7 @@ export default function App() {
               <Gauge value={globalProgress} />
               <div className="trk-gauge-caption">
                 <strong>{doneOfTotal(t, lang, doneCount, tasks.length)}</strong>
-                <span>{tasksTotalLabel(lang, tasks.length)}</span>
+                <span>{tasksTotalLabel(lang, tasks.length)} <HelpTip tipKey="progress" /></span>
               </div>
             </div>
             <div className="trk-header-actions">
@@ -4115,7 +4268,17 @@ export default function App() {
                 >
                   <Download size={14} /> {t("export_data")}
                 </button>
+                <HelpTip tipKey="backup" />
               </div>
+              <button
+                type="button"
+                className="trk-theme-btn"
+                onClick={() => setTutorialOpen(true)}
+                title={t("help_tutorial")}
+                aria-label={t("help_tutorial")}
+              >
+                <HelpCircle size={14} />
+              </button>
               <button
                 type="button"
                 className={"trk-theme-btn" + (celebrationsOn ? "" : " trk-celeb-off")}
@@ -4144,6 +4307,7 @@ export default function App() {
               <div className="trk-sidebar-title">
                 {t("projects")}
                 {filterProjects.length > 0 && <span className="trk-filter-count"> · {selectedCountLabel(lang, filterProjects.length)}</span>}
+                <HelpTip tipKey="projects" />
               </div>
               <button
                 className={"trk-all-btn" + (filterProjects.length === 0 ? " active" : "")}
@@ -4291,6 +4455,7 @@ export default function App() {
                 <button className="trk-add-btn" onClick={openNewTask}>
                   <Plus size={15} /> {t("new_task")}
                 </button>
+                <HelpTip tipKey="tasks" />
               </div>
 
               {viewMode === "kanban" ? (
@@ -4420,6 +4585,7 @@ export default function App() {
           <section className="trk-charts">
             <ChartCard
               title={t("chart_status_distribution")}
+              tip="chart_status"
               empty={statusDistribution.length === 0}
               emptyLabel={t("no_data")}
               details={{
@@ -4448,6 +4614,7 @@ export default function App() {
 
             <ChartCard
               title={t("chart_project_progress")}
+              tip="chart_projects"
               empty={tasks.length === 0}
               emptyLabel={t("no_data")}
               details={{
@@ -4477,6 +4644,7 @@ export default function App() {
 
             <ChartCard
               title={t("chart_priority_distribution")}
+              tip="chart_priority"
               empty={tasks.length === 0}
               emptyLabel={t("no_data")}
               details={{
@@ -4500,6 +4668,7 @@ export default function App() {
 
             <ChartCard
               title={t("chart_time_per_project")}
+              tip="chart_time"
               empty={projectTimeDistribution.every((d) => d.minutes === 0)}
               emptyLabel={t("no_time_logged")}
               details={{
@@ -4545,6 +4714,7 @@ export default function App() {
           <ChartCard
             className="trk-gantt-card"
             title={t("chart_gantt")}
+            tip="chart_gantt"
             empty={!tasks.some((tk) => tk.echeance)}
             emptyLabel={t("gantt_empty")}
             render={(height, focused) => (
@@ -4564,6 +4734,8 @@ export default function App() {
             onRelease={releaseFocus}
             onEdit={openEditTask}
           />
+
+          <Tutorial open={tutorialOpen} onClose={closeTutorial} />
 
           {saveError && (
             <div className="trk-save-error">
