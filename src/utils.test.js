@@ -1,9 +1,28 @@
 import { describe, it, expect } from "vitest";
 import {
-  statusOf, prioOf, taskMinutes, formatDuration,
+  statusOf, prioOf, taskMinutes, liveTaskMinutes, formatDuration,
   parseDurationInput, projectColor, STATUSES, PRIORITIES,
   isValidBackupData, buildBackupPayload, taskMatchesQuery,
+  focusMinutes, DAY_WORK_CAP_MINUTES,
 } from "./utils";
+
+describe("focusMinutes", () => {
+  const at = (iso) => new Date(iso).getTime();
+  it("returns elapsed minutes within a single day", () => {
+    expect(focusMinutes(at("2026-07-15T09:00:00"), at("2026-07-15T10:30:00"))).toBe(90);
+  });
+  it("caps a single day at 8h", () => {
+    expect(focusMinutes(at("2026-07-15T00:00:00"), at("2026-07-15T23:59:00"))).toBe(DAY_WORK_CAP_MINUTES);
+  });
+  it("caps each calendar day separately across a closed period", () => {
+    // 14h le 13, journée pleine le 14, 1h le 15 → 8h + 8h + 1h
+    expect(focusMinutes(at("2026-07-13T10:00:00"), at("2026-07-15T01:00:00"))).toBe(2 * DAY_WORK_CAP_MINUTES + 60);
+  });
+  it("returns 0 for missing or inverted bounds", () => {
+    expect(focusMinutes(null, Date.now())).toBe(0);
+    expect(focusMinutes(at("2026-07-15T10:00:00"), at("2026-07-15T09:00:00"))).toBe(0);
+  });
+});
 
 describe("taskMatchesQuery", () => {
   const task = { titre: "Corriger l'écran", description: "Bug affichage", projet: "API-REST", assigne: "Bacem" };
@@ -46,6 +65,24 @@ describe("taskMinutes", () => {
   });
   it("returns 0 when there are no time logs", () => {
     expect(taskMinutes({})).toBe(0);
+  });
+});
+
+describe("liveTaskMinutes", () => {
+  const at = (iso) => new Date(iso).getTime();
+  it("adds the running focus session on top of logged minutes for the focused task", () => {
+    const task = { id: "t1", timeLogs: [{ minutes: 30 }] };
+    const startedAt = at("2026-07-15T09:00:00");
+    const now = at("2026-07-15T09:20:00");
+    expect(liveTaskMinutes(task, "t1", startedAt, now)).toBe(50);
+  });
+  it("ignores the running session for a task that isn't focused", () => {
+    const task = { id: "t2", timeLogs: [{ minutes: 30 }] };
+    expect(liveTaskMinutes(task, "t1", at("2026-07-15T09:00:00"), at("2026-07-15T09:20:00"))).toBe(30);
+  });
+  it("returns plain logged minutes when no focus session is active", () => {
+    const task = { id: "t1", timeLogs: [{ minutes: 30 }] };
+    expect(liveTaskMinutes(task, null, null, Date.now())).toBe(30);
   });
 });
 

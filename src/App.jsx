@@ -7,11 +7,12 @@ import {
   Plus, X, Check, Trash2, Pencil, Search, ArrowUpDown,
   ChevronDown, FolderPlus, AlertTriangle, Minus, Copy, ChevronsUpDown, Clock,
   Download, Upload, List, Columns3, ChevronLeft, ChevronRight, Maximize2,
-  Sun, Moon, ClipboardList, PartyPopper,
+  Sun, Moon, ClipboardList, PartyPopper, Flame, Target, Zap, ArrowRight, HelpCircle,
 } from "lucide-react";
 import {
-  STATUSES, PRIORITIES, uid, statusOf, prioOf,
-  taskMinutes, formatDuration, parseDurationInput, projectColor,
+  STATUSES, SIMPLE_STATUSES, PRIORITIES, uid, statusOf, prioOf,
+  isSimpleTask, statusesForTask, isDoneStatus, isTaskDone, focusMinutes,
+  taskMinutes, liveTaskMinutes, formatDuration, parseDurationInput, projectColor,
   isValidBackupData, buildBackupPayload, taskMatchesQuery, matchesQuery,
 } from "./utils";
 import {
@@ -24,6 +25,17 @@ const DEFAULT_PROJECTS = [];
 const STORAGE_KEY = "suivi-travaux-data";
 const THEME_STORAGE_KEY = "suivi-travaux-theme";
 const CELEBRATIONS_STORAGE_KEY = "suivi-travaux-celebrations";
+const FOCUS_STORAGE_KEY = "suivi-travaux-focus";
+const FOCUS_STARTED_STORAGE_KEY = "suivi-travaux-focus-started";
+const FOCUS_REDUCED_STORAGE_KEY = "suivi-travaux-focus-reduced";
+
+// Statuts utilisés par les graphiques : les deux familles fusionnées,
+// avec un seul segment « terminé » (termine + done).
+const CHART_STATUSES = [
+  ...STATUSES.filter((s) => s.id !== "termine"),
+  ...SIMPLE_STATUSES.filter((s) => s.id !== "done"),
+  STATUSES.find((s) => s.id === "termine"),
+];
 
 function Gauge({ value }) {
   const { t } = useLang();
@@ -270,7 +282,7 @@ function StatusFilterDropdown({ selected, onToggle, onClear }) {
       </button>
       {open && (
         <div className="trk-multiselect-panel">
-          {STATUSES.map((s) => (
+          {CHART_STATUSES.map((s) => (
             <label key={s.id} className="trk-multiselect-item">
               <input type="checkbox" checked={selected.includes(s.id)} onChange={() => onToggle(s.id)} />
               <span className="trk-multiselect-dot" style={{ background: s.color }} />
@@ -286,7 +298,84 @@ function StatusFilterDropdown({ selected, onToggle, onClear }) {
   );
 }
 
-function TimeLogPopover({ task, onAdd, onDelete, onClose }) {
+// Ligne d'historique éditable : bascule entre affichage et formulaire
+// d'édition (durée + note), partagée par le popover et la section inline.
+function TimeLogEntryRow({ log, onEdit, onDelete }) {
+  const { t } = useLang();
+  const [editing, setEditing] = useState(false);
+  const [duration, setDuration] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState(false);
+
+  const startEdit = () => {
+    setDuration(formatDuration(log.minutes));
+    setNote(log.note || "");
+    setError(false);
+    setEditing(true);
+  };
+
+  const save = () => {
+    const minutes = parseDurationInput(duration);
+    if (!minutes) {
+      setError(true);
+      return;
+    }
+    onEdit(log.id, minutes, note.trim());
+    setEditing(false);
+  };
+
+  const onEnter = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      save();
+    } else if (e.key === "Escape") {
+      setEditing(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="trk-timelog-entry trk-timelog-entry-edit">
+        <input
+          className="trk-timelog-duration-input"
+          value={duration}
+          onChange={(e) => { setDuration(e.target.value); setError(false); }}
+          onKeyDown={onEnter}
+          autoFocus
+        />
+        <input
+          className="trk-timelog-note-input"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={onEnter}
+        />
+        <button type="button" className="trk-icon-btn" onClick={save} title={t("save")}>
+          <Check size={12} />
+        </button>
+        <button type="button" className="trk-icon-btn" onClick={() => setEditing(false)} title={t("cancel")}>
+          <X size={12} />
+        </button>
+        {error && <div className="trk-timelog-error">{t("duration_format_error")}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="trk-timelog-entry">
+      <span className="trk-timelog-entry-info">
+        <strong>{formatDuration(log.minutes)}</strong> · {log.date}{log.note ? ` · ${log.note}` : ""}
+      </span>
+      <button type="button" className="trk-icon-btn" onClick={startEdit} title={t("edit_entry")}>
+        <Pencil size={12} />
+      </button>
+      <button type="button" className="trk-icon-btn" onClick={() => onDelete(log.id)} title={t("remove")}>
+        <X size={12} />
+      </button>
+    </div>
+  );
+}
+
+function TimeLogPopover({ task, liveMinutes, onAdd, onEdit, onDelete, onClose }) {
   const { t } = useLang();
   const ref = useRef(null);
   const [duration, setDuration] = useState("");
@@ -302,7 +391,7 @@ function TimeLogPopover({ task, onAdd, onDelete, onClose }) {
   }, [onClose]);
 
   const logs = task.timeLogs || [];
-  const total = taskMinutes(task);
+  const total = liveMinutes ?? taskMinutes(task);
 
   const submit = (e) => {
     e.preventDefault();
@@ -345,28 +434,21 @@ function TimeLogPopover({ task, onAdd, onDelete, onClose }) {
       <div className="trk-timelog-list">
         {logs.length === 0 && <div className="trk-timelog-empty">{t("no_entry")}</div>}
         {[...logs].sort((a, b) => b.date.localeCompare(a.date)).map((l) => (
-          <div key={l.id} className="trk-timelog-entry">
-            <span className="trk-timelog-entry-info">
-              <strong>{formatDuration(l.minutes)}</strong> · {l.date}{l.note ? ` · ${l.note}` : ""}
-            </span>
-            <button className="trk-icon-btn" onClick={() => onDelete(l.id)} title={t("remove")}>
-              <X size={12} />
-            </button>
-          </div>
+          <TimeLogEntryRow key={l.id} log={l} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </div>
     </div>
   );
 }
 
-function TimeLogSection({ task, onAdd, onDelete }) {
+function TimeLogSection({ task, liveMinutes, onAdd, onEdit, onDelete }) {
   const { t } = useLang();
   const [duration, setDuration] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState(false);
 
   const logs = task.timeLogs || [];
-  const total = taskMinutes(task);
+  const total = liveMinutes ?? taskMinutes(task);
 
   const submit = () => {
     const minutes = parseDurationInput(duration);
@@ -416,14 +498,7 @@ function TimeLogSection({ task, onAdd, onDelete }) {
       <div className="trk-timelog-list">
         {logs.length === 0 && <div className="trk-timelog-empty">{t("no_entry")}</div>}
         {[...logs].sort((a, b) => b.date.localeCompare(a.date)).map((l) => (
-          <div key={l.id} className="trk-timelog-entry">
-            <span className="trk-timelog-entry-info">
-              <strong>{formatDuration(l.minutes)}</strong> · {l.date}{l.note ? ` · ${l.note}` : ""}
-            </span>
-            <button type="button" className="trk-icon-btn" onClick={() => onDelete(l.id)} title={t("remove")}>
-              <X size={12} />
-            </button>
-          </div>
+          <TimeLogEntryRow key={l.id} log={l} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </div>
     </div>
@@ -527,13 +602,14 @@ function Pagination({ page, totalPages, onChange, compact = false }) {
   );
 }
 
-function KanbanCard({ task, dragging, onDragStart, onDragEnd, onEdit, onDelete, confirmId, onAskDelete, onCancelDelete }) {
+function KanbanCard({ task, dragging, onDragStart, onDragEnd, onEdit, onDelete, confirmId, onAskDelete, onCancelDelete, liveMinutesFor }) {
   const { t } = useLang();
   const pr = prioOf(task.priorite);
   const pc = projectColor(task.projet);
+  const minutes = liveMinutesFor ? liveMinutesFor(task) : taskMinutes(task);
   return (
     <div
-      className={"trk-kanban-card" + (dragging ? " dragging" : "") + (task.statut === "termine" ? " done" : "")}
+      className={"trk-kanban-card" + (dragging ? " dragging" : "") + (isTaskDone(task) ? " done" : "")}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -544,6 +620,9 @@ function KanbanCard({ task, dragging, onDragStart, onDragEnd, onEdit, onDelete, 
         <span className="trk-tag" style={{ "--pill-color": pc }}>
           {task.projet}
         </span>
+        {isSimpleTask(task) && (
+          <span className="trk-type-tag"><Zap size={10} /> {t("type_simple_tag")}</span>
+        )}
         <span className="trk-prio-tag" style={{ "--pill-color": pr.color }}>
           {task.priorite === "critique" && <AlertTriangle size={10} />}
           {t(`prio_${pr.id}`)}
@@ -552,9 +631,9 @@ function KanbanCard({ task, dragging, onDragStart, onDragEnd, onEdit, onDelete, 
       <div className="trk-kanban-card-footer">
         <span className="trk-kanban-card-info">
           {task.echeance && <span className="trk-mono">{task.echeance}</span>}
-          {taskMinutes(task) > 0 && (
+          {minutes > 0 && (
             <span className="trk-mono trk-kanban-time">
-              <Clock size={10} /> {formatDuration(taskMinutes(task))}
+              <Clock size={10} /> {formatDuration(minutes)}
             </span>
           )}
         </span>
@@ -670,7 +749,7 @@ function KanbanColumn({ status, tasks, dragCtx, cardProps }) {
   );
 }
 
-function KanbanBoard({ tasks, onMove, onEdit, onDelete, confirmId, onAskDelete, onCancelDelete }) {
+function KanbanBoard({ tasks, statuses = STATUSES, onMove, onEdit, onDelete, confirmId, onAskDelete, onCancelDelete, liveMinutesFor }) {
   const [dragId, setDragId] = useState(null);
   const [overCol, setOverCol] = useState(null);
 
@@ -680,11 +759,11 @@ function KanbanBoard({ tasks, onMove, onEdit, onDelete, confirmId, onAskDelete, 
   };
 
   const dragCtx = { dragId, setDragId, overCol, setOverCol, onMove, endDrag };
-  const cardProps = { onEdit, onDelete, confirmId, onAskDelete, onCancelDelete };
+  const cardProps = { onEdit, onDelete, confirmId, onAskDelete, onCancelDelete, liveMinutesFor };
 
   return (
     <div className="trk-kanban">
-      {STATUSES.map((s) => (
+      {statuses.map((s) => (
         <KanbanColumn
           key={s.id}
           status={s}
@@ -739,7 +818,7 @@ function ChartCard({ title, empty, emptyLabel, render, details, className = "" }
               <button className="trk-icon-btn" onClick={() => setFocused(false)}><X size={16} /></button>
             </div>
             <div className="trk-chart-modal-body">
-              {render(380, true)}
+              {render(460, true)}
               {details && (
                 <table className="trk-chart-details">
                   <thead>
@@ -761,6 +840,181 @@ function ChartCard({ title, empty, emptyLabel, render, details, className = "" }
 }
 
 const pct = (n, total) => (total ? `${Math.round((n / total) * 100)}%` : "0%");
+
+// Zone de focus : dock flottant qui accueille UNE tâche en cours (drag & drop).
+// La tâche « cuit » (animations + pointage du temps) et sort automatiquement
+// une fois terminée. Réductible en pastille compacte.
+function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAdvance, onRelease, onEdit }) {
+  const { t } = useLang();
+  const [over, setOver] = useState(false);
+  const [reduced, setReduced] = useState(() => {
+    try {
+      return localStorage.getItem(FOCUS_REDUCED_STORAGE_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  });
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FOCUS_REDUCED_STORAGE_KEY, reduced ? "1" : "0");
+    } catch (e) {
+      // stockage indisponible, le réglage reste appliqué pour la session
+    }
+  }, [reduced]);
+
+  // Rafraîchit l'affichage du temps de focus écoulé.
+  useEffect(() => {
+    if (!task || !startedAt) return;
+    setNow(Date.now());
+    const iv = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(iv);
+  }, [task && task.id, startedAt]);
+
+  const st = task ? statusOf(task.statut) : null;
+  const seq = task ? statusesForTask(task) : [];
+  const nextSt = task
+    ? seq[Math.min(seq.findIndex((s) => s.id === task.statut) + 1, seq.length - 1)]
+    : null;
+  const elapsed = task && startedAt ? focusMinutes(startedAt, now) : 0;
+
+  const dndProps = {
+    onDragOver: (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (!over) setOver(true);
+    },
+    onDragLeave: (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) setOver(false);
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      setOver(false);
+      const id = e.dataTransfer.getData("text/plain");
+      if (id) {
+        onDropTask(id);
+        setReduced(false);
+      }
+    },
+  };
+
+  if (reduced) {
+    return (
+      <div
+        className={
+          "trk-focus-zone trk-focus-reduced" +
+          (task ? " occupied" : "") +
+          (over ? " over" : "")
+        }
+        {...dndProps}
+        role="region"
+        aria-label={t("focus_zone_title")}
+      >
+        <button
+          type="button"
+          className="trk-focus-mini"
+          onClick={() => setReduced(false)}
+          title={t("focus_expand")}
+          aria-label={t("focus_expand")}
+        >
+          <Flame size={15} className={task ? "trk-focus-flame" : undefined} />
+          {task && <span className="trk-mono">{formatDuration(elapsed)}</span>}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={
+        "trk-focus-zone" +
+        (task ? " occupied" : "") +
+        (over ? " over" : "") +
+        (leaving ? " leaving" : "")
+      }
+      {...dndProps}
+      role="region"
+      aria-label={t("focus_zone_title")}
+    >
+      {task && (
+        <div className="trk-focus-smoke" aria-hidden="true">
+          <i /><i /><i /><i /><i /><i /><i />
+        </div>
+      )}
+      <div className="trk-focus-shell">
+        <div className="trk-focus-inner">
+          <div className="trk-focus-head">
+            <Target size={12} />
+            <span>{t("focus_zone_title")}</span>
+            <span className="trk-focus-help" tabIndex={0}>
+              <HelpCircle size={11} />
+              <span className="trk-focus-help-tip" role="tooltip">{t("focus_zone_tooltip")}</span>
+            </span>
+            {task && (
+              <span className="trk-focus-cooking">
+                <Flame size={11} className="trk-focus-flame" />
+                {t("focus_cooking")}
+                <span className="trk-focus-dots"><i /><i /><i /></span>
+              </span>
+            )}
+            <button
+              type="button"
+              className="trk-icon-btn trk-focus-reduce-btn"
+              onClick={() => setReduced(true)}
+              title={t("focus_reduce")}
+              aria-label={t("focus_reduce")}
+            >
+              <Minus size={12} />
+            </button>
+          </div>
+          {task ? (
+            <div key={enterKey} className="trk-focus-card">
+              <button
+                type="button"
+                className="trk-focus-task-btn"
+                onClick={() => onEdit(task)}
+                title={t("edit_task")}
+              >
+                <p className="trk-focus-title">{task.titre}</p>
+                <div className="trk-focus-meta">
+                  <span className="trk-tag" style={{ "--pill-color": projectColor(task.projet) }}>{task.projet}</span>
+                  <span className="trk-status-pill" style={{ "--pill-color": st.color }}>{t(`status_${st.id}`)}</span>
+                  <span className="trk-focus-timer">
+                    <Clock size={10} /> {formatDuration(elapsed)}
+                  </span>
+                </div>
+              </button>
+              <div className="trk-focus-actions">
+                <button
+                  type="button"
+                  className="trk-focus-done-btn"
+                  onClick={onAdvance}
+                  title={isSimpleTask(task) ? t("focus_mark_done") : t("focus_advance")}
+                >
+                  {isSimpleTask(task) ? (
+                    <><Check size={13} /> {t("focus_mark_done")}</>
+                  ) : (
+                    <>{t(`status_${nextSt.id}`)} <ArrowRight size={13} /></>
+                  )}
+                </button>
+                <button type="button" className="trk-icon-btn" onClick={onRelease} title={t("focus_release")} aria-label={t("focus_release")}>
+                  <X size={13} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="trk-focus-empty">
+              <div className="trk-focus-empty-ring"><Flame size={18} /></div>
+              <p>{t("focus_zone_empty")}</p>
+              <span>{t("focus_zone_hint")}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function EmptyState({ label, actionLabel, onAction }) {
   return (
@@ -803,6 +1057,34 @@ export default function App() {
   const [celebration, setCelebration] = useState(null);
   const [miniCeleb, setMiniCeleb] = useState(null);
   const prevAllDone = useRef(null);
+  const [focusId, setFocusId] = useState(() => {
+    try {
+      return localStorage.getItem(FOCUS_STORAGE_KEY) || null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [focusStartedAt, setFocusStartedAt] = useState(() => {
+    try {
+      const v = localStorage.getItem(FOCUS_STARTED_STORAGE_KEY);
+      return v ? parseInt(v, 10) || null : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [focusLeaving, setFocusLeaving] = useState(false);
+  const [focusEnterKey, setFocusEnterKey] = useState(0);
+  const [focusNow, setFocusNow] = useState(() => Date.now());
+
+  // Fait avancer l'affichage du temps accumulé pendant une session de focus.
+  useEffect(() => {
+    if (!focusId || !focusStartedAt) return;
+    setFocusNow(Date.now());
+    const iv = setInterval(() => setFocusNow(Date.now()), 10000);
+    return () => clearInterval(iv);
+  }, [focusId, focusStartedAt]);
+
+  const liveMinutesFor = (task) => liveTaskMinutes(task, focusId, focusStartedAt, focusNow);
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem(THEME_STORAGE_KEY) || "dark";
@@ -975,6 +1257,7 @@ export default function App() {
   const openNewTask = () => {
     setEditing({
       id: null,
+      type: "standard",
       projet: (filterProjects.length === 1 ? filterProjects[0] : projects[0]) || "",
       titre: "",
       description: "",
@@ -1000,7 +1283,7 @@ export default function App() {
       const prev = tasks.find((t) => t.id === editing.id);
       const next = tasks.map((t) => (t.id === editing.id ? editing : t));
       saveTasks(next);
-      if (prev && prev.statut !== "termine") celebrateTaskDone(editing.statut, next);
+      if (prev && !isTaskDone(prev)) celebrateTaskDone(editing.statut, next);
     } else {
       saveTasks([...tasks, { ...editing, id: uid() }]);
     }
@@ -1037,6 +1320,19 @@ export default function App() {
     );
   };
 
+  const editTimeLog = (taskId, logId, minutes, note) => {
+    saveTasks(
+      tasks.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              timeLogs: (t.timeLogs || []).map((l) => (l.id === logId ? { ...l, minutes, note } : l)),
+            }
+          : t
+      )
+    );
+  };
+
   const addTimeLogToEditing = (minutes, note) => {
     const entry = { id: uid(), minutes, note, date: new Date().toISOString().slice(0, 10) };
     saveTasks(
@@ -1052,6 +1348,23 @@ export default function App() {
       )
     );
     setEditing((prev) => ({ ...prev, timeLogs: (prev.timeLogs || []).filter((l) => l.id !== logId) }));
+  };
+
+  const editTimeLogInEditing = (logId, minutes, note) => {
+    saveTasks(
+      tasks.map((t) =>
+        t.id === editing.id
+          ? {
+              ...t,
+              timeLogs: (t.timeLogs || []).map((l) => (l.id === logId ? { ...l, minutes, note } : l)),
+            }
+          : t
+      )
+    );
+    setEditing((prev) => ({
+      ...prev,
+      timeLogs: (prev.timeLogs || []).map((l) => (l.id === logId ? { ...l, minutes, note } : l)),
+    }));
   };
 
   const addProject = () => {
@@ -1110,7 +1423,9 @@ export default function App() {
     return tasks.filter(
       (t) =>
         (!filterProjects.length || filterProjects.includes(t.projet)) &&
-        (!filterStatuts.length || filterStatuts.includes(t.statut)) &&
+        (!filterStatuts.length ||
+          filterStatuts.includes(t.statut) ||
+          (filterStatuts.includes("termine") && isTaskDone(t))) &&
         (!search || t.titre.toLowerCase().includes(search.toLowerCase()))
     );
   }, [tasks, filterProjects, filterStatuts, search]);
@@ -1119,8 +1434,7 @@ export default function App() {
     const arr = [...filteredTasks];
     arr.sort((a, b) => {
       if (sortBy === "priorite") return prioOf(a.priorite).order - prioOf(b.priorite).order;
-      if (sortBy === "statut")
-        return STATUSES.findIndex((s) => s.id === a.statut) - STATUSES.findIndex((s) => s.id === b.statut);
+      if (sortBy === "statut") return statusOf(a.statut).weight - statusOf(b.statut).weight;
       if (sortBy === "projet") return a.projet.localeCompare(b.projet);
       if (sortBy === "echeance") return (a.echeance || "9999-99-99").localeCompare(b.echeance || "9999-99-99");
       return 0;
@@ -1136,6 +1450,7 @@ export default function App() {
   const moveTask = (id, statut) => {
     const task = tasks.find((t) => t.id === id);
     if (!task || task.statut === statut) return;
+    if (!statusesForTask(task).some((s) => s.id === statut)) return;
     const next = tasks.map((t) => (t.id === id ? { ...t, statut } : t));
     saveTasks(next);
     celebrateTaskDone(statut, next);
@@ -1145,9 +1460,109 @@ export default function App() {
   // terminé (la grande célébration prend le relais).
   const celebrateTaskDone = (statut, nextTasks) => {
     if (!celebrationsOn) return;
-    if (statut !== "termine") return;
-    if (nextTasks.every((t) => t.statut === "termine")) return;
+    if (!isDoneStatus(statut)) return;
+    if (nextTasks.every(isTaskDone)) return;
     setMiniCeleb(Date.now());
+  };
+
+  // ── Zone de focus ──
+  useEffect(() => {
+    try {
+      if (focusId) localStorage.setItem(FOCUS_STORAGE_KEY, focusId);
+      else localStorage.removeItem(FOCUS_STORAGE_KEY);
+    } catch (e) {
+      // stockage indisponible, le focus reste appliqué pour la session
+    }
+  }, [focusId]);
+
+  useEffect(() => {
+    try {
+      if (focusStartedAt) localStorage.setItem(FOCUS_STARTED_STORAGE_KEY, String(focusStartedAt));
+      else localStorage.removeItem(FOCUS_STARTED_STORAGE_KEY);
+    } catch (e) {
+      // stockage indisponible, le pointage reste appliqué pour la session
+    }
+  }, [focusStartedAt]);
+
+  const focusTask = useMemo(
+    () => tasks.find((t) => t.id === focusId) || null,
+    [tasks, focusId]
+  );
+
+  // Pointage : ajoute le temps de focus écoulé (plafonné à 8h/jour) à la tâche.
+  const logFocusTime = (list, taskId) => {
+    if (!focusStartedAt || !taskId) return list;
+    const minutes = focusMinutes(focusStartedAt, Date.now());
+    if (minutes < 1) return list;
+    const entry = {
+      id: uid(),
+      minutes,
+      note: t("focus_log_note"),
+      date: new Date().toISOString().slice(0, 10),
+    };
+    return list.map((tk) =>
+      tk.id === taskId ? { ...tk, timeLogs: [...(tk.timeLogs || []), entry] } : tk
+    );
+  };
+
+  // Si la tâche focalisée est supprimée, on libère la zone (sans pointage :
+  // la tâche n'existe plus).
+  useEffect(() => {
+    if (loading) return;
+    if (focusId && !focusTask) {
+      setFocusId(null);
+      setFocusStartedAt(null);
+      setFocusLeaving(false);
+    }
+    if (!focusId && focusStartedAt) setFocusStartedAt(null);
+  }, [loading, focusId, focusTask, focusStartedAt]);
+
+  // Sortie automatique (animée) dès que la tâche focalisée est terminée,
+  // quel que soit l'endroit où elle a été terminée (kanban, modal, zone).
+  // Le temps de focus est pointé au moment de la sortie.
+  useEffect(() => {
+    if (!focusTask) return;
+    if (!isTaskDone(focusTask)) {
+      setFocusLeaving(false);
+      return;
+    }
+    setFocusLeaving(true);
+    const timer = setTimeout(() => {
+      if (focusStartedAt) saveTasks(logFocusTime(tasks, focusTask.id));
+      setFocusId(null);
+      setFocusStartedAt(null);
+      setFocusLeaving(false);
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [focusTask]);
+
+  const focusOnTask = (id) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task || isTaskDone(task) || focusLeaving || id === focusId) return;
+    // Échange : le temps de la tâche sortante est pointé avant de la remplacer.
+    if (focusId && focusStartedAt) saveTasks(logFocusTime(tasks, focusId));
+    setFocusId(id);
+    setFocusStartedAt(Date.now());
+    setFocusEnterKey((k) => k + 1);
+  };
+
+  // Tâche simple : passe directement à « done ». Tâche workflow : avance
+  // d'un seul statut (la sortie n'a lieu qu'en atteignant « terminé »).
+  const advanceFocusTask = () => {
+    if (!focusTask) return;
+    const seq = statusesForTask(focusTask);
+    const idx = seq.findIndex((s) => s.id === focusTask.statut);
+    const nextId = isSimpleTask(focusTask)
+      ? "done"
+      : seq[Math.min(idx + 1, seq.length - 1)].id;
+    moveTask(focusTask.id, nextId);
+  };
+
+  const releaseFocus = () => {
+    if (focusId && focusStartedAt) saveTasks(logFocusTime(tasks, focusId));
+    setFocusId(null);
+    setFocusStartedAt(null);
+    setFocusLeaving(false);
   };
 
   const globalProgress = useMemo(() => {
@@ -1175,9 +1590,9 @@ export default function App() {
 
   const statusDistribution = useMemo(
     () =>
-      STATUSES.map((s) => ({
+      CHART_STATUSES.map((s) => ({
         name: t(`status_${s.id}`),
-        value: tasks.filter((tk) => tk.statut === s.id).length,
+        value: tasks.filter((tk) => (s.id === "termine" ? isTaskDone(tk) : tk.statut === s.id)).length,
         color: s.color,
       })).filter((d) => d.value > 0),
     [tasks, lang]
@@ -1185,9 +1600,10 @@ export default function App() {
 
   const perProjectStacked = useMemo(() => {
     return projects.map((p) => {
+      const pt = tasks.filter((tk) => tk.projet === p);
       const row = { projet: p };
-      STATUSES.forEach((s) => {
-        row[s.id] = tasks.filter((tk) => tk.projet === p && tk.statut === s.id).length;
+      CHART_STATUSES.forEach((s) => {
+        row[s.id] = pt.filter((tk) => (s.id === "termine" ? isTaskDone(tk) : tk.statut === s.id)).length;
       });
       return row;
     });
@@ -1212,7 +1628,7 @@ export default function App() {
     [tasks, lang]
   );
 
-  const doneCount = tasks.filter((t) => t.statut === "termine").length;
+  const doneCount = tasks.filter(isTaskDone).length;
   const allDone = tasks.length > 0 && doneCount === tasks.length;
 
   // Célébration au passage à « tout terminé » (jamais au chargement initial).
@@ -2027,6 +2443,33 @@ export default function App() {
           white-space: nowrap;
         }
         .trk-timelog-entry-info strong { color: var(--text); }
+        .trk-timelog-entry-edit {
+          flex-wrap: wrap;
+        }
+        .trk-timelog-entry-edit input.trk-timelog-duration-input {
+          width: 60px;
+          flex: 0 0 60px;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          color: var(--text);
+          border-radius: 6px;
+          padding: 4px 6px;
+          font-size: 11px;
+        }
+        .trk-timelog-entry-edit input.trk-timelog-note-input {
+          flex: 1;
+          min-width: 60px;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          color: var(--text);
+          border-radius: 6px;
+          padding: 4px 6px;
+          font-size: 11px;
+        }
+        .trk-timelog-entry-edit .trk-timelog-error {
+          width: 100%;
+          margin: 2px 0 0;
+        }
         .trk-timelog-inline {
           background: var(--panel-alt);
           border: 1px solid var(--border);
@@ -2394,9 +2837,9 @@ export default function App() {
         .trk-chart-head .trk-chart-title { margin-bottom: 0; }
         .trk-chart-focus-btn { padding: 4px; }
         .trk-chart-focus-btn:hover { color: var(--accent); }
-        .trk-chart-modal {
-          max-width: 760px;
-          width: min(760px, 94vw);
+        .trk-modal.trk-chart-modal {
+          max-width: 1180px;
+          width: min(1180px, 96vw);
         }
         .trk-chart-modal-body {
           display: flex;
@@ -2615,6 +3058,434 @@ export default function App() {
           text-align: center;
           color: var(--text-dim);
           font-size: 13px;
+        }
+
+        /* ── Tâches simples (3 états) ── */
+        .trk-type-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          font-size: 10px;
+          font-weight: 600;
+          color: #D6C13C;
+          border: 1px solid color-mix(in srgb, #D6C13C 45%, transparent);
+          background: color-mix(in srgb, #D6C13C 12%, transparent);
+          padding: 1px 7px;
+          border-radius: 999px;
+          white-space: nowrap;
+        }
+        .trk-type-switch { display: flex; gap: 6px; }
+        .trk-type-switch button {
+          flex: 1;
+          height: var(--control-h);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          background: var(--panel-alt);
+          border: 1px solid var(--border);
+          color: var(--text-dim);
+          border-radius: var(--radius-md);
+          font-size: 12px;
+          cursor: pointer;
+          transition: border-color 0.15s, color 0.15s, background 0.15s;
+        }
+        .trk-type-switch button.active {
+          border-color: var(--accent);
+          color: var(--text);
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel-alt));
+        }
+        .trk-board-label {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 10.5px;
+          letter-spacing: 1.2px;
+          color: var(--text-dim);
+          margin: 14px 0 8px;
+        }
+        .trk-board-label:first-child { margin-top: 0; }
+        .trk-task-row[draggable="true"] { cursor: grab; }
+        .trk-task-row[draggable="true"]:active { cursor: grabbing; }
+
+        /* ── Zone de focus ── */
+        @keyframes trk-focus-spin { to { transform: rotate(360deg); } }
+        @keyframes trk-focus-glow-pulse {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 1; }
+        }
+        @keyframes trk-focus-drop-in {
+          0% { opacity: 0; transform: scale(0.55) translateY(16px); }
+          55% { opacity: 1; transform: scale(1.07) translateY(-3px); }
+          78% { transform: scale(0.97); }
+          100% { opacity: 1; transform: none; }
+        }
+        @keyframes trk-focus-leave {
+          0% { opacity: 1; transform: none; }
+          25% { transform: scale(1.06); }
+          100% { opacity: 0; transform: translateY(-34px) scale(0.8) rotate(3deg); }
+        }
+        @keyframes trk-focus-drop-pulse {
+          0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+          100% { box-shadow: 0 0 0 18px transparent; }
+        }
+        @keyframes trk-flame-flicker {
+          0%, 100% { transform: scale(1) rotate(-4deg); opacity: 0.9; }
+          30% { transform: scale(1.18) rotate(4deg); opacity: 1; }
+          60% { transform: scale(0.94) rotate(-2deg); opacity: 0.85; }
+        }
+        @keyframes trk-smoke-rise {
+          0% {
+            opacity: 0;
+            transform: translate(0, 14px) scale(0.35);
+            filter: blur(3px);
+          }
+          18% { opacity: var(--peak, 0.45); }
+          55% {
+            opacity: calc(var(--peak, 0.45) * 0.55);
+            transform: translate(calc(var(--sway, 10px) * 0.45), -58px) scale(1.4);
+            filter: blur(6px);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(var(--sway, 10px), -118px) scale(2.4);
+            filter: blur(11px);
+          }
+        }
+        @keyframes trk-focus-dot {
+          0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+          40% { opacity: 1; transform: translateY(-2px); }
+        }
+        @keyframes trk-focus-idle-pulse {
+          0%, 100% { border-color: var(--border); }
+          50% { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+        }
+        .trk-focus-zone {
+          position: fixed;
+          right: 22px;
+          bottom: 22px;
+          z-index: 40;
+          width: 310px;
+          border-radius: 16px;
+          transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+        }
+        .trk-focus-zone.over { transform: scale(1.06); }
+        .trk-focus-zone.leaving .trk-focus-card {
+          animation: trk-focus-leave 0.85s cubic-bezier(0.55, 0, 0.8, 0.4) forwards;
+        }
+        .trk-focus-zone.leaving .trk-focus-smoke {
+          opacity: 0;
+          transition: opacity 0.5s ease-out;
+        }
+        .trk-focus-shell {
+          position: relative;
+          border-radius: 16px;
+          overflow: hidden;
+          padding: 1.5px;
+          background: var(--border);
+          box-shadow: 0 10px 30px var(--shadow);
+        }
+        .trk-focus-zone::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: -1;
+          border-radius: 16px;
+          box-shadow: 0 0 18px 2px color-mix(in srgb, var(--accent) 22%, transparent),
+            0 0 34px 8px color-mix(in srgb, var(--accent) 14%, transparent);
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 1.1s cubic-bezier(0.45, 0, 0.55, 1);
+        }
+        .trk-focus-zone.occupied::after {
+          animation: trk-focus-glow-pulse 4.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+        }
+        .trk-focus-zone.leaving::after { animation: none; opacity: 0; }
+        .trk-focus-zone.occupied .trk-focus-shell::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 340%;
+          aspect-ratio: 1;
+          margin: -170% 0 0 -170%;
+          background: conic-gradient(from 0deg,
+            transparent 0deg, transparent 185deg,
+            color-mix(in srgb, var(--accent) 12%, transparent) 235deg,
+            color-mix(in srgb, var(--accent) 45%, transparent) 275deg,
+            var(--accent) 300deg, #E08A3C 322deg,
+            var(--accent) 340deg,
+            color-mix(in srgb, var(--accent) 35%, transparent) 352deg,
+            transparent 360deg);
+          animation: trk-focus-spin 3.6s linear infinite;
+        }
+        .trk-focus-zone.leaving .trk-focus-shell::before { background: var(--ok); animation: none; }
+        .trk-focus-zone.over .trk-focus-shell {
+          background: var(--accent);
+          animation: trk-focus-drop-pulse 0.9s ease-out infinite;
+        }
+        .trk-focus-inner {
+          position: relative;
+          border-radius: 14.5px;
+          background: var(--panel);
+          padding: 14px;
+        }
+        .trk-focus-head {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 10px;
+          letter-spacing: 1.2px;
+          color: var(--text-dim);
+          margin-bottom: 9px;
+        }
+        .trk-focus-head > svg { color: var(--accent); flex-shrink: 0; }
+        .trk-focus-help {
+          position: relative;
+          display: inline-flex;
+          color: var(--text-dim);
+          opacity: 0.65;
+          cursor: help;
+          outline: none;
+          transition: opacity 0.25s ease, color 0.25s ease;
+        }
+        .trk-focus-help:hover, .trk-focus-help:focus-visible {
+          opacity: 1;
+          color: var(--accent);
+        }
+        .trk-focus-help-tip {
+          position: absolute;
+          top: calc(100% + 9px);
+          left: 50%;
+          z-index: 5;
+          transform: translate(-50%, -4px) scale(0.96);
+          width: 200px;
+          padding: 8px 10px;
+          border-radius: 9px;
+          background: var(--panel-alt);
+          border: 1px solid var(--border);
+          box-shadow: 0 8px 24px var(--shadow);
+          color: var(--text);
+          font-family: 'Inter', sans-serif;
+          font-size: 11px;
+          font-weight: 400;
+          line-height: 1.45;
+          letter-spacing: 0.2px;
+          text-transform: none;
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.35, 1),
+            transform 0.3s cubic-bezier(0.25, 0.8, 0.35, 1),
+            visibility 0s linear 0.3s;
+        }
+        .trk-focus-help-tip::after {
+          content: "";
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          margin-left: -5px;
+          border: 5px solid transparent;
+          border-bottom-color: var(--panel-alt);
+        }
+        .trk-focus-help:hover .trk-focus-help-tip,
+        .trk-focus-help:focus-visible .trk-focus-help-tip {
+          opacity: 1;
+          visibility: visible;
+          transform: translate(-50%, 0) scale(1);
+          transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.35, 1) 0.1s,
+            transform 0.3s cubic-bezier(0.25, 0.8, 0.35, 1) 0.1s,
+            visibility 0s linear 0.1s;
+        }
+        .trk-focus-cooking {
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          color: var(--warn);
+          font-size: 9.5px;
+          letter-spacing: 1px;
+        }
+        .trk-focus-flame {
+          animation: trk-flame-flicker 0.9s ease-in-out infinite;
+          transform-origin: 50% 90%;
+        }
+        .trk-focus-dots { display: inline-flex; gap: 2.5px; }
+        .trk-focus-dots i {
+          width: 3px;
+          height: 3px;
+          border-radius: 50%;
+          background: currentColor;
+          animation: trk-focus-dot 1.2s ease-in-out infinite;
+        }
+        .trk-focus-dots i:nth-child(2) { animation-delay: 0.2s; }
+        .trk-focus-dots i:nth-child(3) { animation-delay: 0.4s; }
+        .trk-focus-card {
+          position: relative;
+          animation: trk-focus-drop-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+        }
+        .trk-focus-smoke {
+          position: absolute;
+          bottom: 100%;
+          left: 10px;
+          right: 10px;
+          height: 130px;
+          margin-bottom: -6px;
+          pointer-events: none;
+          -webkit-mask-image: linear-gradient(to top, black 0%, black 30%, transparent 96%);
+          mask-image: linear-gradient(to top, black 0%, black 30%, transparent 96%);
+        }
+        .trk-focus-smoke i {
+          position: absolute;
+          bottom: 0;
+          left: var(--x, 50%);
+          width: var(--size, 15px);
+          height: var(--size, 15px);
+          margin-left: calc(var(--size, 15px) / -2);
+          border-radius: 50%;
+          background: radial-gradient(circle,
+            color-mix(in srgb, var(--text-dim) 60%, transparent) 0%,
+            color-mix(in srgb, var(--text-dim) 25%, transparent) 45%,
+            transparent 72%);
+          opacity: 0;
+          animation: trk-smoke-rise var(--dur, 3.4s) cubic-bezier(0.3, 0.1, 0.4, 1) infinite;
+          animation-delay: var(--delay, 0s);
+        }
+        .trk-focus-smoke i:nth-child(1) { --x: 12%; --size: 14px; --sway: -18px; --dur: 3.6s; --delay: 0s;    --peak: 0.38; }
+        .trk-focus-smoke i:nth-child(2) { --x: 26%; --size: 19px; --sway: 14px;  --dur: 4.2s; --delay: 1.1s;  --peak: 0.46; }
+        .trk-focus-smoke i:nth-child(3) { --x: 42%; --size: 12px; --sway: -10px; --dur: 3.2s; --delay: 2.2s;  --peak: 0.34; }
+        .trk-focus-smoke i:nth-child(4) { --x: 55%; --size: 21px; --sway: 20px;  --dur: 4.6s; --delay: 0.6s;  --peak: 0.5; }
+        .trk-focus-smoke i:nth-child(5) { --x: 70%; --size: 15px; --sway: -14px; --dur: 3.8s; --delay: 1.7s;  --peak: 0.4; }
+        .trk-focus-smoke i:nth-child(6) { --x: 84%; --size: 18px; --sway: 12px;  --dur: 4.4s; --delay: 2.8s;  --peak: 0.44; }
+        .trk-focus-smoke i:nth-child(7) { --x: 94%; --size: 13px; --sway: -20px; --dur: 3.4s; --delay: 0.9s;  --peak: 0.32; }
+        .trk-focus-task-btn {
+          display: block;
+          width: 100%;
+          text-align: left;
+          background: none;
+          border: none;
+          color: inherit;
+          font-family: inherit;
+          padding: 0;
+          margin: 0 0 10px;
+          cursor: pointer;
+        }
+        .trk-focus-task-btn:hover .trk-focus-title { color: var(--accent); }
+        .trk-focus-title {
+          margin: 0 0 8px;
+          font-size: 14px;
+          font-weight: 600;
+          line-height: 1.35;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          transition: color 0.15s;
+        }
+        .trk-focus-meta {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+        }
+        .trk-focus-timer {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 10.5px;
+          color: var(--text-dim);
+          border: 1px solid var(--border);
+          border-radius: 999px;
+          padding: 1px 7px;
+        }
+        .trk-focus-reduce-btn { flex-shrink: 0; }
+        .trk-focus-zone:not(.occupied) .trk-focus-reduce-btn { margin-left: auto; }
+        .trk-focus-reduced { width: auto; }
+        .trk-focus-mini {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          height: 46px;
+          min-width: 46px;
+          padding: 0 15px;
+          border-radius: 999px;
+          background: var(--panel);
+          border: 1.5px solid var(--border);
+          color: var(--text-dim);
+          font-size: 12px;
+          cursor: pointer;
+          box-shadow: 0 10px 30px var(--shadow);
+          transition: border-color 0.15s, color 0.15s;
+        }
+        .trk-focus-reduced.occupied .trk-focus-mini {
+          border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+          color: var(--text);
+          animation: trk-focus-breathe 2.6s ease-in-out infinite;
+        }
+        .trk-focus-reduced.occupied .trk-focus-mini > svg { color: var(--warn); }
+        .trk-focus-reduced.over .trk-focus-mini {
+          border-color: var(--accent);
+          animation: trk-focus-drop-pulse 0.9s ease-out infinite;
+        }
+        .trk-focus-actions { display: flex; align-items: center; gap: 6px; }
+        .trk-focus-done-btn {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          height: var(--control-h-sm);
+          background: color-mix(in srgb, var(--ok) 16%, transparent);
+          border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
+          color: var(--ok);
+          border-radius: var(--radius-sm);
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .trk-focus-done-btn:hover { background: color-mix(in srgb, var(--ok) 28%, transparent); }
+        .trk-focus-empty {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 3px;
+          padding: 10px 6px 12px;
+          border: 1.5px dashed var(--border);
+          border-radius: 10px;
+          text-align: center;
+          animation: trk-focus-idle-pulse 3s ease-in-out infinite;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .trk-focus-zone.over .trk-focus-empty {
+          border-color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 8%, transparent);
+        }
+        .trk-focus-empty-ring {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1.5px dashed var(--border);
+          color: var(--text-dim);
+          margin-bottom: 3px;
+          transition: transform 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .trk-focus-zone.over .trk-focus-empty-ring {
+          border-color: var(--accent);
+          color: var(--accent);
+          transform: scale(1.18) rotate(8deg);
+        }
+        .trk-focus-empty p { margin: 0; font-size: 12.5px; font-weight: 600; }
+        .trk-focus-empty span { font-size: 10.5px; color: var(--text-dim); }
+        @media (max-width: 640px) {
+          .trk-focus-zone { right: 12px; bottom: 12px; width: 250px; }
+          .trk-focus-reduced { width: auto; }
         }
       `}</style>
 
@@ -2838,17 +3709,43 @@ export default function App() {
               {viewMode === "kanban" ? (
                 sortedTasks.length === 0 ? (
                   <EmptyState label={t("empty_task_list")} actionLabel={t("new_task")} onAction={openNewTask} />
-                ) : (
-                  <KanbanBoard
-                    tasks={sortedTasks}
-                    onMove={moveTask}
-                    onEdit={openEditTask}
-                    onDelete={deleteTask}
-                    confirmId={confirmDelete}
-                    onAskDelete={setConfirmDelete}
-                    onCancelDelete={() => setConfirmDelete(null)}
-                  />
-                )
+                ) : (() => {
+                  const standardTasks = sortedTasks.filter((tk) => !isSimpleTask(tk));
+                  const simpleTasks = sortedTasks.filter(isSimpleTask);
+                  const boardProps = {
+                    onMove: moveTask,
+                    onEdit: openEditTask,
+                    onDelete: deleteTask,
+                    confirmId: confirmDelete,
+                    onAskDelete: setConfirmDelete,
+                    onCancelDelete: () => setConfirmDelete(null),
+                    liveMinutesFor,
+                  };
+                  return (
+                    <>
+                      {standardTasks.length > 0 && (
+                        <>
+                          {simpleTasks.length > 0 && (
+                            <div className="trk-board-label">
+                              <Columns3 size={11} /> {t("kanban_standard")}
+                            </div>
+                          )}
+                          <KanbanBoard tasks={standardTasks} {...boardProps} />
+                        </>
+                      )}
+                      {simpleTasks.length > 0 && (
+                        <>
+                          {standardTasks.length > 0 && (
+                            <div className="trk-board-label">
+                              <Zap size={11} /> {t("kanban_simple")}
+                            </div>
+                          )}
+                          <KanbanBoard tasks={simpleTasks} statuses={SIMPLE_STATUSES} {...boardProps} />
+                        </>
+                      )}
+                    </>
+                  );
+                })()
               ) : (
               <div className="trk-task-list">
                 {sortedTasks.length === 0 && (
@@ -2859,11 +3756,23 @@ export default function App() {
                   const pr = prioOf(task.priorite);
                   const pc = projectColor(task.projet);
                   return (
-                    <div key={task.id} className={"trk-task-row" + (task.statut === "termine" ? " done" : "")} style={{ "--rail-color": pr.color }}>
+                    <div
+                      key={task.id}
+                      className={"trk-task-row" + (isTaskDone(task) ? " done" : "")}
+                      style={{ "--rail-color": pr.color }}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", task.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                    >
                       <div className="trk-task-main">
                         <p className="trk-task-title">{task.titre}</p>
                         <div className="trk-task-meta">
                           <span className="trk-tag" style={{ "--pill-color": pc }}>{task.projet}</span>
+                          {isSimpleTask(task) && (
+                            <span className="trk-type-tag"><Zap size={10} /> {t("type_simple_tag")}</span>
+                          )}
                           <span className="trk-prio-tag" style={{ "--pill-color": pr.color }}>
                             {task.priorite === "critique" && <AlertTriangle size={11} />}
                             {t(`prio_${pr.id}`)}
@@ -2876,19 +3785,21 @@ export default function App() {
                           <div className="trk-timelog-wrap">
                             <button
                               type="button"
-                              className={"trk-time-badge" + (taskMinutes(task) ? " has-time" : "")}
+                              className={"trk-time-badge" + (liveMinutesFor(task) ? " has-time" : "")}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setTimeLogTaskId(timeLogTaskId === task.id ? null : task.id);
                               }}
                               title={t("record_time")}
                             >
-                              <Clock size={11} /> {formatDuration(taskMinutes(task))}
+                              <Clock size={11} /> {formatDuration(liveMinutesFor(task))}
                             </button>
                             {timeLogTaskId === task.id && (
                               <TimeLogPopover
                                 task={task}
+                                liveMinutes={liveMinutesFor(task)}
                                 onAdd={(minutes, note) => addTimeLog(task.id, minutes, note)}
+                                onEdit={(logId, minutes, note) => editTimeLog(task.id, logId, minutes, note)}
                                 onDelete={(logId) => deleteTimeLog(task.id, logId)}
                                 onClose={() => setTimeLogTaskId(null)}
                               />
@@ -2957,7 +3868,7 @@ export default function App() {
                 rows: projectProgress.map((p) => [
                   p.name,
                   p.count,
-                  tasks.filter((tk) => tk.projet === p.name && tk.statut === "termine").length,
+                  tasks.filter((tk) => tk.projet === p.name && isTaskDone(tk)).length,
                   `${p.progress}%`,
                 ]),
               }}
@@ -2969,7 +3880,7 @@ export default function App() {
                     <YAxis type="category" dataKey="projet" tick={{ fill: "var(--text)", fontSize: 11 }} width={focused ? 110 : 70} />
                     <Tooltip contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", fontSize: 12 }} labelStyle={{ color: "var(--text)" }} />
                     {focused && <Legend wrapperStyle={{ fontSize: 11 }} />}
-                    {STATUSES.map((s) => (
+                    {CHART_STATUSES.map((s) => (
                       <Bar key={s.id} dataKey={s.id} name={t(`status_${s.id}`)} stackId="a" fill={s.color} />
                     ))}
                   </BarChart>
@@ -3056,6 +3967,17 @@ export default function App() {
             )}
           />
 
+          <FocusZone
+            task={focusTask}
+            leaving={focusLeaving}
+            enterKey={focusEnterKey}
+            startedAt={focusStartedAt}
+            onDropTask={focusOnTask}
+            onAdvance={advanceFocusTask}
+            onRelease={releaseFocus}
+            onEdit={openEditTask}
+          />
+
           {saveError && (
             <div className="trk-save-error">
               <AlertTriangle size={13} /> {t("save_error")}
@@ -3132,6 +4054,29 @@ export default function App() {
                       onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                     />
                   </div>
+                  {!editing.id && (
+                    <div className="trk-field">
+                      <label>{t("field_type")}</label>
+                      <div className="trk-type-switch">
+                        <button
+                          type="button"
+                          className={!isSimpleTask(editing) ? "active" : ""}
+                          onClick={() => setEditing({ ...editing, type: "standard", statut: "analyser" })}
+                          aria-pressed={!isSimpleTask(editing)}
+                        >
+                          <Columns3 size={13} /> {t("type_standard")}
+                        </button>
+                        <button
+                          type="button"
+                          className={isSimpleTask(editing) ? "active" : ""}
+                          onClick={() => setEditing({ ...editing, type: "simple", statut: "todo" })}
+                          aria-pressed={isSimpleTask(editing)}
+                        >
+                          <Zap size={13} /> {t("type_simple")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="trk-field-row">
                     <div className="trk-field">
                       <label>{t("field_project")}</label>
@@ -3159,7 +4104,7 @@ export default function App() {
                         value={editing.statut}
                         onChange={(e) => setEditing({ ...editing, statut: e.target.value })}
                       >
-                        {STATUSES.map((s) => <option key={s.id} value={s.id}>{t(`status_${s.id}`)}</option>)}
+                        {statusesForTask(editing).map((s) => <option key={s.id} value={s.id}>{t(`status_${s.id}`)}</option>)}
                       </select>
                     </div>
                     <div className="trk-field">
@@ -3194,7 +4139,9 @@ export default function App() {
                       <label>{t("field_time")}</label>
                       <TimeLogSection
                         task={editing}
+                        liveMinutes={liveMinutesFor(editing)}
                         onAdd={addTimeLogToEditing}
+                        onEdit={editTimeLogInEditing}
                         onDelete={deleteTimeLogFromEditing}
                       />
                     </div>
