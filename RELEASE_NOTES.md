@@ -6,6 +6,21 @@
 
 ## Français
 
+### 1.5.0 — 2026-07-16
+
+**Améliorations**
+- Politique de sécurité de contenu (CSP) stricte appliquée aux builds de
+  production
+- Normalisation des données lors de l'import d'une sauvegarde
+
+**Technique**
+- Refonte du code : découpage de l'application en modules par fonctionnalité
+  (tâches, kanban, projets, focus, sauvegarde, graphiques, journal de temps)
+- Migration progressive vers TypeScript (hooks, logique métier, i18n)
+- Design tokens CSS pour un theming cohérent
+- Ajout d'ESLint, Prettier et de tests unitaires supplémentaires
+- Documentation d'architecture (ARCHITECTURE.md)
+
 ### 1.4.0 — 2026-07-16
 
 **Nouveautés**
@@ -73,7 +88,21 @@
 
 ## English
 
-### 1.4.0 — 2026-07-16 (unreleased)
+### 1.5.0 — unreleased
+
+**Improvements**
+- Strict Content Security Policy enforced on production builds
+- Backup data normalization on import
+
+**Technical**
+- Code overhaul: application split into feature modules (tasks, kanban,
+  projects, focus, backup, charts, time log)
+- Gradual TypeScript migration (hooks, business logic, i18n)
+- CSS design tokens for consistent theming
+- Added ESLint, Prettier and additional unit tests
+- Architecture documentation (ARCHITECTURE.md)
+
+### 1.4.0 — 2026-07-16
 
 **New**
 - Focus zone: drag a task onto it to concentrate on it (one at a time), time
