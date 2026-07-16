@@ -6,7 +6,26 @@
 
 ## Français
 
-### 1.3.1 — 2026-07-14 (non publiée)
+### 1.4.0 — 2026-07-16
+
+**Nouveautés**
+- Zone de focus : glisser une tâche dessus pour s'y concentrer (une seule à
+  la fois), le temps passé est suivi automatiquement ; boutons pour terminer,
+  passer à l'étape suivante ou retirer la tâche ; zone réductible
+- Tâches « simples » à 3 états (à faire / en cours / terminé) en plus du
+  workflow complet à 6 statuts, avec sections séparées dans le kanban
+- Éditeur Markdown pour les descriptions de tâches : modes écrire / aperçu /
+  partagé, aide-mémoire de syntaxe
+- Guide de démarrage interactif au premier lancement, revisitable via le
+  bouton « ? »
+- Bulles d'aide « ? » sur chaque section (avancement, projets, tâches,
+  sauvegarde, graphiques)
+
+**Améliorations**
+- Confirmation avant d'abandonner des modifications non enregistrées
+- Traductions FR/EN pour toutes les fonctionnalités ci-dessus
+
+### 1.3.1 — 2026-07-14
 
 **Nouveautés**
 - Mini célébration (confettis + carillon) quand une tâche passe à « terminé »
@@ -54,7 +73,25 @@
 
 ## English
 
-### 1.3.1 — 2026-07-14 (unreleased)
+### 1.4.0 — 2026-07-16 (unreleased)
+
+**New**
+- Focus zone: drag a task onto it to concentrate on it (one at a time), time
+  spent is tracked automatically; buttons to finish, advance to the next step
+  or release the task; collapsible zone
+- "Simple" tasks with 3 states (to do / doing / done) alongside the full
+  6-status workflow, with separate sections in the kanban
+- Markdown editor for task descriptions: write / preview / split modes,
+  syntax cheat sheet
+- Interactive getting-started guide on first launch, replayable via the "?"
+  button
+- "?" help tips on every section (progress, projects, tasks, backup, charts)
+
+**Improvements**
+- Confirmation before discarding unsaved changes
+- FR/EN translations for all the features above
+
+### 1.3.1 — 2026-07-14
 
 **New**
 - Mini celebration (confetti + chime) when a task moves to "done"
