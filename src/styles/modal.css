@@ -52,10 +52,71 @@
 @media (max-width: 480px) {
   .trk-field-row { flex-direction: column; gap: 0; }
 }
+/* Panneau proche plein écran (mais pas collé aux bords) : largeur/hauteur
+   fixes en fonction du viewport, contenu réparti en colonnes qui gèrent
+   leur propre scroll pour que le panneau lui-même n'ait jamais besoin d'en
+   afficher un. */
 .trk-modal-task {
-  max-width: 620px;
-  transition: max-width 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+  width: min(94vw, 1300px);
+  max-width: min(94vw, 1300px);
+  height: min(88vh, 900px);
+  max-height: min(88vh, 900px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-.trk-modal-task-wide {
-  max-width: 920px;
+.trk-modal-task .trk-modal-header { flex: none; }
+.trk-modal-task form {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.trk-modal-task-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.trk-modal-task-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-right: 20px;
+}
+.trk-modal-task-main .trk-field-description {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+.trk-modal-task-side {
+  width: 280px;
+  flex: none;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  padding-left: 20px;
+}
+.trk-modal-task-side .trk-field { margin-bottom: 14px; }
+@media (max-width: 760px) {
+  .trk-modal-task {
+    width: 96vw;
+    max-width: 96vw;
+    height: 94vh;
+    max-height: 94vh;
+  }
+  .trk-modal-task-body { flex-direction: column; overflow-y: auto; }
+  .trk-modal-task-main { padding-right: 0; }
+  .trk-modal-task-main .trk-field-description { flex: none; height: 340px; }
+  .trk-modal-task-side {
+    width: 100%;
+    overflow-y: visible;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 14px;
+    margin-top: 14px;
+  }
 }

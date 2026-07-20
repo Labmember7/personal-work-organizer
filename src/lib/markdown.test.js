@@ -44,4 +44,20 @@ describe("renderMarkdown (assainissement XSS)", () => {
     expect(renderMarkdown(null)).toBe("");
     expect(renderMarkdown(undefined)).toBe("");
   });
+
+  it("conserve les images app-image: (collées depuis le presse-papiers)", () => {
+    const html = renderMarkdown("![](app-image://local/abc123.jpg)");
+    expect(html).toContain('src="app-image://local/abc123.jpg"');
+  });
+
+  it("retire les schemes d'URI non whitelistés (ex: data:)", () => {
+    const html = renderMarkdown('<img src="data:text/html,<script>alert(1)</script>">');
+    expect(html).not.toContain("data:text/html");
+  });
+
+  it("conserve l'attribut width d'une image redimensionnée", () => {
+    const html = renderMarkdown('<img src="app-image://local/abc123.jpg" width="320">');
+    expect(html).toContain('width="320"');
+    expect(html).toContain('src="app-image://local/abc123.jpg"');
+  });
 });

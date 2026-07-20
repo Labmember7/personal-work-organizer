@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld("dataIO", {
   import: () => ipcRenderer.invoke("data:import"),
 });
 
+contextBridge.exposeInMainWorld("images", {
+  save: (buffer) => ipcRenderer.invoke("images:save", buffer),
+});
+
 contextBridge.exposeInMainWorld("windowControls", {
   minimize: () => ipcRenderer.invoke("window:minimize"),
   toggleMaximize: () => ipcRenderer.invoke("window:toggleMaximize"),

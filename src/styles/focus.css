@@ -581,3 +581,54 @@
   .trk-focus-zone { right: 12px; bottom: 12px; width: 250px; }
   .trk-focus-reduced { width: auto; }
 }
+
+/* ── Mise en avant de la tâche focalisée dans le kanban / la liste ──
+   Même souffle que le dock (trk-focus-glow-pulse, 4.8s sinusoïdal) pour
+   que la carte et la zone de focus respirent à l'unisson. Le halo est un
+   ::after en z-index négatif : il déborde derrière la carte plutôt que de
+   plaquer un anneau dur par-dessus son contenu, d'où le rendu plus doux. */
+.trk-kanban-card.trk-focused,
+.trk-task-row.trk-focused {
+  position: relative;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--panel-alt));
+  transition: border-color 0.4s ease, background 0.4s ease;
+}
+.trk-task-row.trk-focused { background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }
+.trk-kanban-card.trk-focused::after,
+.trk-task-row.trk-focused::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent),
+    0 0 22px 2px color-mix(in srgb, var(--accent) 30%, transparent);
+  animation: trk-focus-glow-pulse 4.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+.trk-focused-flame {
+  color: var(--warn);
+  animation: trk-flame-flicker 2.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.trk-kanban-card .trk-focused-flame {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 3px 8px var(--shadow);
+}
+@media (prefers-reduced-motion: reduce) {
+  .trk-kanban-card.trk-focused::after,
+  .trk-task-row.trk-focused::after,
+  .trk-focused-flame { animation: none; }
+}

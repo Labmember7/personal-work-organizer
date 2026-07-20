@@ -1,8 +1,8 @@
 import React from "react";
-import { AlertTriangle, Check, Clock, Pencil, Trash2, X, Zap } from "lucide-react";
+import { AlertTriangle, Check, Clock, Flame, Pencil, Trash2, X, Zap } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { prioOf, projectColor, isSimpleTask, isTaskDone, formatDuration } from "../../utils";
-import { useLiveMinutes } from "../focus/FocusContext.jsx";
+import { useFocusInfo, useLiveMinutes } from "../focus/FocusContext.jsx";
 
 // Carte de tâche du kanban : draggable vers les autres colonnes ou la zone
 // de focus. Le temps affiché suit la session de focus en direct.
@@ -11,14 +11,22 @@ export function KanbanCard({ task, dragging, onDragStart, onDragEnd, onEdit, onD
   const pr = prioOf(task.priorite);
   const pc = projectColor(task.projet);
   const minutes = useLiveMinutes(task);
+  const { focusId } = useFocusInfo();
+  const isFocused = focusId === task.id;
   return (
     <div
-      className={"trk-kanban-card" + (dragging ? " dragging" : "") + (isTaskDone(task) ? " done" : "")}
+      className={
+        "trk-kanban-card" +
+        (dragging ? " dragging" : "") +
+        (isTaskDone(task) ? " done" : "") +
+        (isFocused ? " trk-focused" : "")
+      }
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       style={{ "--rail-color": pr.color }}
     >
+      {isFocused && <Flame size={11} className="trk-focused-flame" aria-hidden="true" />}
       <p className="trk-kanban-card-title" title={task.titre}>{task.titre}</p>
       <div className="trk-kanban-card-meta">
         <span className="trk-tag" style={{ "--pill-color": pc }}>

@@ -371,6 +371,7 @@ export default function App() {
               onSubmit={store.upsertTask}
               onClose={() => setEditing(null)}
               timeLogOps={timeLogOps}
+              onToast={setToast}
             />
           )}
         </>

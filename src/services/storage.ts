@@ -25,6 +25,9 @@ declare global {
       export(payload: unknown): Promise<{ canceled: boolean; filePath?: string }>;
       import(): Promise<{ canceled: boolean; filePath?: string; error?: string; data?: unknown }>;
     };
+    images?: {
+      save(buffer: ArrayBuffer): Promise<{ url: string; width: number; height: number }>;
+    };
     windowControls?: {
       minimize(): Promise<void>;
       toggleMaximize(): Promise<void>;

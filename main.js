@@ -1,10 +1,21 @@
-const { app, BrowserWindow, ipcMain, Menu, dialog, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, dialog, shell, protocol, nativeImage } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const { createStore } = require("./electron/store");
 const { createLogger } = require("./electron/logger");
 
 const logger = createLogger();
+
+// Scheme privilégié pour servir les images collées dans les descriptions
+// (data/images/*) au renderer sandboxé sans exposer l'accès disque direct.
+// Doit être enregistré avant `app.whenReady()`.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "app-image",
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
+  },
+]);
 
 // --- Stockage local portable -----------------------------------------
 // Les données sont écrites dans un dossier "data" situé À CÔTÉ de
@@ -131,6 +142,42 @@ ipcMain.handle("config:setProjects", (_e, projects) => {
   return { ok: true };
 });
 
+// --- Images collées dans les descriptions ---------------------------------
+// Stockées à part (data/images/*.jpg) plutôt qu'en base64 dans store.json :
+// ça évite de gonfler le JSON et de le relire/réécrire en entier à chaque
+// collage. Toujours réencodées en JPEG (redimensionnement + compression),
+// via `nativeImage` (déjà fourni par Electron, pas de dépendance native
+// supplémentaire à faire vivre dans les builds portables Win/Linux).
+
+const MAX_IMAGE_DIMENSION = 1600;
+const JPEG_QUALITY = 82;
+
+function getImagesDir() {
+  const dir = path.join(getDataDir(), "images");
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function resizeIfNeeded(image) {
+  const { width, height } = image.getSize();
+  if (width <= MAX_IMAGE_DIMENSION && height <= MAX_IMAGE_DIMENSION) return image;
+  const scale = MAX_IMAGE_DIMENSION / Math.max(width, height);
+  return image.resize({
+    width: Math.round(width * scale),
+    height: Math.round(height * scale),
+    quality: "best",
+  });
+}
+
+ipcMain.handle("images:save", (_e, buffer) => {
+  const image = resizeIfNeeded(nativeImage.createFromBuffer(Buffer.from(buffer)));
+  if (image.isEmpty()) throw new Error("Image illisible.");
+  const fileName = `${crypto.randomUUID()}.jpg`;
+  fs.writeFileSync(path.join(getImagesDir(), fileName), image.toJPEG(JPEG_QUALITY));
+  const { width, height } = image.getSize();
+  return { url: `app-image://local/${fileName}`, width, height };
+});
+
 // --- Export / Import : sauvegarde de toutes les données dans un seul
 // fichier JSON, choisi par l'utilisateur via les boîtes de dialogue
 // natives (cohérent avec les autres apps de bureau).
@@ -222,6 +269,20 @@ ipcMain.handle("window:isMaximized", (e) => {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+
+  protocol.handle("app-image", async (request) => {
+    const fileName = decodeURIComponent(new URL(request.url).pathname.replace(/^\/+/, ""));
+    // Nom de fichier uniquement (uuid.jpg) : refuse tout ce qui ressemble à
+    // une traversée de répertoire avant de toucher au disque.
+    if (!/^[\w-]+\.jpg$/.test(fileName)) return new Response("Invalid file name", { status: 400 });
+    try {
+      const data = await fs.promises.readFile(path.join(getImagesDir(), fileName));
+      return new Response(data, { headers: { "content-type": "image/jpeg" } });
+    } catch {
+      return new Response("Not found", { status: 404 });
+    }
+  });
+
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

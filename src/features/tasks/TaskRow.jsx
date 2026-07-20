@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { AlertTriangle, Check, Clock, Pencil, Trash2, X, Zap } from "lucide-react";
+import { AlertTriangle, Check, Clock, Flame, Pencil, Trash2, X, Zap } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import {
   statusOf, prioOf, projectColor, isSimpleTask, isTaskDone, formatDuration,
 } from "../../utils";
-import { useLiveMinutes } from "../focus/FocusContext.jsx";
+import { useFocusInfo, useLiveMinutes } from "../focus/FocusContext.jsx";
 import { TimeLogPopover } from "../timelog/TimeLogPopover.jsx";
 
 // Ligne de la vue liste : draggable vers la zone de focus, badge horloge
@@ -16,10 +16,12 @@ export function TaskRow({ task, onEdit, onDelete, confirmId, onAskDelete, onCanc
   const pr = prioOf(task.priorite);
   const pc = projectColor(task.projet);
   const minutes = useLiveMinutes(task);
+  const { focusId } = useFocusInfo();
+  const isFocused = focusId === task.id;
 
   return (
     <div
-      className={"trk-task-row" + (isTaskDone(task) ? " done" : "")}
+      className={"trk-task-row" + (isTaskDone(task) ? " done" : "") + (isFocused ? " trk-focused" : "")}
       style={{ "--rail-color": pr.color }}
       draggable
       onDragStart={(e) => {
@@ -28,7 +30,10 @@ export function TaskRow({ task, onEdit, onDelete, confirmId, onAskDelete, onCanc
       }}
     >
       <div className="trk-task-main">
-        <p className="trk-task-title">{task.titre}</p>
+        <p className="trk-task-title">
+          {isFocused && <Flame size={12} className="trk-focused-flame" aria-hidden="true" />}
+          {task.titre}
+        </p>
         <div className="trk-task-meta">
           <span className="trk-tag" style={{ "--pill-color": pc }}>{task.projet}</span>
           {isSimpleTask(task) && (
