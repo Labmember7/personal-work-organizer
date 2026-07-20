@@ -6,6 +6,27 @@
 
 ## Français
 
+### 1.5.2 — 2026-07-20
+
+**Nouveautés**
+- Éditeur Markdown : coller une image depuis le presse-papiers directement
+  dans la description d'une tâche
+- Les images sont redimensionnées et compressées avant d'être stockées dans
+  un dossier dédié (plus de base64 dans le JSON)
+- Redimensionnement des images depuis l'aperçu Markdown
+
+**Améliorations**
+- Mise en avant visuelle de la tâche en focus dans le kanban et la liste
+- Traductions FR/EN pour les nouveaux messages liés aux images
+
+### 1.5.1 — 2026-07-16
+
+**Corrections**
+- Correction du chargement des données sauvegardées sous Windows
+
+**Technique**
+- Journaux (logs) désormais écrits dans le dossier de données
+
 ### 1.5.0 — 2026-07-16
 
 **Améliorations**
@@ -88,7 +109,29 @@
 
 ## English
 
-### 1.5.0 — unreleased
+### 1.5.2 — 2026-07-20
+
+**New**
+- Markdown editor: paste an image from the clipboard directly into a task
+  description
+- Images are resized and compressed before being stored in a dedicated
+  folder (no more base64 in the JSON)
+- Resize images from the Markdown preview
+
+**Improvements**
+- Visual highlight for the task currently in focus in the kanban and list
+  views
+- FR/EN translations for the new image-related messages
+
+### 1.5.1 — 2026-07-16
+
+**Fixes**
+- Fixed saved data not loading on Windows
+
+**Technical**
+- Logs are now written to the data folder
+
+### 1.5.0 — 2026-07-16
 
 **Improvements**
 - Strict Content Security Policy enforced on production builds
