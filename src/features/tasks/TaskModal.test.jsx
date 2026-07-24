@@ -75,6 +75,14 @@ describe("TaskModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("en édition, permet de changer le type et réinitialise le statut vers le nouveau flux", () => {
+    const initial = { ...newDraft(), id: "t1", titre: "Tâche", statut: "revue" };
+    const { onSubmit } = renderModal({ initial });
+    fireEvent.click(screen.getByRole("button", { name: /Simple/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ type: "simple", statut: "todo" });
+  });
+
   it("en édition, garde les timeLogs du store (pas ceux du brouillon)", () => {
     const initial = { ...newDraft(), id: "t1", titre: "Tâche", timeLogs: [] };
     const storeTask = {

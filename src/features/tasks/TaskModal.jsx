@@ -76,29 +76,33 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
               </div>
             </div>
             <div className="trk-modal-task-side">
-              {!draft.id && (
-                <div className="trk-field">
-                  <label>{t("field_type")}</label>
-                  <div className="trk-type-switch">
-                    <button
-                      type="button"
-                      className={!isSimpleTask(draft) ? "active" : ""}
-                      onClick={() => setDraft({ ...draft, type: "standard", statut: "analyser" })}
-                      aria-pressed={!isSimpleTask(draft)}
-                    >
-                      <Columns3 size={13} /> {t("type_standard")}
-                    </button>
-                    <button
-                      type="button"
-                      className={isSimpleTask(draft) ? "active" : ""}
-                      onClick={() => setDraft({ ...draft, type: "simple", statut: "todo" })}
-                      aria-pressed={isSimpleTask(draft)}
-                    >
-                      <Zap size={13} /> {t("type_simple")}
-                    </button>
-                  </div>
+              <div className="trk-field">
+                <label>{t("field_type")}</label>
+                <div className="trk-type-switch">
+                  <button
+                    type="button"
+                    className={!isSimpleTask(draft) ? "active" : ""}
+                    onClick={() => {
+                      if (!isSimpleTask(draft)) return;
+                      setDraft({ ...draft, type: "standard", statut: "analyser" });
+                    }}
+                    aria-pressed={!isSimpleTask(draft)}
+                  >
+                    <Columns3 size={13} /> {t("type_standard")}
+                  </button>
+                  <button
+                    type="button"
+                    className={isSimpleTask(draft) ? "active" : ""}
+                    onClick={() => {
+                      if (isSimpleTask(draft)) return;
+                      setDraft({ ...draft, type: "simple", statut: "todo" });
+                    }}
+                    aria-pressed={isSimpleTask(draft)}
+                  >
+                    <Zap size={13} /> {t("type_simple")}
+                  </button>
                 </div>
-              )}
+              </div>
               <div className="trk-field">
                 <label>{t("field_project")}</label>
                 <select

@@ -11,6 +11,7 @@
     "dist:win": "npm run build && electron-builder --win portable --publish never",
     "dist:linux": "npm run build && electron-builder --linux AppImage --publish never",
     "dist:all": "npm run build && electron-builder --win portable --linux AppImage --publish never",
+    "dist:docker": "docker build -t suivi-travaux-builder . && docker run --rm -v \"$(pwd)/release:/app/release\" suivi-travaux-builder",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/ main.js preload.js electron/",

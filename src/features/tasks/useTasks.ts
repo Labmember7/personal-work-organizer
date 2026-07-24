@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
-import type { Project, Task, TaskDraft, TimeLog } from "../../lib/types";
-import { isTaskDone, statusesForTask } from "../../lib/statuses";
+import type { Project, Task, TaskDraft, TaskType, TimeLog } from "../../lib/types";
+import { isTaskDone, statusesForTask, STATUSES, SIMPLE_STATUSES } from "../../lib/statuses";
 import { uid } from "../../lib/uid";
 import { loadValue, saveValue, loadConfigProjects, syncConfigProjects } from "../../services/storage";
 
@@ -132,11 +132,19 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     saveTasks(tasksRef.current.filter((t) => t.id !== id));
   };
 
+  // Déposer une carte sur une colonne de l'autre tableau (workflow <-> simple)
+  // convertit aussi le type de la tâche vers celui du statut cible.
   const moveTask = (id: string, statut: string) => {
     const task = tasksRef.current.find((t) => t.id === id);
     if (!task || task.statut === statut) return;
-    if (!statusesForTask(task).some((s) => s.id === statut)) return;
-    const next = tasksRef.current.map((t) => (t.id === id ? { ...t, statut } : t));
+    let type: TaskType | undefined = task.type;
+    if (!statusesForTask(task).some((s) => s.id === statut)) {
+      const otherType: TaskType = task.type === "simple" ? "standard" : "simple";
+      const otherStatuses = otherType === "simple" ? SIMPLE_STATUSES : STATUSES;
+      if (!otherStatuses.some((s) => s.id === statut)) return;
+      type = otherType;
+    }
+    const next = tasksRef.current.map((t) => (t.id === id ? { ...t, type, statut } : t));
     saveTasks(next);
     if (isTaskDone({ statut })) onTaskDoneRef.current?.(statut, next);
   };
