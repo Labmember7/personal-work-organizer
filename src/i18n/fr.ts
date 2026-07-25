@@ -43,7 +43,12 @@ export default {
     new_task: "Nouvelle tâche",
 
     empty_task_list: "Aucune tâche ne correspond. Ajoutez-en une pour démarrer le suivi.",
+    empty_archived_list: "Aucune tâche archivée.",
     delete_confirm: "Supprimer ?",
+    archive_task: "Archiver la tâche",
+    unarchive_task: "Désarchiver la tâche",
+    archive_confirm: "Archiver ?",
+    unarchive_confirm: "Désarchiver ?",
 
     chart_status_distribution: "RÉPARTITION GLOBALE PAR STATUT",
     chart_project_progress: "AVANCEMENT PAR PROJET (PAR STATUT)",
@@ -175,6 +180,7 @@ export default {
 
     view_list: "Liste",
     view_kanban: "Kanban",
+    view_archived: "Archivées",
     page_prev: "Page précédente",
     page_next: "Page suivante",
     kanban_empty_col: "Déposer une tâche ici",
@@ -188,6 +194,8 @@ export default {
     celebrations_disable: "Désactiver les célébrations (effets et sons)",
     celebrations_enable: "Activer les célébrations (effets et sons)",
     confirm_delete_yes: "Confirmer la suppression",
+    confirm_archive_yes: "Confirmer l'archivage",
+    confirm_unarchive_yes: "Confirmer le désarchivage",
     detail_count: "Nombre",
     detail_share: "Part",
     detail_progress: "Avancement",

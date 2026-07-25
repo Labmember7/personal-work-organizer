@@ -18,7 +18,7 @@ const tooltipStyle = {
 
 // Les quatre graphiques de synthèse + le Gantt, chacun dans une ChartCard
 // (agrandissable en modal avec tableau de détails).
-export function ChartsSection({ tasks, projects, chartData }) {
+export function ChartsSection({ tasks, projects, chartData, onEditTask }) {
   const { t } = useLang();
   const {
     statusDistribution, perProjectStacked, projectTimeDistribution,
@@ -162,7 +162,7 @@ export function ChartsSection({ tasks, projects, chartData }) {
         emptyLabel={t("gantt_empty")}
         render={(height, focused) => (
           <div className={focused ? "trk-gantt-focus" : undefined}>
-            <GanttChart tasks={tasks} projects={projects} />
+            <GanttChart tasks={tasks} projects={projects} onEditTask={onEditTask} />
           </div>
         )}
       />

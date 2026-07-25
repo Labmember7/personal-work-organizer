@@ -1,5 +1,5 @@
 import React from "react";
-import { Columns3, List, Plus, Search } from "lucide-react";
+import { Archive, Columns3, List, Plus, Search } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { HelpTip } from "../../tips.jsx";
 import { StatusFilterDropdown } from "./StatusFilterDropdown.jsx";
@@ -53,6 +53,15 @@ export function TaskToolbar({
           aria-pressed={viewMode === "kanban"}
         >
           <Columns3 size={14} /> <span className="trk-view-label">{t("view_kanban")}</span>
+        </button>
+        <button
+          type="button"
+          className={"trk-view-btn" + (viewMode === "archived" ? " active" : "")}
+          onClick={() => onViewChange("archived")}
+          title={t("view_archived")}
+          aria-pressed={viewMode === "archived"}
+        >
+          <Archive size={14} /> <span className="trk-view-label">{t("view_archived")}</span>
         </button>
       </div>
       <button className="trk-add-btn" onClick={onNewTask}>

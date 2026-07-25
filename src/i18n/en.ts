@@ -43,7 +43,12 @@ export default {
     new_task: "New task",
 
     empty_task_list: "No matching task. Add one to start tracking.",
+    empty_archived_list: "No archived tasks.",
     delete_confirm: "Delete?",
+    archive_task: "Archive task",
+    unarchive_task: "Unarchive task",
+    archive_confirm: "Archive?",
+    unarchive_confirm: "Unarchive?",
 
     chart_status_distribution: "GLOBAL BREAKDOWN BY STATUS",
     chart_project_progress: "PROGRESS BY PROJECT (BY STATUS)",
@@ -175,6 +180,7 @@ export default {
 
     view_list: "List",
     view_kanban: "Kanban",
+    view_archived: "Archived",
     page_prev: "Previous page",
     page_next: "Next page",
     kanban_empty_col: "Drop a task here",
@@ -188,6 +194,8 @@ export default {
     celebrations_disable: "Disable celebrations (effects and sounds)",
     celebrations_enable: "Enable celebrations (effects and sounds)",
     confirm_delete_yes: "Confirm deletion",
+    confirm_archive_yes: "Confirm archiving",
+    confirm_unarchive_yes: "Confirm unarchiving",
     detail_count: "Count",
     detail_share: "Share",
     detail_progress: "Progress",

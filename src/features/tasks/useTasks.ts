@@ -34,6 +34,8 @@ export interface TaskStore {
   saveBoth: (nextTasks: Task[], nextProjects: Project[]) => void;
   upsertTask: (draft: TaskDraft) => void;
   deleteTask: (id: string) => void;
+  archiveTask: (id: string) => void;
+  unarchiveTask: (id: string) => void;
   moveTask: (id: string, statut: string) => void;
   addTimeLog: (taskId: string, minutes: number, note: string) => void;
   editTimeLog: (taskId: string, logId: string, minutes: number, note: string) => void;
@@ -198,6 +200,14 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     saveTasks(tasksRef.current.filter((t) => t.id !== id));
   };
 
+  const archiveTask = (id: string) => {
+    saveTasks(tasksRef.current.map((t) => (t.id === id ? { ...t, archived: true } : t)));
+  };
+
+  const unarchiveTask = (id: string) => {
+    saveTasks(tasksRef.current.map((t) => (t.id === id ? { ...t, archived: false } : t)));
+  };
+
   // Déposer une carte sur une colonne de l'autre tableau (workflow <-> simple)
   // convertit aussi le type de la tâche vers celui du statut cible.
   const moveTask = (id: string, statut: string) => {
@@ -249,7 +259,7 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     loading, tasks, projects, saveError,
     tasksRef, projectsRef,
     saveTasks, saveProjects, saveBoth,
-    upsertTask, deleteTask, moveTask,
+    upsertTask, deleteTask, archiveTask, unarchiveTask, moveTask,
     addTimeLog, editTimeLog, deleteTimeLog,
     canUndo, canRedo, undo, redo,
   };

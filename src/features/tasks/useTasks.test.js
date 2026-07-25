@@ -55,6 +55,53 @@ describe("useTasks moveTask (conversion de type entre tableaux kanban)", () => {
   });
 });
 
+describe("useTasks archiveTask/unarchiveTask", () => {
+  it("marque une tâche comme archivée sans la supprimer", async () => {
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.saveTasks([
+        { id: "t1", titre: "T1", projet: "Alpha", statut: "analyser" },
+      ]);
+    });
+    act(() => result.current.archiveTask("t1"));
+
+    expect(result.current.tasks).toHaveLength(1);
+    expect(result.current.tasks[0].archived).toBe(true);
+  });
+
+  it("restaure une tâche archivée avec unarchiveTask", async () => {
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.saveTasks([
+        { id: "t1", titre: "T1", projet: "Alpha", statut: "analyser", archived: true },
+      ]);
+    });
+    act(() => result.current.unarchiveTask("t1"));
+
+    expect(result.current.tasks[0].archived).toBe(false);
+  });
+
+  it("l'archivage peut être annulé avec undo", async () => {
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.saveTasks([
+        { id: "t1", titre: "T1", projet: "Alpha", statut: "analyser" },
+      ]);
+    });
+    act(() => result.current.archiveTask("t1"));
+    expect(result.current.tasks[0].archived).toBe(true);
+
+    act(() => result.current.undo());
+    expect(result.current.tasks[0].archived).toBeFalsy();
+  });
+});
+
 describe("useTasks undo/redo", () => {
   it("restaure l'état précédent puis peut le rétablir", async () => {
     const { result } = renderHook(() => useTasks());

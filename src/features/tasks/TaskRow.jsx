@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertTriangle, Check, Clock, Flame, Pencil, Trash2, X, Zap } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, Check, Clock, Flame, Pencil, Trash2, X, Zap } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import {
   statusOf, prioOf, projectColor, isSimpleTask, isTaskDone, formatDuration,
@@ -8,8 +8,12 @@ import { useFocusInfo, useLiveMinutes } from "../focus/FocusContext.jsx";
 import { TimeLogPopover } from "../timelog/TimeLogPopover.jsx";
 
 // Ligne de la vue liste : draggable vers la zone de focus, badge horloge
-// ouvrant le popover de pointage, suppression avec confirmation inline.
-export function TaskRow({ task, onEdit, onDelete, confirmId, onAskDelete, onCancelDelete, timeLogOps }) {
+// ouvrant le popover de pointage, suppression/archivage avec confirmation inline.
+export function TaskRow({
+  task, onEdit, onDelete, onArchive, onUnarchive,
+  confirmId, confirmAction, onAskDelete, onAskArchive, onAskUnarchive, onCancelConfirm,
+  timeLogOps,
+}) {
   const { t } = useLang();
   const [logOpen, setLogOpen] = useState(false);
   const st = statusOf(task.statut);
@@ -75,13 +79,27 @@ export function TaskRow({ task, onEdit, onDelete, confirmId, onAskDelete, onCanc
       <div className="trk-task-actions">
         {confirmId === task.id ? (
           <div className="trk-confirm">
-            <span className="trk-confirm-label">{t("delete_confirm")}</span>
-            <button className="trk-icon-btn trk-icon-danger" onClick={() => onDelete(task.id)} title={t("confirm_delete_yes")} aria-label={t("confirm_delete_yes")}><Check size={14} /></button>
-            <button className="trk-icon-btn" onClick={onCancelDelete} title={t("cancel")} aria-label={t("cancel")}><X size={14} /></button>
+            <span className="trk-confirm-label">
+              {t(confirmAction === "archive" ? "archive_confirm" : confirmAction === "unarchive" ? "unarchive_confirm" : "delete_confirm")}
+            </span>
+            <button
+              className={"trk-icon-btn" + (confirmAction === "delete" ? " trk-icon-danger" : "")}
+              onClick={() => (confirmAction === "archive" ? onArchive(task.id) : confirmAction === "unarchive" ? onUnarchive(task.id) : onDelete(task.id))}
+              title={t(confirmAction === "archive" ? "confirm_archive_yes" : confirmAction === "unarchive" ? "confirm_unarchive_yes" : "confirm_delete_yes")}
+              aria-label={t(confirmAction === "archive" ? "confirm_archive_yes" : confirmAction === "unarchive" ? "confirm_unarchive_yes" : "confirm_delete_yes")}
+            >
+              <Check size={14} />
+            </button>
+            <button className="trk-icon-btn" onClick={onCancelConfirm} title={t("cancel")} aria-label={t("cancel")}><X size={14} /></button>
           </div>
         ) : (
           <>
             <button className="trk-icon-btn" onClick={() => onEdit(task)} title={t("edit_task")} aria-label={t("edit_task")}><Pencil size={14} /></button>
+            {task.archived ? (
+              <button className="trk-icon-btn" onClick={() => onAskUnarchive(task.id)} title={t("unarchive_task")} aria-label={t("unarchive_task")}><ArchiveRestore size={14} /></button>
+            ) : (
+              <button className="trk-icon-btn" onClick={() => onAskArchive(task.id)} title={t("archive_task")} aria-label={t("archive_task")}><Archive size={14} /></button>
+            )}
             <button className="trk-icon-btn" onClick={() => onAskDelete(task.id)} title={t("remove")} aria-label={t("remove")}><Trash2 size={14} /></button>
           </>
         )}

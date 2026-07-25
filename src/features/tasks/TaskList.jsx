@@ -9,14 +9,14 @@ const PAGE_SIZE = 6;
 
 // Vue liste : tâches triées/filtrées par l'appelant, paginées ici.
 // `resetKey` ramène en page 1 quand filtres, recherche ou tri changent.
-export function TaskList({ tasks, resetKey, onNewTask, rowProps }) {
+export function TaskList({ tasks, resetKey, onNewTask, rowProps, emptyLabel }) {
   const { t } = useLang();
   const { page, setPage, totalPages, pageItems } = usePagination(tasks, PAGE_SIZE, resetKey);
 
   return (
     <div className="trk-task-list">
       {tasks.length === 0 && (
-        <EmptyState label={t("empty_task_list")} actionLabel={t("new_task")} onAction={onNewTask} />
+        <EmptyState label={emptyLabel || t("empty_task_list")} actionLabel={t("new_task")} onAction={onNewTask} />
       )}
       {pageItems.map((task) => (
         <TaskRow key={task.id} task={task} {...rowProps} />

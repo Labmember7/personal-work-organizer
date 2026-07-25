@@ -44,6 +44,7 @@ export interface Task {
   dateDebut?: string; // AAAA-MM-JJ
   echeance?: string; // AAAA-MM-JJ
   timeLogs?: TimeLog[];
+  archived?: boolean;
 }
 
 /** Brouillon du modal : id null tant que la tâche n'est pas créée. */

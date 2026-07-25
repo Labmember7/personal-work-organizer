@@ -1,12 +1,15 @@
 import React from "react";
-import { AlertTriangle, Check, Clock, Flame, Pencil, Trash2, X, Zap } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, Check, Clock, Flame, Pencil, Trash2, X, Zap } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { prioOf, projectColor, isSimpleTask, isTaskDone, formatDuration } from "../../utils";
 import { useFocusInfo, useLiveMinutes } from "../focus/FocusContext.jsx";
 
 // Carte de tâche du kanban : draggable vers les autres colonnes ou la zone
 // de focus. Le temps affiché suit la session de focus en direct.
-export function KanbanCard({ task, dragging, onDragStart, onDragEnd, onEdit, onDelete, confirmId, onAskDelete, onCancelDelete }) {
+export function KanbanCard({
+  task, dragging, onDragStart, onDragEnd, onEdit, onDelete, onArchive, onUnarchive,
+  confirmId, confirmAction, onAskDelete, onAskArchive, onAskUnarchive, onCancelConfirm,
+}) {
   const { t } = useLang();
   const pr = prioOf(task.priorite);
   const pc = projectColor(task.projet);
@@ -52,15 +55,32 @@ export function KanbanCard({ task, dragging, onDragStart, onDragEnd, onEdit, onD
         <span className="trk-kanban-card-actions">
           {confirmId === task.id ? (
             <>
-              <span className="trk-confirm-label">{t("delete_confirm")}</span>
-              <button className="trk-icon-btn trk-icon-danger" onClick={() => onDelete(task.id)} title={t("confirm_delete_yes")} aria-label={t("confirm_delete_yes")}><Check size={12} /></button>
-              <button className="trk-icon-btn" onClick={onCancelDelete} title={t("cancel")} aria-label={t("cancel")}><X size={12} /></button>
+              <span className="trk-confirm-label">
+                {t(confirmAction === "archive" ? "archive_confirm" : confirmAction === "unarchive" ? "unarchive_confirm" : "delete_confirm")}
+              </span>
+              <button
+                className={"trk-icon-btn" + (confirmAction === "delete" ? " trk-icon-danger" : "")}
+                onClick={() => (confirmAction === "archive" ? onArchive(task.id) : confirmAction === "unarchive" ? onUnarchive(task.id) : onDelete(task.id))}
+                title={t(confirmAction === "archive" ? "confirm_archive_yes" : confirmAction === "unarchive" ? "confirm_unarchive_yes" : "confirm_delete_yes")}
+              >
+                <Check size={12} />
+              </button>
+              <button className="trk-icon-btn" onClick={onCancelConfirm} title={t("cancel")} aria-label={t("cancel")}><X size={12} /></button>
             </>
           ) : (
             <>
               <button className="trk-icon-btn" onClick={() => onEdit(task)} title={t("edit_task")}>
                 <Pencil size={12} />
               </button>
+              {task.archived ? (
+                <button className="trk-icon-btn" onClick={() => onAskUnarchive(task.id)} title={t("unarchive_task")}>
+                  <ArchiveRestore size={12} />
+                </button>
+              ) : (
+                <button className="trk-icon-btn" onClick={() => onAskArchive(task.id)} title={t("archive_task")}>
+                  <Archive size={12} />
+                </button>
+              )}
               <button className="trk-icon-btn" onClick={() => onAskDelete(task.id)} title={t("remove")}>
                 <Trash2 size={12} />
               </button>

@@ -40,7 +40,7 @@ export default function App() {
   const [sortBy, setSortBy] = useState("priorite");
   const [viewMode, setViewMode] = useState("list");
   const [editing, setEditing] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirm, setConfirm] = useState(null); // { id, action: "delete" | "archive" | "unarchive" }
   const [toast, setToast] = useState(null);
 
   // ── Thème et célébrations ──
@@ -79,6 +79,10 @@ export default function App() {
   const store = useTasks({ onTaskDone: celebrateTaskDone });
   const { loading, tasks, projects, saveError } = store;
 
+  // Les tâches archivées sont exclues du tableau de bord (progression,
+  // graphiques, célébrations) : elles ne représentent plus du travail actif.
+  const activeTasks = tasks.filter((tk) => !tk.archived);
+
   useUndoRedoShortcut({ undo: store.undo, redo: store.redo });
 
   const { addProject, removeProject, renameProject } = useProjects(store);
@@ -97,7 +101,7 @@ export default function App() {
     onToast: setToast, t,
   });
 
-  const chartData = useChartData(tasks, projects);
+  const chartData = useChartData(activeTasks, projects);
 
   // ── Guide de démarrage : affiché à la première ouverture, rejouable via le « ? » ──
   const [tutorialOpen, setTutorialOpen] = useState(() => {
@@ -130,8 +134,8 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const doneCount = tasks.filter(isTaskDone).length;
-  const allDone = tasks.length > 0 && doneCount === tasks.length;
+  const doneCount = activeTasks.filter(isTaskDone).length;
+  const allDone = activeTasks.length > 0 && doneCount === activeTasks.length;
 
   // Célébration au passage à « tout terminé » (jamais au chargement initial).
   useEffect(() => {
@@ -151,9 +155,22 @@ export default function App() {
   }, [celebration]);
 
   // ── Dérivés ──
+  const sortTasks = (list) => {
+    const arr = [...list];
+    arr.sort((a, b) => {
+      if (sortBy === "priorite") return prioOf(a.priorite).order - prioOf(b.priorite).order;
+      if (sortBy === "statut") return statusOf(a.statut).weight - statusOf(b.statut).weight;
+      if (sortBy === "projet") return a.projet.localeCompare(b.projet);
+      if (sortBy === "echeance") return (a.echeance || "9999-99-99").localeCompare(b.echeance || "9999-99-99");
+      return 0;
+    });
+    return arr;
+  };
+
   const filteredTasks = useMemo(() => {
     return tasks.filter(
       (tk) =>
+        !tk.archived &&
         (!filterProjects.length || filterProjects.includes(tk.projet)) &&
         (!filterStatuts.length ||
           filterStatuts.includes(tk.statut) ||
@@ -164,25 +181,23 @@ export default function App() {
     );
   }, [tasks, filterProjects, filterStatuts, search]);
 
-  const sortedTasks = useMemo(() => {
-    const arr = [...filteredTasks];
-    arr.sort((a, b) => {
-      if (sortBy === "priorite") return prioOf(a.priorite).order - prioOf(b.priorite).order;
-      if (sortBy === "statut") return statusOf(a.statut).weight - statusOf(b.statut).weight;
-      if (sortBy === "projet") return a.projet.localeCompare(b.projet);
-      if (sortBy === "echeance") return (a.echeance || "9999-99-99").localeCompare(b.echeance || "9999-99-99");
-      return 0;
-    });
-    return arr;
-  }, [filteredTasks, sortBy]);
+  const sortedTasks = useMemo(() => sortTasks(filteredTasks), [filteredTasks, sortBy]);
 
-  const listResetKey = `${filterProjects.join(",")}|${filterStatuts.join(",")}|${search}|${sortBy}`;
+  // Vue « Archives » : mêmes recherche/tri, mais parmi les tâches archivées
+  // uniquement (les filtres projet/statut ne s'y appliquent pas).
+  const archivedTasks = useMemo(
+    () => tasks.filter((tk) => tk.archived && taskMatchesQuery(tk, search)),
+    [tasks, search]
+  );
+  const sortedArchivedTasks = useMemo(() => sortTasks(archivedTasks), [archivedTasks, sortBy]);
+
+  const listResetKey = `${filterProjects.join(",")}|${filterStatuts.join(",")}|${search}|${sortBy}|${viewMode}`;
 
   const globalProgress = useMemo(() => {
-    if (tasks.length === 0) return 0;
-    const sum = tasks.reduce((acc, tk) => acc + statusOf(tk.statut).weight, 0);
-    return Math.round(sum / tasks.length);
-  }, [tasks]);
+    if (activeTasks.length === 0) return 0;
+    const sum = activeTasks.reduce((acc, tk) => acc + statusOf(tk.statut).weight, 0);
+    return Math.round(sum / activeTasks.length);
+  }, [activeTasks]);
 
   // ── Actions ──
   const openNewTask = () => {
@@ -205,7 +220,17 @@ export default function App() {
 
   const handleDeleteTask = (id) => {
     store.deleteTask(id);
-    setConfirmDelete(null);
+    setConfirm(null);
+  };
+
+  const handleArchiveTask = (id) => {
+    store.archiveTask(id);
+    setConfirm(null);
+  };
+
+  const handleUnarchiveTask = (id) => {
+    store.unarchiveTask(id);
+    setConfirm(null);
   };
 
   const toggleFilterProject = (name) => {
@@ -239,10 +264,13 @@ export default function App() {
     deleteTimeLog: store.deleteTimeLog,
   };
 
-  const deleteProps = {
-    confirmId: confirmDelete,
-    onAskDelete: setConfirmDelete,
-    onCancelDelete: () => setConfirmDelete(null),
+  const confirmProps = {
+    confirmId: confirm?.id ?? null,
+    confirmAction: confirm?.action ?? null,
+    onAskDelete: (id) => setConfirm({ id, action: "delete" }),
+    onAskArchive: (id) => setConfirm({ id, action: "archive" }),
+    onAskUnarchive: (id) => setConfirm({ id, action: "unarchive" }),
+    onCancelConfirm: () => setConfirm(null),
   };
 
   // ── Rendu ──
@@ -259,7 +287,7 @@ export default function App() {
           <AppHeader
             globalProgress={globalProgress}
             doneCount={doneCount}
-            totalTasks={tasks.length}
+            totalTasks={activeTasks.length}
             onImport={backup.importData}
             onExport={backup.exportData}
             ioBusy={backup.ioBusy}
@@ -276,7 +304,7 @@ export default function App() {
 
           <div className="trk-layout">
             <ProjectSidebar
-              totalTasks={tasks.length}
+              totalTasks={activeTasks.length}
               projectProgress={chartData.projectProgress}
               filterProjects={filterProjects}
               onToggleFilter={toggleFilterProject}
@@ -308,7 +336,24 @@ export default function App() {
                     onMove: store.moveTask,
                     onEdit: openEditTask,
                     onDelete: handleDeleteTask,
-                    ...deleteProps,
+                    onArchive: handleArchiveTask,
+                    onUnarchive: handleUnarchiveTask,
+                    ...confirmProps,
+                  }}
+                />
+              ) : viewMode === "archived" ? (
+                <TaskList
+                  tasks={sortedArchivedTasks}
+                  resetKey={listResetKey}
+                  onNewTask={undefined}
+                  emptyLabel={t("empty_archived_list")}
+                  rowProps={{
+                    onEdit: openEditTask,
+                    onDelete: handleDeleteTask,
+                    onArchive: handleArchiveTask,
+                    onUnarchive: handleUnarchiveTask,
+                    ...confirmProps,
+                    timeLogOps,
                   }}
                 />
               ) : (
@@ -319,7 +364,9 @@ export default function App() {
                   rowProps={{
                     onEdit: openEditTask,
                     onDelete: handleDeleteTask,
-                    ...deleteProps,
+                    onArchive: handleArchiveTask,
+                    onUnarchive: handleUnarchiveTask,
+                    ...confirmProps,
                     timeLogOps,
                   }}
                 />
@@ -327,7 +374,7 @@ export default function App() {
             </main>
           </div>
 
-          <ChartsSection tasks={tasks} projects={projects} chartData={chartData} />
+          <ChartsSection tasks={activeTasks} projects={projects} chartData={chartData} onEditTask={openEditTask} />
 
           <FocusZone
             task={focus.focusTask}

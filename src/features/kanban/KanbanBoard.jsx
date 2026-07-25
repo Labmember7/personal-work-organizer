@@ -3,7 +3,7 @@ import { STATUSES } from "../../utils";
 import { KanbanColumn } from "./KanbanColumn.jsx";
 
 // Tableau kanban : une colonne par statut, drag & drop entre colonnes.
-export function KanbanBoard({ tasks, statuses = STATUSES, onMove, onEdit, onDelete, confirmId, onAskDelete, onCancelDelete }) {
+export function KanbanBoard({ tasks, statuses = STATUSES, onMove, ...cardProps }) {
   const [dragId, setDragId] = useState(null);
   const [overCol, setOverCol] = useState(null);
 
@@ -13,7 +13,6 @@ export function KanbanBoard({ tasks, statuses = STATUSES, onMove, onEdit, onDele
   };
 
   const dragCtx = { dragId, setDragId, overCol, setOverCol, onMove, endDrag };
-  const cardProps = { onEdit, onDelete, confirmId, onAskDelete, onCancelDelete };
 
   return (
     <div className="trk-kanban">

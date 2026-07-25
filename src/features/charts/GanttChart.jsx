@@ -8,7 +8,7 @@ const fmtTick = (d, locale) => d.toLocaleDateString(locale, { day: "2-digit", mo
 
 // Gantt par projet : uniquement les tâches ayant une échéance, regroupées
 // par projet, avec la ligne « aujourd'hui » sur le domaine temporel commun.
-export function GanttChart({ tasks, projects }) {
+export function GanttChart({ tasks, projects, onEditTask }) {
   const { t: tr, locale } = useLang();
   const rows = useMemo(() => {
     const eligible = tasks
@@ -78,8 +78,25 @@ export function GanttChart({ tasks, projects }) {
             <div className="trk-gantt-project-label" style={{ color: projectColor(g.project) }}>{g.project}</div>
             {g.items.map((t) => {
               const st = statusOf(t.statut);
+              const handleClick = onEditTask ? () => onEditTask(t) : undefined;
               return (
-                <div key={t.id} className="trk-gantt-row">
+                <div
+                  key={t.id}
+                  className={`trk-gantt-row${onEditTask ? " trk-gantt-row-clickable" : ""}`}
+                  onClick={handleClick}
+                  role={onEditTask ? "button" : undefined}
+                  tabIndex={onEditTask ? 0 : undefined}
+                  onKeyDown={
+                    onEditTask
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleClick();
+                          }
+                        }
+                      : undefined
+                  }
+                >
                   <div className="trk-gantt-row-label" title={t.titre}>{t.titre}</div>
                   <div className="trk-gantt-track">
                     {rows.todayLeft >= 0 && rows.todayLeft <= 100 && (

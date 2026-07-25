@@ -50,6 +50,7 @@ const normalizeTask = (t: Task): Task => {
     dateDebut: asString(t.dateDebut),
     echeance: asString(t.echeance),
     timeLogs: (Array.isArray(t.timeLogs) ? t.timeLogs : []).map(normalizeTimeLog).filter((l): l is TimeLog => l !== null),
+    archived: t.archived === true,
   };
 };
 
