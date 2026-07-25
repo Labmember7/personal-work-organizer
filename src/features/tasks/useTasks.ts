@@ -6,9 +6,20 @@ import { loadValue, saveValue, loadConfigProjects, syncConfigProjects } from "..
 
 const STORAGE_KEY = "suivi-travaux-data";
 
+// Bornée pour éviter toute croissance illimitée de la mémoire ; chaque
+// entrée ne stocke que des références aux tableaux tasks/projects (mise à
+// jour immuable existante), pas de clone profond, donc le surcoût réel par
+// entrée est négligeable.
+const HISTORY_LIMIT = 100;
+
 interface StoredData {
   tasks?: Task[];
   projects?: Project[];
+}
+
+interface Snapshot {
+  tasks: Task[];
+  projects: Project[];
 }
 
 export interface TaskStore {
@@ -27,6 +38,10 @@ export interface TaskStore {
   addTimeLog: (taskId: string, minutes: number, note: string) => void;
   editTimeLog: (taskId: string, logId: string, minutes: number, note: string) => void;
   deleteTimeLog: (taskId: string, logId: string) => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  undo: () => void;
+  redo: () => void;
 }
 
 interface UseTasksOptions {
@@ -52,6 +67,15 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
   projectsRef.current = projects;
   const onTaskDoneRef = useRef(onTaskDone);
   onTaskDoneRef.current = onTaskDone;
+
+  // Historique undo/redo : piles de références (pas de clone profond),
+  // bornées à HISTORY_LIMIT. Des refs suffisent pour les piles elles-mêmes
+  // (jamais lues par le rendu) ; seuls canUndo/canRedo sont exposés en état
+  // pour piloter l'activation des boutons/raccourcis sans re-render inutile.
+  const pastRef = useRef<Snapshot[]>([]);
+  const futureRef = useRef<Snapshot[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -92,23 +116,65 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     }
   };
 
+  // Empile l'état courant avant de le remplacer, pour permettre un undo.
+  // Toute nouvelle action invalide la pile de redo (comme un traitement de
+  // texte classique).
+  const recordHistory = () => {
+    pastRef.current.push({ tasks: tasksRef.current, projects: projectsRef.current });
+    if (pastRef.current.length > HISTORY_LIMIT) pastRef.current.shift();
+    futureRef.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  };
+
+  const applySnapshot = (snap: Snapshot) => {
+    setTasks(snap.tasks);
+    setProjects(snap.projects);
+    persist(snap.tasks, snap.projects);
+  };
+
   // Les refs évitent toute capture périmée : saveTasks peut être appelé
   // depuis un timer sans risquer de persister d'anciens projets (et
   // inversement pour saveProjects).
   const saveTasks = (next: Task[]) => {
+    recordHistory();
     setTasks(next);
     persist(next, projectsRef.current);
   };
 
   const saveProjects = (next: Project[]) => {
+    recordHistory();
     setProjects(next);
     persist(tasksRef.current, next);
   };
 
   const saveBoth = (nextTasks: Task[], nextProjects: Project[]) => {
+    recordHistory();
     setTasks(nextTasks);
     setProjects(nextProjects);
     persist(nextTasks, nextProjects);
+  };
+
+  // Undo/redo n'appellent jamais recordHistory : ils déplacent l'état
+  // courant vers la pile opposée puis restaurent l'instantané visé.
+  const undo = () => {
+    const prev = pastRef.current.pop();
+    if (!prev) return;
+    futureRef.current.push({ tasks: tasksRef.current, projects: projectsRef.current });
+    if (futureRef.current.length > HISTORY_LIMIT) futureRef.current.shift();
+    setCanUndo(pastRef.current.length > 0);
+    setCanRedo(true);
+    applySnapshot(prev);
+  };
+
+  const redo = () => {
+    const next = futureRef.current.pop();
+    if (!next) return;
+    pastRef.current.push({ tasks: tasksRef.current, projects: projectsRef.current });
+    if (pastRef.current.length > HISTORY_LIMIT) pastRef.current.shift();
+    setCanRedo(futureRef.current.length > 0);
+    setCanUndo(true);
+    applySnapshot(next);
   };
 
   // Création ou édition depuis le modal. En édition, les timeLogs du store
@@ -185,5 +251,6 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     saveTasks, saveProjects, saveBoth,
     upsertTask, deleteTask, moveTask,
     addTimeLog, editTimeLog, deleteTimeLog,
+    canUndo, canRedo, undo, redo,
   };
 }

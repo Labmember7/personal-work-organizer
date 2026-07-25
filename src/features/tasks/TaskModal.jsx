@@ -13,7 +13,7 @@ import { TimeLogSection } from "../timelog/TimeLogSection.jsx";
 export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, timeLogOps, onToast }) {
   const { t } = useLang();
   const [draft, setDraft] = useState(initial);
-  const [descMode, setDescMode] = useState("write");
+  const [descMode, setDescMode] = useState("formatted");
   const [confirmClose, setConfirmClose] = useState(false);
   const initialRef = useRef(initial);
 

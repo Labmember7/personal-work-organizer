@@ -5,6 +5,7 @@ import { useLang } from "./i18n.jsx";
 import { CelebrationOverlay, MiniCelebration, pickCelebration } from "./celebration.jsx";
 import { Tutorial, TUTORIAL_STORAGE_KEY } from "./tips.jsx";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
+import { useUndoRedoShortcut } from "./hooks/useUndoRedoShortcut";
 import { AppHeader } from "./components/AppHeader.jsx";
 import { TitleBar } from "./components/TitleBar.jsx";
 import { Toast } from "./components/Toast.jsx";
@@ -77,6 +78,8 @@ export default function App() {
   // ── Données et features ──
   const store = useTasks({ onTaskDone: celebrateTaskDone });
   const { loading, tasks, projects, saveError } = store;
+
+  useUndoRedoShortcut({ undo: store.undo, redo: store.redo });
 
   const { addProject, removeProject, renameProject } = useProjects(store);
 
@@ -265,6 +268,10 @@ export default function App() {
             onToggleCelebrations={toggleCelebrations}
             theme={theme}
             onToggleTheme={toggleTheme}
+            canUndo={store.canUndo}
+            canRedo={store.canRedo}
+            onUndo={store.undo}
+            onRedo={store.redo}
           />
 
           <div className="trk-layout">

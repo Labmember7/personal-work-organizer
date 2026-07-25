@@ -1,18 +1,19 @@
 import React from "react";
-import { Download, HelpCircle, Moon, PartyPopper, Sun, Upload } from "lucide-react";
+import { Download, HelpCircle, Moon, PartyPopper, Redo2, Sun, Undo2, Upload } from "lucide-react";
 import { useLang, doneOfTotal, tasksTotalLabel } from "../i18n.jsx";
 import { Gauge } from "./Gauge.jsx";
 import { LangSwitch } from "./LangSwitch.jsx";
 import { HelpTip } from "../tips.jsx";
 
 // En-tête : marque, jauge d'avancement global et actions générales
-// (import/export, tutoriel, célébrations, thème, langue).
+// (import/export, tutoriel, célébrations, thème, langue, undo/redo).
 export function AppHeader({
   globalProgress, doneCount, totalTasks,
   onImport, onExport, ioBusy,
   onOpenTutorial,
   celebrationsOn, onToggleCelebrations,
   theme, onToggleTheme,
+  canUndo, canRedo, onUndo, onRedo,
 }) {
   const { t, lang } = useLang();
   return (
@@ -50,6 +51,26 @@ export function AppHeader({
           </button>
           <HelpTip tipKey="backup" />
         </div>
+        <button
+          type="button"
+          className="trk-theme-btn"
+          onClick={onUndo}
+          disabled={!canUndo}
+          title={t("undo")}
+          aria-label={t("undo")}
+        >
+          <Undo2 size={14} />
+        </button>
+        <button
+          type="button"
+          className="trk-theme-btn"
+          onClick={onRedo}
+          disabled={!canRedo}
+          title={t("redo")}
+          aria-label={t("redo")}
+        >
+          <Redo2 size={14} />
+        </button>
         <button
           type="button"
           className="trk-theme-btn"

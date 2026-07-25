@@ -54,3 +54,54 @@ describe("useTasks moveTask (conversion de type entre tableaux kanban)", () => {
     expect(t.statut).toBe("analyser");
   });
 });
+
+describe("useTasks undo/redo", () => {
+  it("restaure l'état précédent puis peut le rétablir", async () => {
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      result.current.saveTasks([{ id: "t1", titre: "T1", projet: "Alpha", statut: "analyser" }]);
+    });
+    act(() => {
+      result.current.saveTasks([{ id: "t1", titre: "T1 modifiée", projet: "Alpha", statut: "analyser" }]);
+    });
+
+    expect(result.current.tasks[0].titre).toBe("T1 modifiée");
+    expect(result.current.canUndo).toBe(true);
+    expect(result.current.canRedo).toBe(false);
+
+    act(() => result.current.undo());
+    expect(result.current.tasks[0].titre).toBe("T1");
+    expect(result.current.canRedo).toBe(true);
+
+    act(() => result.current.redo());
+    expect(result.current.tasks[0].titre).toBe("T1 modifiée");
+    expect(result.current.canRedo).toBe(false);
+  });
+
+  it("une nouvelle action après un undo efface la pile de redo", async () => {
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.saveTasks([{ id: "t1", titre: "A", projet: "Alpha", statut: "analyser" }]));
+    act(() => result.current.saveTasks([{ id: "t1", titre: "B", projet: "Alpha", statut: "analyser" }]));
+    act(() => result.current.undo());
+    expect(result.current.canRedo).toBe(true);
+
+    act(() => result.current.saveTasks([{ id: "t1", titre: "C", projet: "Alpha", statut: "analyser" }]));
+    expect(result.current.canRedo).toBe(false);
+    expect(result.current.tasks[0].titre).toBe("C");
+  });
+
+  it("undo/redo sans historique ne fait rien", async () => {
+    const { result } = renderHook(() => useTasks());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(false);
+    act(() => result.current.undo());
+    act(() => result.current.redo());
+    expect(result.current.tasks).toEqual([]);
+  });
+});
