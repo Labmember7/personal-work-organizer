@@ -622,25 +622,38 @@
     0 0 22px 2px color-mix(in srgb, var(--accent) 30%, transparent);
   animation: trk-focus-glow-pulse 4.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
 }
+/* Porté par un <span> et non par le SVG : `.trk-app * { box-sizing: border-box }`
+   rabattait padding et bordure DANS les 11 px de l'icône, si bien que le
+   médaillon se réduisait à une pastille de 12 px où la flamme n'était plus
+   qu'un éclat de 2 px. Le span, lui, se dimensionne sur son contenu. */
 .trk-focused-flame {
-  color: var(--warn);
-  animation: trk-flame-flicker 2.4s ease-in-out infinite;
-  flex-shrink: 0;
-}
-.trk-kanban-card .trk-focused-flame {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  z-index: 1;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  color: var(--warn);
+  animation: trk-flame-flicker 2.4s ease-in-out infinite;
+}
+.trk-task-row .trk-focused-flame {
+  margin-right: 5px;
+  vertical-align: -0.2em;
+}
+/* Entièrement DANS la carte : la colonne (overflow-y:auto) rogne tout ce qui
+   dépasse, dans les deux axes — en débord le médaillon disparaissait sous les
+   barres de la colonne, et dès le premier défilement pour les cartes du bas.
+   Aucun z-index n'y peut rien : c'est un rognage, pas un empilement. */
+.trk-kanban-card .trk-focused-flame {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  z-index: 1;
   padding: 4px;
   border-radius: 50%;
   background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
   box-shadow: 0 3px 8px var(--shadow);
 }
+.trk-kanban-card.trk-focused .trk-kanban-card-title { padding-right: 26px; }
 @media (prefers-reduced-motion: reduce) {
   .trk-kanban-card.trk-focused::after,
   .trk-task-row.trk-focused::after,

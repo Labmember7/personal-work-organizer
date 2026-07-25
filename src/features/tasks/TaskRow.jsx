@@ -35,7 +35,11 @@ export function TaskRow({
     >
       <div className="trk-task-main">
         <p className="trk-task-title">
-          {isFocused && <Flame size={12} className="trk-focused-flame" aria-hidden="true" />}
+          {isFocused && (
+            <span className="trk-focused-flame" role="img" title={t("focus_cooking")} aria-label={t("focus_cooking")}>
+              <Flame size={11} />
+            </span>
+          )}
           {task.titre}
         </p>
         <div className="trk-task-meta">

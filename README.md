@@ -8,13 +8,18 @@ Portable desktop app (Windows + Ubuntu) to track tasks by project, with due date
 ## Screenshots
 
 <!--
-Drop your PNG/JPG files in docs/screenshots/ with these exact names and they'll show up here automatically.
-Suggested shots: main dashboard, task list / gantt view, charts panel.
+Regenerated from the app itself (same captures as the in-app getting-started
+guide, see src/assets/tutorial/). Drop replacements in docs/screenshots/ with
+these exact names and they show up here automatically.
 -->
 
 | Dashboard | Task list | Charts |
 |---|---|---|
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Task list](docs/screenshots/tasks.png) | ![Charts](docs/screenshots/charts.png) |
+
+| Kanban | Sticky-note mode |
+|---|---|
+| ![Kanban](docs/screenshots/kanban.png) | ![Sticky-note mode](docs/screenshots/sticky.png) |
 
 ---
 
@@ -29,10 +34,15 @@ juste à côté de l'exécutable, ce qui la rend portable sur ta clé/SSD extern
 
 - Suivi de tâches par projet, avec priorités, échéances et statut
 - Vue liste (avec pagination) et vue kanban avec glisser-déposer entre colonnes
+- Archivage des tâches, avec vue « Archivées » dédiée (hors avancement et graphiques)
+- Annuler / rétablir (Ctrl+Z / Ctrl+Y) sur les 100 dernières actions
 - Recherche instantanée insensible aux accents/majuscules, filtres par statut et priorité
-- Vue gantt et graphiques (répartition par statut, projet, priorité, temps passé), agrandissables en plein écran
-- Thème clair / sombre
+- Zone de focus : une tâche à la fois, temps pointé automatiquement
+- Éditeur de description Texte / Formaté (gras, titres, listes, tableaux, couleurs, images collées)
+- Vue gantt cliquable et graphiques (répartition par statut, projet, priorité, temps passé), agrandissables en plein écran
+- Thème clair / sombre / aléatoire, plus un mode « post-it » superposable
 - Sélecteur de langue intégré (FR/EN)
+- Guide de démarrage illustré (une capture d'écran par fonctionnalité, FR/EN), rejouable via le « ? » de l'en-tête
 - Animation de célébration (avec son) quand toutes les tâches sont terminées — plusieurs variantes aléatoires, dont une variante légendaire rare (1/1000)
 - Stockage local en fichier JSON, portable sur clé USB / SSD externe
 - Export / import de toutes les données en un seul fichier JSON
@@ -75,6 +85,15 @@ npm run dist:win
 npm run dist:all
 ```
 → produit les deux fichiers en une seule commande.
+
+#### Option C — tout construire dans Docker (sans installer wine)
+
+```bash
+npm run dist:docker
+```
+→ construit l'image `suivi-travaux-builder` (basée sur
+`electronuserland/builder:wine`), lance le build dedans et récupère les deux
+exécutables dans `release/`. Seul Docker est nécessaire sur la machine hôte.
 
 ### 3. Installer sur le SSD externe
 
@@ -123,6 +142,14 @@ Lance juste le rendu web (dans le navigateur, sans Electron) pour itérer vite
 sur le visuel — le stockage fichier ne fonctionne que dans l'app Electron
 buildée (`npm start` lance Electron avec le vrai stockage).
 
+### Regénérer les captures du guide de démarrage
+
+Le guide (bouton « ? » de l'en-tête) illustre chaque fonctionnalité avec une
+capture d'écran embarquée (`src/assets/tutorial/<langue>/<étape>.webp`). Après
+une modif visuelle, relance la chaîne décrite en tête de
+[scripts/tutorial-shots.mjs](scripts/tutorial-shots.mjs) (Vite en dev +
+Playwright), sinon le guide montre une version périmée de l'app.
+
 ### Export / import des données
 
 Les boutons **Importer** / **Exporter** en haut de l'app (à côté du sélecteur
@@ -143,9 +170,10 @@ ponctuelle avant une modification importante.
 
 ### Modifier le dashboard plus tard
 
-Tout le contenu du tracker est dans `src/App.jsx`. Après une modif, il suffit
-de refaire `npm run dist:win` / `npm run dist:linux` pour régénérer les
-exécutables.
+`src/App.jsx` n'est plus que la coquille de composition ; les fonctionnalités
+vivent dans `src/features/` (voir [ARCHITECTURE.md](ARCHITECTURE.md)). Après
+une modif, il suffit de refaire `npm run dist:win` / `npm run dist:linux`
+pour régénérer les exécutables.
 
 ---
 
@@ -160,10 +188,15 @@ executable, which makes it portable on your USB key / external SSD.
 
 - Task tracking per project, with priorities, due dates and status
 - List view (with pagination) and kanban view with drag & drop between columns
+- Task archiving, with a dedicated "Archived" view (excluded from progress and charts)
+- Undo / redo (Ctrl+Z / Ctrl+Y) over the last 100 actions
 - Instant accent/case-insensitive search, plus status and priority filters
-- Gantt view and charts (breakdown by status, project, priority, time spent), expandable to full screen
-- Light / dark theme
+- Focus zone: one task at a time, time tracked automatically
+- Text / Formatted description editor (bold, headings, lists, tables, colors, pasted images)
+- Clickable Gantt view and charts (breakdown by status, project, priority, time spent), expandable to full screen
+- Light / dark / random theme, plus a "sticky note" mode on top of any of them
 - Built-in language switcher (FR/EN)
+- Illustrated getting-started guide (one screenshot per feature, FR/EN), replayable from the header "?"
 - Celebration animation (with sound) when every task is done — several random variants, including a rare legendary one (1/1000)
 - Local JSON file storage, portable on a USB key / external SSD
 - Export / import of all data as a single JSON file
@@ -207,6 +240,15 @@ npm run dist:win
 npm run dist:all
 ```
 → produces both files with a single command.
+
+#### Option C — build everything in Docker (no wine to install)
+
+```bash
+npm run dist:docker
+```
+→ builds the `suivi-travaux-builder` image (based on
+`electronuserland/builder:wine`), runs the build inside it and drops both
+executables in `release/`. Docker is the only requirement on the host.
 
 ### 3. Install on the external SSD
 
@@ -256,6 +298,14 @@ Just launches the web render (in the browser, without Electron) to iterate
 quickly on the visuals — file storage only works in the built Electron app
 (`npm start` launches Electron with real storage).
 
+### Regenerating the getting-started screenshots
+
+The guide (header "?" button) illustrates each feature with a bundled
+screenshot (`src/assets/tutorial/<lang>/<step>.webp`). After a visual change,
+re-run the pipeline documented at the top of
+[scripts/tutorial-shots.mjs](scripts/tutorial-shots.mjs) (Vite dev server +
+Playwright), otherwise the guide shows a stale version of the app.
+
 ### Data export / import
 
 The **Import** / **Export** buttons at the top of the app (next to the
@@ -275,5 +325,7 @@ big change.
 
 ### Editing the dashboard later
 
-All the tracker content lives in `src/App.jsx`. After a change, just re-run
-`npm run dist:win` / `npm run dist:linux` to regenerate the executables.
+`src/App.jsx` is only the composition shell now; the features live in
+`src/features/` (see [ARCHITECTURE.md](ARCHITECTURE.md)). After a change,
+just re-run `npm run dist:win` / `npm run dist:linux` to regenerate the
+executables.

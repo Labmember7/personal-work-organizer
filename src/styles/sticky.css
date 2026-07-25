@@ -1045,3 +1045,126 @@
     animation: none !important;
   }
 }
+
+/* ── Tâche focalisée : la note « qui mijote », dans toutes les vues ──
+   Trois signaux, un seul en mouvement : un contour ambré fixe, une flamme en
+   médaillon plein, et une braise qui court le long du bord de la note (la
+   seule animation — le liseré, lui, ne bat pas). S'y ajoute un halo de chaleur
+   statique sous la flamme : le papier a l'air chauffé à cet endroit, sans
+   qu'on repeigne le fond teinté-projet (--note-color) — un voile ambré sur
+   toute la note virait terne dès que le projet avait une couleur froide.
+   --note-ember reste un ambre chaud, teinté d'une pointe de --accent du thème
+   actif (capté ici, avant que la carte ne le redéfinisse plus bas pour
+   l'encre du post-it) : assez pour ne jamais jurer avec dark/light/random,
+   sans aller jusqu'au mélange 50/50 qui, avec un accent froid comme le teal
+   par défaut, tournait au brun-vert terne. Marche pour la liste, la liste des
+   archives et le kanban (mêmes classes). */
+.trk-app.sticky {
+  --note-ember: color-mix(in srgb, var(--accent) 18%, #d1691f);
+  --note-ember-hi: color-mix(in srgb, var(--accent) 12%, #f6a734);
+}
+.trk-app.sticky .trk-task-row.trk-focused,
+.trk-app.sticky .trk-kanban-card.trk-focused {
+  border-color: var(--note-ember);
+  box-shadow:
+    2px 4px 9px var(--shadow),
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 0 0 1.5px var(--note-ember),
+    0 0 16px 2px color-mix(in srgb, var(--note-ember) 40%, transparent);
+}
+.trk-app.sticky .trk-task-row.trk-focused::after,
+.trk-app.sticky .trk-kanban-card.trk-focused::after {
+  /* Halo d'accent pulsé hérité de focus.css : le contour ci-dessus le remplace
+     déjà, et la braise ci-dessous réutilise ce même ::after. */
+  box-shadow: none;
+  animation: none;
+}
+/* Halo de chaleur : le papier chauffe SOUS la flamme (en ligne à gauche du
+   titre dans la liste, sur le coin haut-droit en kanban), pas partout. Posé en
+   background-image par-dessus la couleur de papier, qui reste intacte. */
+.trk-app.sticky .trk-task-row.trk-focused {
+  background-image: radial-gradient(130px 66px at 16px 0,
+    color-mix(in srgb, var(--note-ember) 20%, transparent), transparent 72%);
+}
+.trk-app.sticky .trk-kanban-card.trk-focused {
+  background-image: radial-gradient(96px 74px at calc(100% - 16px) 0,
+    color-mix(in srgb, var(--note-ember) 22%, transparent), transparent 74%);
+  /* Note redressée et légèrement soulevée : elle sort du tas de post-it inclinés. */
+  transform: rotate(calc(var(--note-rot, -1deg) * 0.25)) translateY(-3px) scale(1.02);
+  z-index: 2;
+}
+.trk-app.sticky .trk-kanban-card.trk-focused:hover {
+  transform: rotate(0deg) translateY(-6px) scale(1.04);
+}
+.trk-app.sticky .trk-kanban-card.trk-focused.dragging {
+  transform: rotate(var(--note-rot, 0deg)) scale(1.08) translateY(-6px);
+}
+.trk-app.sticky .trk-kanban-card.trk-focused::before {
+  /* Punaise de la note focalisée, en braise. */
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9), transparent 45%),
+    var(--note-ember);
+}
+/* ── Flamme : médaillon plein d'ambre ──
+   Un aplat ambré avec la flamme en clair dessus, jamais lu comme une couleur
+   du papier. Kanban : coin haut-droit du papier, positionné par focus.css.
+   Liste : en ligne devant le titre, là où l'œil part lire — un médaillon en
+   coin y était rogné par l'overflow de la liste. */
+.trk-app.sticky .trk-task-row.trk-focused .trk-focused-flame,
+.trk-app.sticky .trk-kanban-card .trk-focused-flame {
+  color: #fffdf0;
+  background: radial-gradient(circle at 32% 28%, var(--note-ember-hi), var(--note-ember) 72%);
+  border-color: color-mix(in srgb, var(--note-ember) 70%, black);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--note-ember) 55%, transparent);
+}
+.trk-app.sticky .trk-task-row.trk-focused .trk-focused-flame {
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--note-ember) 70%, black);
+  border-radius: 50%;
+}
+
+/* ── Braise qui court le long du bord ──
+   Le seul élément animé de la note : un dégradé conique dont l'angle tourne,
+   masqué pour ne laisser que le liseré (mask content-box exclude) — d'où une
+   braise unique qui fait le tour du papier en 4,8 s, la respiration de la
+   marmite. Rien ne déborde de la note : ni la liste ni la colonne kanban
+   (toutes deux en overflow auto) n'ont de quoi rogner.
+   @supports : sans mask-composite, le dégradé couvrirait toute la note — on
+   s'en tient alors au liseré fixe. */
+@property --trk-ember-a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes trk-ember-run { to { --trk-ember-a: 360deg; } }
+@supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  .trk-app.sticky .trk-task-row.trk-focused::after,
+  .trk-app.sticky .trk-kanban-card.trk-focused::after {
+    content: "";
+    position: absolute;
+    inset: -2.5px;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 2.5px;
+    pointer-events: none;
+    background: conic-gradient(from var(--trk-ember-a),
+      transparent 0deg 252deg,
+      color-mix(in srgb, var(--note-ember) 30%, transparent) 306deg,
+      var(--note-ember) 338deg,
+      var(--note-ember-hi) 351deg,
+      #fff4dc 357deg,
+      transparent 360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: trk-ember-run 4.8s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .trk-app.sticky .trk-task-row.trk-focused::after,
+    .trk-app.sticky .trk-kanban-card.trk-focused::after {
+      /* Braise figée sur le bord haut : le point chaud reste, la course part. */
+      --trk-ember-a: 200deg;
+      animation: none;
+    }
+  }
+}

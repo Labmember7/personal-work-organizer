@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   HelpCircle, X, ChevronLeft, ChevronRight, Lightbulb,
   Sparkles, FolderPlus, ClipboardList, Columns3, Target, Clock,
-  BarChart3, Download,
+  BarChart3, Palette, Download,
 } from "lucide-react";
 import { useLang } from "./i18n.jsx";
 import { useOutsideClick } from "./hooks/useOutsideClick";
@@ -97,13 +97,28 @@ const TUTORIAL_STEPS = [
   { key: "focus", icon: Target },
   { key: "time", icon: Clock },
   { key: "charts", icon: BarChart3 },
+  { key: "themes", icon: Palette },
   { key: "backup", icon: Download },
 ];
+
+// Captures d'écran du guide, une par étape et par langue (src/assets/tutorial/
+// <lang>/<étape>.webp, régénérables via les scripts de capture). Chargées en
+// eager : ce sont juste des URLs d'assets, le bundle les embarque déjà.
+const TUTORIAL_SHOTS = import.meta.glob("./assets/tutorial/*/*.webp", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
+
+const shotFor = (lang, key) =>
+  TUTORIAL_SHOTS[`./assets/tutorial/${lang}/${key}.webp`] ||
+  TUTORIAL_SHOTS[`./assets/tutorial/fr/${key}.webp`] ||
+  null;
 
 // Guide de démarrage : s'affiche à la première ouverture, rejouable depuis
 // le bouton « ? » de l'en-tête.
 export function Tutorial({ open, onClose }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [step, setStep] = useState(0);
   const total = TUTORIAL_STEPS.length;
   const last = step === total - 1;
@@ -126,6 +141,7 @@ export function Tutorial({ open, onClose }) {
   if (!open) return null;
 
   const { key, icon: Icon } = TUTORIAL_STEPS[step];
+  const shot = shotFor(lang, key);
 
   return (
     <div className="trk-modal-overlay" onClick={onClose}>
@@ -144,8 +160,13 @@ export function Tutorial({ open, onClose }) {
         </div>
 
         <div className="trk-tuto-body" key={key}>
-          <div className="trk-tuto-icon">
-            <Icon size={26} />
+          {shot && (
+            <figure className="trk-tuto-shot">
+              <img src={shot} alt={t(`tuto_${key}_alt`)} loading="eager" draggable="false" />
+            </figure>
+          )}
+          <div className={"trk-tuto-icon" + (shot ? " trk-tuto-icon-overlap" : "")}>
+            <Icon size={22} />
           </div>
           <h3 className="trk-tuto-step-title">{t(`tuto_${key}_title`)}</h3>
           <p className="trk-tuto-step-body">{t(`tuto_${key}_body`)}</p>

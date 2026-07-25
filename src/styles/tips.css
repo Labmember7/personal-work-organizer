@@ -61,22 +61,60 @@
   text-transform: none;
 }
 
-.trk-tuto { max-width: 460px; }
+/* Double classe : .trk-modal (modal.css, importé après) plafonne à 440px, le
+   guide illustré a besoin de plus de large pour ses captures. */
+.trk-modal.trk-tuto { max-width: 640px; }
 .trk-tuto-body {
   text-align: center;
   padding: 6px 8px 14px;
   animation: trk-fade-in 0.2s ease;
 }
+/* Capture d'écran de l'étape. Hauteur bornée plutôt que fixe : les rapports
+   vont du bandeau très large (boutons de l'en-tête) à la colonne très haute
+   (barre latérale), le cadre s'ajuste sans laisser de grands vides ni faire
+   sauter la modale d'une étape à l'autre. */
+.trk-tuto-shot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  max-height: 280px;
+  margin: 0 0 4px;
+  padding: 8px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.trk-tuto-shot img {
+  max-width: 100%;
+  /* En dur, pas en % : la hauteur du cadre est déterminée par l'image (elle
+     n'est que bornée), donc un pourcentage ne se résout pas et l'image
+     débordait, rognée par l'overflow. */
+  max-height: 264px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  user-select: none;
+}
 .trk-tuto-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1.5px dashed var(--accent);
   color: var(--accent);
   margin-bottom: 12px;
+}
+/* Pastille d'étape à cheval sur le bas du cadre : relie l'illustration au texte. */
+.trk-tuto-icon-overlap {
+  position: relative;
+  z-index: 1;
+  margin-top: -22px;
+  background: var(--panel);
+  border-style: solid;
+  border-color: var(--border);
 }
 .trk-tuto-step-title {
   margin: 0 0 8px;
@@ -86,7 +124,7 @@
 }
 .trk-tuto-step-body {
   margin: 0 auto;
-  max-width: 360px;
+  max-width: 460px;
   font-size: 13.5px;
   line-height: 1.6;
   color: var(--text-dim);

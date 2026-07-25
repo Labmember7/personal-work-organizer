@@ -68,15 +68,27 @@
   cursor: pointer;
 }
 .trk-lang-btn.active { background: var(--accent); color: var(--accent-contrast); }
+/* Segment d'un .trk-btn-group : la coque est celle du groupe. */
+.trk-lang-switch-plain {
+  height: auto;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
 
 .trk-header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-left: auto;
 }
-.trk-io-group {
+/* Les actions de l'en-tête sont réparties en petits blocs par famille
+   (données, historique, apparence, aide) : une seule coque par bloc, les
+   boutons devenant des segments sans cadre à l'intérieur. */
+.trk-io-group,
+.trk-btn-group {
   display: flex;
   align-items: stretch;
   gap: 3px;
@@ -85,6 +97,26 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 3px;
+}
+.trk-btn-group .trk-theme-btn {
+  width: calc(var(--control-h) - 8px);
+  height: auto;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+.trk-btn-group .trk-theme-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--panel-alt);
+}
+.trk-btn-group .trk-theme-btn:disabled { opacity: 0.4; cursor: default; }
+.trk-btn-group .trk-theme-btn.trk-sticky-on:hover { background: var(--accent); }
+/* Filet de séparation entre deux familles réunies dans un même bloc. */
+.trk-btn-group-sep {
+  width: 1px;
+  margin: 2px 2px;
+  background: var(--border);
+  flex-shrink: 0;
 }
 .trk-io-btn {
   display: flex;

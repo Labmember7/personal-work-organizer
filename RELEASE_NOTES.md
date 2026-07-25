@@ -6,6 +6,50 @@
 
 ## Français
 
+### 2.0.0 — 2026-07-25
+
+**Nouveautés**
+- Archives : archiver / désarchiver une tâche (avec confirmation) et vue
+  « Archivées » dédiée ; les tâches archivées sortent de l'avancement global,
+  des graphiques et des célébrations
+- Annuler / Rétablir : boutons dans l'en-tête et raccourcis Ctrl+Z /
+  Ctrl+Y (ou Ctrl+Maj+Z), sur les 100 dernières actions (tâches et projets)
+- Éditeur de description repensé : bascule **Texte / Formaté** (édition
+  directe du rendu) avec barre d'outils — gras, italique, barré, titres 1-3,
+  citation, code en ligne et bloc de code, lien, image, listes à puces /
+  numérotées / cases à cocher, séparateur, tableau, couleur du texte
+  (palette + couleur libre), police (sans, serif, mono, manuscrite), et
+  annuler / rétablir propre à l'éditeur
+- Thème « aléatoire » : troisième thème tiré au sort (teinte + motif de
+  fond), conservé jusqu'au prochain tirage
+- Mode « post-it » : superposable à n'importe quel thème — écriture
+  manuscrite, tâches en notes autocollantes colorées par projet et cerclées
+  par priorité, marmite animée dans la zone de focus (l'eau bout de plus en
+  plus fort avec le temps passé)
+- Gantt cliquable : cliquer une barre ouvre la tâche correspondante
+- Le type d'une tâche (complet / simple) est modifiable après création ;
+  déposer une carte dans une colonne de l'autre tableau la convertit
+
+**Améliorations**
+- Zone de focus : « retirer la tâche » remonté dans le bandeau, à côté de
+  « réduire » ; la carte ne porte plus qu'une seule action
+- Traductions FR/EN pour toutes les fonctionnalités ci-dessus
+
+**Corrections**
+- Les images collées puis retirées d'une description sont désormais
+  supprimées du disque au démarrage : `data/images` ne grossit plus
+  indéfiniment
+- Journalisation : le tampon mémoire est borné quand aucun dossier n'est
+  accessible en écriture
+
+**Technique**
+- Build Docker : `npm run dist:docker` produit le `.exe` Windows et
+  l'AppImage Linux sans installer wine localement
+- Conversion HTML → Markdown (turndown + GFM) pour le mode Formaté
+- Nouveaux modules purs et testés : `mdFormatting`, `richTextEditing`,
+  `htmlToMarkdown`, `images`
+- 150 tests unitaires (contre 74)
+
 ### 1.5.2 — 2026-07-20
 
 **Nouveautés**
@@ -108,6 +152,46 @@
 ---
 
 ## English
+
+### 2.0.0 — 2026-07-25
+
+**New**
+- Archives: archive / unarchive a task (with confirmation) and a dedicated
+  "Archived" view; archived tasks are excluded from global progress, charts
+  and celebrations
+- Undo / Redo: header buttons and Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z)
+  shortcuts, over the last 100 actions (tasks and projects)
+- Redesigned description editor: **Text / Formatted** toggle (edit the
+  rendered output directly) with a toolbar — bold, italic, strikethrough,
+  headings 1-3, quote, inline code and code block, link, image, bullet /
+  numbered / checklist lists, divider, table, text color (palette + custom
+  color), font (sans, serif, mono, handwritten), and editor-local undo/redo
+- "Random" theme: a third theme drawn at random (hue + background pattern),
+  kept until the next draw
+- "Sticky note" mode: layers on top of any theme — handwritten font, tasks
+  as sticky notes colored by project and outlined by priority, animated pot
+  in the focus zone (the water boils harder the longer you stay focused)
+- Clickable Gantt: clicking a bar opens the matching task
+- A task's type (full / simple) can be changed after creation; dropping a
+  card into a column of the other board converts the task
+
+**Improvements**
+- Focus zone: "release the task" moved up into the header bar, next to
+  "reduce"; the card now carries a single action
+- FR/EN translations for all the features above
+
+**Fixes**
+- Images pasted then removed from a description are now deleted from disk at
+  startup: `data/images` no longer grows forever
+- Logging: the in-memory buffer is bounded when no folder is writable
+
+**Technical**
+- Docker build: `npm run dist:docker` produces the Windows `.exe` and the
+  Linux AppImage without installing wine locally
+- HTML → Markdown conversion (turndown + GFM) for the Formatted mode
+- New pure, tested modules: `mdFormatting`, `richTextEditing`,
+  `htmlToMarkdown`, `images`
+- 150 unit tests (up from 74)
 
 ### 1.5.2 — 2026-07-20
 

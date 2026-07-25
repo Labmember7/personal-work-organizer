@@ -52,67 +52,77 @@ export function AppHeader({
           </button>
           <HelpTip tipKey="backup" />
         </div>
-        <button
-          type="button"
-          className="trk-theme-btn"
-          onClick={onUndo}
-          disabled={!canUndo}
-          title={t("undo")}
-          aria-label={t("undo")}
-        >
-          <Undo2 size={14} />
-        </button>
-        <button
-          type="button"
-          className="trk-theme-btn"
-          onClick={onRedo}
-          disabled={!canRedo}
-          title={t("redo")}
-          aria-label={t("redo")}
-        >
-          <Redo2 size={14} />
-        </button>
-        <button
-          type="button"
-          className="trk-theme-btn"
-          onClick={onOpenTutorial}
-          title={t("help_tutorial")}
-          aria-label={t("help_tutorial")}
-        >
-          <HelpCircle size={14} />
-        </button>
-        <button
-          type="button"
-          className={"trk-theme-btn" + (celebrationsOn ? "" : " trk-celeb-off")}
-          onClick={onToggleCelebrations}
-          title={celebrationsOn ? t("celebrations_disable") : t("celebrations_enable")}
-          aria-label={celebrationsOn ? t("celebrations_disable") : t("celebrations_enable")}
-          aria-pressed={celebrationsOn}
-        >
-          <PartyPopper size={14} />
-        </button>
-        <button
-          type="button"
-          className="trk-theme-btn"
-          onClick={onToggleTheme}
-          title={theme === "dark" ? t("theme_light") : theme === "light" ? t("theme_random") : t("theme_dark")}
-          aria-label={theme === "dark" ? t("theme_light") : theme === "light" ? t("theme_random") : t("theme_dark")}
-        >
-          {theme === "dark" ? <Sun size={14} /> : theme === "light" ? <Dices size={14} /> : <Moon size={14} />}
-        </button>
-        <button
-          type="button"
-          className={"trk-theme-btn" + (stickyMode ? " trk-sticky-on" : "")}
-          onClick={onToggleStickyMode}
-          title={stickyMode ? t("sticky_mode_disable") : t("sticky_mode_enable")}
-          aria-label={stickyMode ? t("sticky_mode_disable") : t("sticky_mode_enable")}
-          aria-pressed={stickyMode}
-        >
-          {/* Punaise : même signe que la pastille plantée en haut des post-it
-              du mode. Comme le bouton de thème, l'icône annonce l'état visé. */}
-          {stickyMode ? <PinOff size={14} /> : <Pin size={14} />}
-        </button>
-        <LangSwitch />
+        {/* Historique */}
+        <div className="trk-btn-group" role="group" aria-label={t("group_history")}>
+          <button
+            type="button"
+            className="trk-theme-btn"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title={t("undo")}
+            aria-label={t("undo")}
+          >
+            <Undo2 size={14} />
+          </button>
+          <button
+            type="button"
+            className="trk-theme-btn"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title={t("redo")}
+            aria-label={t("redo")}
+          >
+            <Redo2 size={14} />
+          </button>
+        </div>
+        {/* Apparence */}
+        <div className="trk-btn-group" role="group" aria-label={t("group_appearance")}>
+          <button
+            type="button"
+            className="trk-theme-btn"
+            onClick={onToggleTheme}
+            title={theme === "dark" ? t("theme_light") : theme === "light" ? t("theme_random") : t("theme_dark")}
+            aria-label={theme === "dark" ? t("theme_light") : theme === "light" ? t("theme_random") : t("theme_dark")}
+          >
+            {theme === "dark" ? <Sun size={14} /> : theme === "light" ? <Dices size={14} /> : <Moon size={14} />}
+          </button>
+          <button
+            type="button"
+            className={"trk-theme-btn" + (stickyMode ? " trk-sticky-on" : "")}
+            onClick={onToggleStickyMode}
+            title={stickyMode ? t("sticky_mode_disable") : t("sticky_mode_enable")}
+            aria-label={stickyMode ? t("sticky_mode_disable") : t("sticky_mode_enable")}
+            aria-pressed={stickyMode}
+          >
+            {/* Punaise : même signe que la pastille plantée en haut des post-it
+                du mode. Comme le bouton de thème, l'icône annonce l'état visé. */}
+            {stickyMode ? <PinOff size={14} /> : <Pin size={14} />}
+          </button>
+          <button
+            type="button"
+            className={"trk-theme-btn" + (celebrationsOn ? "" : " trk-celeb-off")}
+            onClick={onToggleCelebrations}
+            title={celebrationsOn ? t("celebrations_disable") : t("celebrations_enable")}
+            aria-label={celebrationsOn ? t("celebrations_disable") : t("celebrations_enable")}
+            aria-pressed={celebrationsOn}
+          >
+            <PartyPopper size={14} />
+          </button>
+        </div>
+        {/* Aide et langue */}
+        <div className="trk-btn-group" role="group" aria-label={t("group_help")}>
+          <button
+            type="button"
+            className="trk-theme-btn"
+            onClick={onOpenTutorial}
+            title={t("help_tutorial")}
+            aria-label={t("help_tutorial")}
+          >
+            <HelpCircle size={14} />
+          </button>
+          <span className="trk-btn-group-sep" aria-hidden="true" />
+          <LangSwitch inGroup />
+        </div>
       </div>
     </div>
   );

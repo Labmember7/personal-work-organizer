@@ -30,7 +30,11 @@ export function KanbanCard({
       onDragEnd={onDragEnd}
       style={{ "--rail-color": pr.color, "--note-color": pc }}
     >
-      {isFocused && <Flame size={11} className="trk-focused-flame" aria-hidden="true" />}
+      {isFocused && (
+        <span className="trk-focused-flame" role="img" title={t("focus_cooking")} aria-label={t("focus_cooking")}>
+          <Flame size={11} />
+        </span>
+      )}
       <p className="trk-kanban-card-title" title={task.titre}>{task.titre}</p>
       <div className="trk-kanban-card-meta">
         <span className="trk-tag" style={{ "--pill-color": pc }}>
