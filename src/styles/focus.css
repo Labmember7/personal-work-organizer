@@ -496,7 +496,21 @@
   padding: 1px 7px;
 }
 .trk-focus-reduce-btn { flex-shrink: 0; }
-.trk-focus-zone:not(.occupied) .trk-focus-reduce-btn { margin-left: auto; }
+/* Contrôles du bandeau : collés l'un à l'autre (les deux boutons ont déjà 6px
+   de padding interne, un gap en plus les éloignait du coin) et poussés dans le
+   coin haut-droit par la marge négative.
+   La marge auto n'est posée que lorsque le groupe suit DIRECTEMENT l'aide,
+   c'est-à-dire quand .trk-focus-cooking (qui porte déjà margin-left:auto) est
+   absent : deux marges auto se partageraient l'espace libre au lieu de tout
+   pousser à droite. */
+.trk-focus-head-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  margin-right: -4px;
+}
+.trk-focus-help + .trk-focus-head-btns { margin-left: auto; }
 .trk-focus-reduced { width: auto; }
 .trk-focus-mini {
   display: flex;

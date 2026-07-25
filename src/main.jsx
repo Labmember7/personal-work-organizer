@@ -17,6 +17,8 @@ import "@fontsource/ibm-plex-mono/latin-400.css";
 import "@fontsource/ibm-plex-mono/latin-500.css";
 import "@fontsource/ibm-plex-mono/latin-ext-400.css";
 import "@fontsource/ibm-plex-mono/latin-ext-500.css";
+import "@fontsource/patrick-hand/latin-400.css";
+import "@fontsource/patrick-hand/latin-ext-400.css";
 import "./styles/index.css";
 import App from "./App.jsx";
 import { LanguageProvider } from "./i18n.jsx";

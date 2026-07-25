@@ -1,0 +1,31 @@
+/* ── Thème « random » ──
+   Seule la teinte tourne (voir randomThemeVars) : luminosité/saturation de
+   --bg/--panel/--text reproduisent le thème sombre, donc le contraste texte
+   reste garanti quel que soit le tirage. Le motif de fond ne touche que
+   --bg (jamais visible derrière du texte, seulement dans les marges/écarts
+   entre panneaux), et est lui aussi dérivé des tokens du thème tiré. */
+.trk-app.random[data-pattern="0"] {
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 14%, transparent) 1px, transparent 1.6px);
+  background-size: 8px 8px;
+}
+.trk-app.random[data-pattern="1"] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--border) 45%, transparent) 0,
+    color-mix(in srgb, var(--border) 45%, transparent) 1px,
+    transparent 1px,
+    transparent 14px
+  );
+}
+.trk-app.random[data-pattern="2"] {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--border) 35%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--border) 35%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.trk-app.random[data-pattern="3"] {
+  background-image:
+    radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 32%),
+    radial-gradient(circle at 85% 75%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 38%);
+  background-repeat: no-repeat;
+}

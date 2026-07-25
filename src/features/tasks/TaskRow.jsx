@@ -26,7 +26,7 @@ export function TaskRow({
   return (
     <div
       className={"trk-task-row" + (isTaskDone(task) ? " done" : "") + (isFocused ? " trk-focused" : "")}
-      style={{ "--rail-color": pr.color }}
+      style={{ "--rail-color": pr.color, "--note-color": pc }}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", task.id);

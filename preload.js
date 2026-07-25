@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld("dataIO", {
 
 contextBridge.exposeInMainWorld("images", {
   save: (buffer) => ipcRenderer.invoke("images:save", buffer),
+  prune: (usedFiles) => ipcRenderer.invoke("images:prune", usedFiles),
 });
 
 contextBridge.exposeInMainWorld("windowControls", {

@@ -14,7 +14,7 @@ export function KanbanColumn({ status, tasks, dragCtx, cardProps }) {
   const { t } = useLang();
   const [query, setQuery] = useState("");
   const [prio, setPrio] = useState("");
-  const { dragId, setDragId, overCol, setOverCol, onMove, endDrag } = dragCtx;
+  const { dragId, setDragId, overCol, setOverCol, onMove, endDrag, justMovedId } = dragCtx;
 
   const visible = useMemo(
     () => tasks.filter((tk) => (!prio || tk.priorite === prio) && taskMatchesQuery(tk, query)),
@@ -82,6 +82,7 @@ export function KanbanColumn({ status, tasks, dragCtx, cardProps }) {
             key={task.id}
             task={task}
             dragging={dragId === task.id}
+            justMoved={justMovedId === task.id}
             onDragStart={(e) => {
               e.dataTransfer.setData("text/plain", task.id);
               e.dataTransfer.effectAllowed = "move";

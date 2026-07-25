@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, HelpCircle, Moon, PartyPopper, Redo2, Sun, Undo2, Upload } from "lucide-react";
+import { Dices, Download, HelpCircle, Moon, PartyPopper, Pin, PinOff, Redo2, Sun, Undo2, Upload } from "lucide-react";
 import { useLang, doneOfTotal, tasksTotalLabel } from "../i18n.jsx";
 import { Gauge } from "./Gauge.jsx";
 import { LangSwitch } from "./LangSwitch.jsx";
@@ -13,6 +13,7 @@ export function AppHeader({
   onOpenTutorial,
   celebrationsOn, onToggleCelebrations,
   theme, onToggleTheme,
+  stickyMode, onToggleStickyMode,
   canUndo, canRedo, onUndo, onRedo,
 }) {
   const { t, lang } = useLang();
@@ -94,10 +95,22 @@ export function AppHeader({
           type="button"
           className="trk-theme-btn"
           onClick={onToggleTheme}
-          title={theme === "dark" ? t("theme_light") : t("theme_dark")}
-          aria-label={theme === "dark" ? t("theme_light") : t("theme_dark")}
+          title={theme === "dark" ? t("theme_light") : theme === "light" ? t("theme_random") : t("theme_dark")}
+          aria-label={theme === "dark" ? t("theme_light") : theme === "light" ? t("theme_random") : t("theme_dark")}
         >
-          {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+          {theme === "dark" ? <Sun size={14} /> : theme === "light" ? <Dices size={14} /> : <Moon size={14} />}
+        </button>
+        <button
+          type="button"
+          className={"trk-theme-btn" + (stickyMode ? " trk-sticky-on" : "")}
+          onClick={onToggleStickyMode}
+          title={stickyMode ? t("sticky_mode_disable") : t("sticky_mode_enable")}
+          aria-label={stickyMode ? t("sticky_mode_disable") : t("sticky_mode_enable")}
+          aria-pressed={stickyMode}
+        >
+          {/* Punaise : même signe que la pastille plantée en haut des post-it
+              du mode. Comme le bouton de thème, l'icône annonce l'état visé. */}
+          {stickyMode ? <PinOff size={14} /> : <Pin size={14} />}
         </button>
         <LangSwitch />
       </div>

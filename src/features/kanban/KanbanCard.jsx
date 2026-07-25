@@ -7,7 +7,7 @@ import { useFocusInfo, useLiveMinutes } from "../focus/FocusContext.jsx";
 // Carte de tâche du kanban : draggable vers les autres colonnes ou la zone
 // de focus. Le temps affiché suit la session de focus en direct.
 export function KanbanCard({
-  task, dragging, onDragStart, onDragEnd, onEdit, onDelete, onArchive, onUnarchive,
+  task, dragging, justMoved, onDragStart, onDragEnd, onEdit, onDelete, onArchive, onUnarchive,
   confirmId, confirmAction, onAskDelete, onAskArchive, onAskUnarchive, onCancelConfirm,
 }) {
   const { t } = useLang();
@@ -22,12 +22,13 @@ export function KanbanCard({
         "trk-kanban-card" +
         (dragging ? " dragging" : "") +
         (isTaskDone(task) ? " done" : "") +
-        (isFocused ? " trk-focused" : "")
+        (isFocused ? " trk-focused" : "") +
+        (justMoved ? " trk-sticky-landed" : "")
       }
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      style={{ "--rail-color": pr.color }}
+      style={{ "--rail-color": pr.color, "--note-color": pc }}
     >
       {isFocused && <Flame size={11} className="trk-focused-flame" aria-hidden="true" />}
       <p className="trk-kanban-card-title" title={task.titre}>{task.titre}</p>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 interface Codec<T> {
   /** Chaîne brute (ou null si absente) -> valeur d'état. */
@@ -26,15 +26,24 @@ export function useLocalStorageState<T>(
     }
   });
 
+  // `write` est presque toujours une lambda que l'appelant recrée à chaque
+  // rendu (codec passé en littéral) : la garder dans les dépendances de
+  // l'effet relançait une écriture localStorage SYNCHRONE à chaque rendu du
+  // composant, pas seulement quand la valeur change. La ref donne toujours la
+  // dernière version sans réveiller l'effet.
+  const writeRef = useRef(write);
+  writeRef.current = write;
+
   useEffect(() => {
     try {
-      const raw = write ? write(value) : (value as unknown as string);
+      const encode = writeRef.current;
+      const raw = encode ? encode(value) : (value as unknown as string);
       if (raw === null || raw === undefined) localStorage.removeItem(key);
       else localStorage.setItem(key, raw);
     } catch (e) {
       // stockage indisponible : l'état reste appliqué pour la session
     }
-  }, [key, value, write]);
+  }, [key, value]);
 
   return [value, setValue];
 }

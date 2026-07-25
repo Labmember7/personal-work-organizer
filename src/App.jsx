@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { prioOf, statusOf, isDoneStatus, isTaskDone, taskMatchesQuery } from "./utils";
+import {
+  prioOf, statusOf, isDoneStatus, isTaskDone, taskMatchesQuery, randomThemeVars, randomThemePattern,
+} from "./utils";
 import { useLang } from "./i18n.jsx";
 import { CelebrationOverlay, MiniCelebration, pickCelebration } from "./celebration.jsx";
 import { Tutorial, TUTORIAL_STORAGE_KEY } from "./tips.jsx";
@@ -25,6 +27,8 @@ import { useBackup } from "./features/backup/useBackup";
 import { ImportConfirmModal } from "./features/backup/ImportConfirmModal.jsx";
 
 const THEME_STORAGE_KEY = "suivi-travaux-theme";
+const RANDOM_SEED_STORAGE_KEY = "suivi-travaux-random-seed";
+const STICKY_STORAGE_KEY = "suivi-travaux-sticky-mode";
 const CELEBRATIONS_STORAGE_KEY = "suivi-travaux-celebrations";
 
 // Coquille de composition : état de vue (filtres, tri, modals, thème) et
@@ -44,8 +48,26 @@ export default function App() {
   const [toast, setToast] = useState(null);
 
   // ── Thème et célébrations ──
+  // theme = palette de couleurs (dark / light / random) ; le mode sticky
+  // (post-it) se superpose à n'importe laquelle des trois, indépendamment.
   const [theme, setTheme] = useLocalStorageState(THEME_STORAGE_KEY, "dark");
-  const toggleTheme = () => setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  // Persisté : le tirage du thème random ne change qu'en re-basculant dessus,
+  // pas à chaque relance de l'appli (cf. retour utilisateur).
+  const [randomSeed, setRandomSeed] = useLocalStorageState(RANDOM_SEED_STORAGE_KEY, 0, {
+    read: (raw) => (raw !== null ? parseFloat(raw) : Math.random()),
+    write: (v) => String(v),
+  });
+  const toggleTheme = () =>
+    setTheme((prev) => {
+      const next = prev === "dark" ? "light" : prev === "light" ? "random" : "dark";
+      if (next === "random") setRandomSeed(Math.random());
+      return next;
+    });
+  const [stickyMode, setStickyMode] = useLocalStorageState(STICKY_STORAGE_KEY, false, {
+    read: (raw) => raw === "1",
+    write: (v) => (v ? "1" : "0"),
+  });
+  const toggleStickyMode = () => setStickyMode((v) => !v);
 
   const [celebration, setCelebration] = useState(null);
   const [miniCeleb, setMiniCeleb] = useState(null);
@@ -276,7 +298,17 @@ export default function App() {
   // ── Rendu ──
   return (
     <FocusProvider focusId={focus.focusId} focusStartedAt={focus.focusStartedAt}>
-    <div className={"trk-app" + (maximized ? " trk-app-maximized" : "") + (theme === "light" ? " light" : "")}>
+    <div
+      className={
+        "trk-app" +
+        (maximized ? " trk-app-maximized" : "") +
+        (theme === "light" ? " light" : "") +
+        (theme === "random" ? " random" : "") +
+        (stickyMode ? " sticky" : "")
+      }
+      style={theme === "random" ? randomThemeVars(randomSeed) : undefined}
+      data-pattern={theme === "random" ? randomThemePattern(randomSeed) : undefined}
+    >
       <TitleBar maximized={maximized} />
 
       <div className="trk-content">
@@ -296,6 +328,8 @@ export default function App() {
             onToggleCelebrations={toggleCelebrations}
             theme={theme}
             onToggleTheme={toggleTheme}
+            stickyMode={stickyMode}
+            onToggleStickyMode={toggleStickyMode}
             canUndo={store.canUndo}
             canRedo={store.canRedo}
             onUndo={store.undo}

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Clock, Flame, HelpCircle, Minus, Target, X } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import {
-  statusOf, statusesForTask, isSimpleTask, focusMinutes, formatDuration, projectColor,
+  statusOf, statusesForTask, isSimpleTask, focusMinutes, formatDuration, projectColor, prioOf,
 } from "../../utils";
 import { useLocalStorageState } from "../../hooks/useLocalStorageState";
 import { useInterval } from "../../hooks/useInterval";
@@ -23,6 +23,20 @@ const getEmptyDragImage = () => {
   }
   return emptyDragImage;
 };
+
+// ── Tracés de la surface de l'eau (mode marmite) ──
+// Échantillonnage d'une somme de trois sinusoïdes de périodes 200/100/66,6
+// unités : le motif se répète donc tous les 200 u, et comme le tracé couvre
+// 400 u affichés sur 200 % de large, l'animation de défilement (-50 %) boucle
+// sans couture tout en ayant l'air irrégulier (pas une vague « sinus » lisible).
+// viewBox 0 0 400 68 étirée sur 34 px de haut : 1 u = 0,5 px, ligne de
+// flottaison moyenne à y=28 u (14 px), crêtes/creux dans ±16 u (±8 px).
+const WAVE_SURFACE =
+  "M0,35.9L5,35.8L10,34.7L15,32.8L20,30.6L25,28.7L30,27.6L35,27.7L40,29.1L45,31.8L50,35.4L55,39.4L60,43.2L65,46.2L70,47.8L75,47.7L80,46L85,42.7L90,38.4L95,33.4L100,28.4L105,23.8L110,19.9L115,17L120,14.9L125,13.6L130,12.8L135,12.4L140,12.1L145,12.1L150,12.3L155,13L160,14.2L165,16.1L170,18.7L175,22L180,25.6L185,29.2L190,32.4L195,34.7L200,35.9L205,35.8L210,34.7L215,32.8L220,30.6L225,28.7L230,27.6L235,27.7L240,29.1L245,31.8L250,35.4L255,39.4L260,43.2L265,46.2L270,47.8L275,47.7L280,46L285,42.7L290,38.4L295,33.4L300,28.4L305,23.8L310,19.9L315,17L320,14.9L325,13.6L330,12.8L335,12.4L340,12.1L345,12.1L350,12.3L355,13L360,14.2L365,16.1L370,18.7L375,22L380,25.6L385,29.2L390,32.4L395,34.7L400,35.9";
+// Même tracé refermé vers le bas : c'est LA masse d'eau. Le liseré de crête
+// réutilise WAVE_SURFACE avec la même animation, donc il reste collé à la
+// surface au pixel près au lieu de flotter au-dessus d'elle.
+const WAVE_BODY = `${WAVE_SURFACE}L400,68L0,68Z`;
 
 // Zone de focus : dock flottant qui accueille UNE tâche en cours (drag & drop).
 // La tâche « cuit » (animations + pointage du temps) et sort automatiquement
@@ -109,11 +123,15 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
   useInterval(() => setNow(Date.now()), task && startedAt ? 10000 : null);
 
   const st = task ? statusOf(task.statut) : null;
+  const pr = task ? prioOf(task.priorite) : null;
   const seq = task ? statusesForTask(task) : [];
   const nextSt = task
     ? seq[Math.min(seq.findIndex((s) => s.id === task.statut) + 1, seq.length - 1)]
     : null;
   const elapsed = task && startedAt ? focusMinutes(startedAt, now) : 0;
+  // Intensité du mijotage (mode sticky) : accélère avec le temps passé en
+  // focus. Sans effet hors mode sticky (classe posée inconditionnellement).
+  const boilTier = elapsed >= 20 ? 3 : elapsed >= 5 ? 2 : 1;
 
   const dndProps = {
     onDragOver: (e) => {
@@ -169,7 +187,7 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
       ref={zoneRef}
       className={
         "trk-focus-zone" +
-        (task ? " occupied" : "") +
+        (task ? ` occupied trk-boil-${boilTier}` : "") +
         (over ? " over" : "") +
         (leaving ? " leaving" : "") +
         (dragOut ? (dragHome ? " drag-out drag-home" : " drag-out drag-away") : "")
@@ -185,6 +203,34 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
       )}
       <div className="trk-focus-shell">
         <div className="trk-focus-inner">
+          {/* UN SEUL volume d'eau : la vague SVG dessine la surface (34 px de
+              bande) et .trk-pot-body prend la suite EXACTEMENT sous elle, sans
+              recouvrement et avec la même couleur au raccord — d'où l'absence de
+              couture. Les deux sont portés par .trk-pot-volume, qui houle
+              verticalement d'un bloc : la surface monte et descend sans jamais
+              décoller du corps de l'eau. */}
+          {task && (
+            <div className="trk-pot-water" aria-hidden="true">
+              <div className="trk-pot-volume">
+                <svg className="trk-wave-svg" viewBox="0 0 400 68" preserveAspectRatio="none" focusable="false">
+                  <defs>
+                    <linearGradient id="trk-water-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop className="trk-water-stop-hi" offset="0" />
+                      <stop className="trk-water-stop-lo" offset="1" />
+                    </linearGradient>
+                  </defs>
+                  <path className="trk-wave-fill" d={WAVE_BODY} />
+                  <path className="trk-wave-crest" d={WAVE_SURFACE} />
+                </svg>
+                <span className="trk-pot-body" />
+              </div>
+              <span className="trk-bubble b1" />
+              <span className="trk-bubble b2" />
+              <span className="trk-bubble b3" />
+              <span className="trk-bubble b4" />
+              <span className="trk-bubble b5" />
+            </div>
+          )}
           <div className="trk-focus-head">
             <Target size={12} />
             <span>{t("focus_zone_title")}</span>
@@ -199,18 +245,42 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
                 <span className="trk-focus-dots"><i /><i /><i /></span>
               </span>
             )}
-            <button
-              type="button"
-              className="trk-icon-btn trk-focus-reduce-btn"
-              onClick={() => setReduced(true)}
-              title={t("focus_reduce")}
-              aria-label={t("focus_reduce")}
-            >
-              <Minus size={12} />
-            </button>
+            {/* Groupe de contrôles, calé dans le coin haut-droit : réduire puis
+                fermer, dans l'ordre d'une barre de fenêtre (le destructif en
+                dernier, le plus loin du reste du bandeau).
+                « Retirer la tâche » est remonté du pied de la carte vers le
+                bandeau, pour que la carte ne porte plus qu'une seule action
+                (avancer / terminer) et que « sortir de la marmite » soit au
+                niveau de la marmite, pas de la tâche. */}
+            <span className="trk-focus-head-btns">
+              <button
+                type="button"
+                className="trk-icon-btn trk-focus-reduce-btn"
+                onClick={() => setReduced(true)}
+                title={t("focus_reduce")}
+                aria-label={t("focus_reduce")}
+              >
+                <Minus size={12} />
+              </button>
+              {task && (
+                <button
+                  type="button"
+                  className="trk-icon-btn trk-focus-release-btn"
+                  onClick={onRelease}
+                  title={t("focus_release")}
+                  aria-label={t("focus_release")}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </span>
           </div>
           {task ? (
-            <div key={enterKey} className="trk-focus-card">
+            <div
+              key={enterKey}
+              className="trk-focus-card"
+              style={{ "--rail-color": pr.color, "--note-color": projectColor(task.projet) }}
+            >
               <button
                 type="button"
                 className="trk-focus-task-btn"
@@ -267,9 +337,6 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
                     <>{t(`status_${nextSt.id}`)} <ArrowRight size={13} /></>
                   )}
                 </button>
-                <button type="button" className="trk-icon-btn" onClick={onRelease} title={t("focus_release")} aria-label={t("focus_release")}>
-                  <X size={13} />
-                </button>
               </div>
             </div>
           ) : (
@@ -279,8 +346,38 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
               <span>{t("focus_zone_hint")}</span>
             </div>
           )}
+          {/* Nappe d'eau AVANT-PLAN (mode sticky) : rendue après la carte, donc
+              peinte par-dessus — c'est elle qui donne la sensation d'immersion
+              (voile teinté + caustiques + bulles qui passent devant la tâche).
+              Volontairement très peu opaque : le contraste du texte submergé
+              est garanti par le verre de la carte, pas par cette nappe. */}
+          {task && (
+            <div className="trk-pot-water-front" aria-hidden="true">
+              <span className="trk-pot-caustics" />
+              <span className="trk-bubble trk-bubble-front f1" />
+              <span className="trk-bubble trk-bubble-front f2" />
+              <span className="trk-bubble trk-bubble-front f3" />
+            </div>
+          )}
         </div>
       </div>
+      {/* Habillage marmite (mode sticky uniquement, piloté par CSS) : posé en
+          frère de .trk-focus-shell (qui a overflow:hidden) pour ne jamais être
+          rogné, purement décoratif, ne porte jamais de texte. */}
+      <div className="trk-pot-frame" aria-hidden="true">
+        <span className="trk-pot-rim" />
+        <span className="trk-pot-handle trk-pot-handle-l" />
+        <span className="trk-pot-handle trk-pot-handle-r" />
+        <span className="trk-pot-leg trk-pot-leg-l" />
+        <span className="trk-pot-leg trk-pot-leg-r" />
+      </div>
+      {task && (
+        <div className="trk-pot-fire" aria-hidden="true">
+          <span className="trk-flame trk-flame-back" />
+          <span className="trk-flame trk-flame-mid" />
+          <span className="trk-flame trk-flame-core" />
+        </div>
+      )}
       {(dragOut || ghostPop) && (
         <div
           ref={ghostRef}

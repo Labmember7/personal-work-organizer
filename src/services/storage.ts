@@ -27,6 +27,7 @@ declare global {
     };
     images?: {
       save(buffer: ArrayBuffer): Promise<{ url: string; width: number; height: number }>;
+      prune?(usedFiles: string[]): Promise<{ removed: number }>;
     };
     windowControls?: {
       minimize(): Promise<void>;
@@ -61,6 +62,14 @@ export async function saveValue(key: string, value: unknown): Promise<boolean> {
   }
   localStorage.setItem(LOCAL_PREFIX + key, JSON.stringify(value));
   return true;
+}
+
+// Supprime les images collées qui ne sont plus référencées par aucune
+// description (voir images:prune dans main.js). Hors Electron : sans accès
+// disque, il n'y a pas de fichier à nettoyer.
+export async function pruneUnusedImages(usedFiles: string[]): Promise<void> {
+  if (typeof window === "undefined" || !window.images?.prune) return;
+  await window.images.prune(usedFiles);
 }
 
 // Liste de projets du fichier projects.config.json (éditable à la main).

@@ -2,7 +2,10 @@ import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { Project, Task, TaskDraft, TaskType, TimeLog } from "../../lib/types";
 import { isTaskDone, statusesForTask, STATUSES, SIMPLE_STATUSES } from "../../lib/statuses";
 import { uid } from "../../lib/uid";
-import { loadValue, saveValue, loadConfigProjects, syncConfigProjects } from "../../services/storage";
+import { collectImageRefs } from "../../lib/images";
+import {
+  loadValue, saveValue, loadConfigProjects, syncConfigProjects, pruneUnusedImages,
+} from "../../services/storage";
 
 const STORAGE_KEY = "suivi-travaux-data";
 
@@ -91,8 +94,17 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
       try {
         const parsed = await loadValue<StoredData>(STORAGE_KEY);
         if (parsed) {
-          setTasks(parsed.tasks || []);
+          const loadedTasks = parsed.tasks || [];
+          setTasks(loadedTasks);
           setProjects(parsed.projects && parsed.projects.length ? parsed.projects : initialProjects);
+          // Uniquement quand les données ont bien été relues : un store
+          // illisible remonte `null` ici, et purger sur cette base
+          // effacerait toutes les images d'un coup.
+          try {
+            await pruneUnusedImages(collectImageRefs(loadedTasks.map((t) => t.description)));
+          } catch (e) {
+            // nettoyage best-effort : les orphelins seront repris au prochain lancement
+          }
         } else {
           setProjects(initialProjects);
         }

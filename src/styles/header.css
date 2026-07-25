@@ -130,4 +130,10 @@
   border-top: 1.5px solid currentColor;
   transform: rotate(-45deg);
 }
+.trk-theme-btn.trk-sticky-on {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.trk-theme-btn.trk-sticky-on:hover { color: var(--accent-contrast); }
 

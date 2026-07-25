@@ -178,6 +178,36 @@ ipcMain.handle("images:save", (_e, buffer) => {
   return { url: `app-image://local/${fileName}`, width, height };
 });
 
+// Rien ne supprimait un fichier une fois sa référence disparue de la
+// description (édition, annulation du collage, suppression de la tâche) :
+// data/images ne faisait que grossir, définitivement. Le renderer envoie la
+// liste des fichiers encore référencés APRÈS le chargement des données, quand
+// l'historique d'annulation est vide — aucune action ne peut donc ramener une
+// référence vers un fichier qu'on vient d'effacer.
+ipcMain.handle("images:prune", (_e, used) => {
+  if (!Array.isArray(used)) return { removed: 0 };
+  const keep = new Set(used);
+  let removed = 0;
+  try {
+    const dir = getImagesDir();
+    for (const name of fs.readdirSync(dir)) {
+      // Même garde que le protocole app-image: on ne touche qu'aux fichiers
+      // que images:save a pu écrire, jamais à autre chose déposé là.
+      if (!/^[\w-]+\.jpg$/.test(name) || keep.has(name)) continue;
+      try {
+        fs.unlinkSync(path.join(dir, name));
+        removed++;
+      } catch (err) {
+        logger.log("Image orpheline non supprimée:", name, err);
+      }
+    }
+  } catch (err) {
+    logger.log("Nettoyage des images impossible:", err);
+  }
+  if (removed) logger.log(`Images orphelines supprimées: ${removed}`);
+  return { removed };
+});
+
 // --- Export / Import : sauvegarde de toutes les données dans un seul
 // fichier JSON, choisi par l'utilisateur via les boîtes de dialogue
 // natives (cohérent avec les autres apps de bureau).

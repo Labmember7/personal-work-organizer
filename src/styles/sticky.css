@@ -1,0 +1,1047 @@
+/* ── Mode « notes autocollantes » ──
+   Mode superposable au thème actif (dark / light / random) : police
+   manuscrite partout, tâches en post-it colorés par projet et cerclés par
+   priorité. --note-color est posé par KanbanCard/TaskRow/FocusZone (couleur
+   du projet) ; --rail-color (déjà existant) porte la couleur de priorité.
+
+   Le papier des post-it reste toujours clair, quel que soit le thème actif
+   en dessous : --text/--text-dim/--accent sont donc redéfinis localement à
+   l'intérieur de chaque post-it (la cascade des custom properties CSS fait
+   que tout le contenu existant, qui utilise déjà ces tokens, redevient
+   lisible sans avoir à retoucher chaque règle de couleur une par une). */
+
+/* Une seule famille manuscrite partout, sauf le code/markdown (lisibilité). */
+.trk-app.sticky :not(pre):not(code):not(kbd) {
+  font-family: "Patrick Hand", cursive !important;
+}
+
+/* Grain de bureau discret, dérivé du thème actif : reste visible aussi bien
+   en clair qu'en sombre sans jamais nuire au contraste du texte. */
+.trk-app.sticky {
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 12%, transparent) 1px, transparent 1.6px);
+  background-size: 7px 7px;
+}
+
+/* En mode sticky, assombrir le texte des pastilles pour garder le contraste
+   sur le papier clair (même logique que .trk-app.light plus haut). */
+.trk-app.sticky .trk-tag,
+.trk-app.sticky .trk-prio-tag,
+.trk-app.sticky .trk-status-pill {
+  color: color-mix(in srgb, var(--pill-color, var(--text-dim)) 70%, black);
+}
+
+/* ── Colonnes kanban : lattes de liège ── */
+.trk-app.sticky .trk-kanban-col {
+  background: color-mix(in srgb, var(--col-color, var(--border)) 7%, var(--panel));
+  border: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--col-color, var(--border)) 40%, transparent);
+}
+.trk-app.sticky .trk-kanban-col-header {
+  border-bottom: 2px dashed color-mix(in srgb, var(--col-color, var(--border)) 50%, transparent);
+}
+@keyframes trk-sticky-hover-glow {
+  0%, 100% {
+    box-shadow: inset 0 0 0 2px var(--col-color, var(--accent)),
+      0 0 12px color-mix(in srgb, var(--col-color, var(--accent)) 35%, transparent);
+  }
+  50% {
+    box-shadow: inset 0 0 0 3px var(--col-color, var(--accent)),
+      0 0 22px color-mix(in srgb, var(--col-color, var(--accent)) 55%, transparent);
+  }
+}
+.trk-app.sticky .trk-kanban-col.drag-over {
+  background: color-mix(in srgb, var(--col-color, var(--accent)) 12%, var(--panel));
+  animation: trk-sticky-hover-glow 0.9s ease-in-out infinite;
+}
+
+/* ── Post-it : fond papier + encre toujours lisible ──
+   Redéfinit --text/--text-dim/--accent/--panel-alt localement : tout le
+   contenu existant (titres, pastilles, icônes, hover) les utilise déjà, donc
+   ce seul bloc garantit la lisibilité quel que soit le thème dark/light/random
+   actif en dessous. */
+.trk-app.sticky .trk-kanban-card,
+.trk-app.sticky .trk-task-row {
+  --text: #241a10;
+  --text-dim: #6f5a42;
+  --accent: #b5541f;
+  --panel-alt: rgba(59, 42, 26, 0.1);
+  color: var(--text);
+}
+
+/* ── Cartes kanban : post-it ── */
+.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(3n) { --note-rot: 1.6deg; }
+.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(3n+1) { --note-rot: -1.4deg; }
+.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(3n+2) { --note-rot: 0.8deg; }
+
+.trk-app.sticky .trk-kanban-card {
+  background: color-mix(in srgb, var(--note-color, var(--accent)) 18%, #fffdf0);
+  border: 2px solid var(--rail-color, var(--border));
+  border-left: 2px solid var(--rail-color, var(--border));
+  border-radius: 2px 10px 10px 2px;
+  box-shadow: 2px 4px 8px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  transform: rotate(var(--note-rot, -1deg));
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+.trk-app.sticky .trk-kanban-card::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85), transparent 45%),
+    var(--rail-color, var(--border));
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35);
+}
+.trk-app.sticky .trk-kanban-card:hover {
+  transform: rotate(0deg) translateY(-4px) scale(1.03);
+  box-shadow: 4px 10px 18px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+.trk-app.sticky .trk-kanban-card.dragging {
+  transform: rotate(var(--note-rot, 0deg)) scale(1.08) translateY(-6px);
+  box-shadow: 6px 16px 26px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  opacity: 0.6;
+}
+
+/* Atterrissage sur la colonne cible : petit rebond de papier qui se pose. */
+@keyframes trk-sticky-land {
+  0% {
+    transform: translateY(-20px) rotate(calc(var(--note-rot, 0deg) * 2.4)) scale(1.12);
+    box-shadow: 4px 18px 24px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  }
+  55% {
+    transform: translateY(3px) rotate(calc(var(--note-rot, 0deg) * -1)) scale(0.97);
+  }
+  78% {
+    transform: translateY(-1px) rotate(calc(var(--note-rot, 0deg) * 0.6));
+  }
+  100% {
+    transform: translateY(0) rotate(var(--note-rot, 0deg)) scale(1);
+    box-shadow: 2px 4px 8px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  }
+}
+.trk-app.sticky .trk-kanban-card.trk-sticky-landed {
+  animation: trk-sticky-land 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+/* ── Liste de tâches : même papier, sans la bascule de rotation ── */
+.trk-app.sticky .trk-task-row {
+  background: color-mix(in srgb, var(--note-color, var(--accent)) 13%, #fffdf0);
+  border: 2px solid var(--rail-color, var(--border));
+  border-left: 2px solid var(--rail-color, var(--border));
+  border-radius: 2px 8px 8px 2px;
+  box-shadow: 2px 3px 7px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+.trk-app.sticky .trk-task-row:hover {
+  box-shadow: 3px 6px 12px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+
+/* ── Carte de la zone de focus : note SUBMERGÉE ──
+   Plus de papier crème opaque : la tâche est dans l'eau, pas posée dessus. Le
+   fond est un verre teinté par le projet (--note-color) qui laisse passer les
+   vagues et les bulles, et dont le backdrop-filter borne la luminance du fond
+   (cf. --pot-clamp) pour que le titre reste lisible sur n'importe quelle eau.
+   Les animations de drag existantes ne sont pas touchées. */
+.trk-app.sticky .trk-focus-card {
+  position: relative;
+  padding: 11px 13px;
+  /* Le liseré de priorité reste, mais discret : un cadre plein cerclait la
+     note d'un rectangle dur qui la sortait de l'eau. Le rail gauche épais
+     porte la priorité, les trois autres côtés s'effacent. */
+  border: 1px solid color-mix(in srgb, var(--rail-color, var(--border)) 28%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--rail-color, var(--border)) 85%, transparent);
+  border-radius: 2px 13px 13px 2px;
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--note-color, var(--accent)) 24%, transparent) 0%,
+      transparent 62%
+    ),
+    rgba(var(--pot-scrim), var(--pot-card-a));
+  backdrop-filter: blur(7px) saturate(1.25) brightness(var(--pot-clamp));
+  -webkit-backdrop-filter: blur(7px) saturate(1.25) brightness(var(--pot-clamp));
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.3),
+    0 0 18px -4px color-mix(in srgb, var(--rail-color, var(--accent)) 55%, transparent),
+    inset 0 1px 0 var(--pot-edge);
+  /* Encre du bloc submergé : écrase le --text/--text-dim/--accent crème posés
+     par .trk-focus-inner (papier) pour tout le sous-arbre de la carte. */
+  --text: var(--pot-ink);
+  --text-dim: var(--pot-ink-dim);
+  --accent: var(--pot-accent);
+  --panel-alt: rgba(var(--pot-scrim), 0.4);
+  color: var(--pot-ink);
+}
+/* Reflet de surface qui glisse sur la note immergée. */
+.trk-app.sticky .trk-focus-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    108deg,
+    transparent 34%,
+    color-mix(in srgb, var(--pot-edge) 70%, transparent) 50%,
+    transparent 66%
+  );
+  opacity: 0.55;
+  animation: trk-pot-sheen 6.5s ease-in-out infinite;
+}
+@keyframes trk-pot-sheen {
+  0%, 100% { transform: translateX(-38%); opacity: 0.2; }
+  50% { transform: translateX(38%); opacity: 0.6; }
+}
+.trk-app.sticky .trk-focus-title {
+  text-shadow: 0 1px 3px var(--pot-halo);
+  letter-spacing: 0.2px;
+}
+/* Pastilles : le fond et la bordure gardent la couleur pleine du projet /
+   statut, seul le TEXTE est tiré vers l'encre — la règle générale du mode
+   sticky (mélange vers le noir, pensée pour le papier) l'écraserait sinon. */
+.trk-app.sticky .trk-focus-card .trk-tag,
+.trk-app.sticky .trk-focus-card .trk-status-pill {
+  color: color-mix(in srgb, var(--pill-color, var(--pot-ink)) 14%, var(--pot-ink));
+  background: color-mix(in srgb, var(--pill-color, var(--pot-ink)) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pill-color, var(--pot-ink)) 42%, transparent);
+  text-shadow: 0 1px 2px var(--pot-halo);
+}
+.trk-app.sticky .trk-focus-timer {
+  border-color: color-mix(in srgb, var(--pot-ink) 30%, transparent);
+  background: rgba(var(--pot-scrim), 0.28);
+}
+/* Action principale : bouton plein (et non plus un simple liseré) — c'est la
+   seule action primaire de la marmite. Le remplissage est l'--ok du thème tiré
+   vers l'encre, le label prend la luminance opposée (--pot-scrim) : le couple
+   s'inverse tout seul entre thème clair et sombre, ≥ 5.7:1 dans les deux cas. */
+.trk-app.sticky .trk-focus-done-btn {
+  background: color-mix(in srgb, var(--ok) 82%, var(--pot-ink));
+  border: 1px solid color-mix(in srgb, var(--ok) 60%, var(--pot-ink));
+  color: rgb(var(--pot-scrim));
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.45);
+}
+.trk-app.sticky .trk-focus-done-btn:hover {
+  background: color-mix(in srgb, var(--ok) 92%, var(--pot-ink));
+}
+.trk-app.sticky .trk-focus-actions .trk-icon-btn {
+  color: var(--pot-ink-dim);
+}
+.trk-app.sticky .trk-focus-actions .trk-icon-btn:hover {
+  background: rgba(var(--pot-scrim), 0.45);
+  color: var(--pot-ink);
+}
+
+/* ── Zone de focus : marmite qui mijote ──
+   Réutilise les mécaniques/animations existantes (goutte de drag, dépôt,
+   fumée) : on n'ajoute que l'habillage marmite, un feu dessous et une eau
+   transparente qui remplit tout le corps de la marmite (la tâche flotte
+   dedans, pas sur un papier opaque posé par-dessus). Seuls le bandeau du
+   titre et la note gardent leur propre plaque (--text/--text-dim/--accent
+   redéfinis, comme les autres post-it) : le texte n'est donc jamais posé
+   directement sur l'eau animée. .trk-boil-1/2/3 (posé par FocusZone selon
+   le temps de focus écoulé, cf. commentaire JS) accélère l'ensemble et
+   assombrit l'eau via --boil-dur/--water-color, hérités par les
+   pseudo-éléments descendants. */
+.trk-app.sticky .trk-focus-zone.trk-boil-1 { --boil-dur: 3.4s; }
+.trk-app.sticky .trk-focus-zone.trk-boil-2 { --boil-dur: 2s; }
+.trk-app.sticky .trk-focus-zone.trk-boil-3 { --boil-dur: 1.1s; }
+
+/* Capturé avant que .trk-focus-inner (plus bas) ne redéfinisse --accent pour
+   la lisibilité du texte : conserve la vraie couleur du thème actif
+   (dark/light/random) pour teinter le métal et l'eau de la marmite, qui eux
+   n'ont pas besoin d'être ink-safe (aucun texte dessus).
+   Le métal est dérivé de --border/--text-dim/--bg (pas de gris figés en dur) :
+   ces jetons varient fortement entre dark/light, donc la marmite change bien
+   d'aspect avec le thème, en plus de la teinte (--theme-accent, qui elle
+   tourne surtout en thème random). */
+.trk-app.sticky .trk-focus-zone {
+  --theme-accent: var(--accent);
+  /* Le métal ne prend qu'une POINTE de la teinte du thème (≈12%) : quand il en
+     prenait 26-32%, paroi et eau tombaient dans la même famille de couleur et
+     la cuve se lisait comme une seule masse — l'eau devenait invisible. Le
+     contraste acier froid / eau colorée est ce qui fait exister le liquide. */
+  --pot-metal-hi: color-mix(in srgb, color-mix(in srgb, var(--theme-accent) 14%, color-mix(in srgb, var(--border) 50%, var(--text-dim))) 88%, transparent);
+  --pot-metal-mid: color-mix(in srgb, color-mix(in srgb, var(--theme-accent) 10%, var(--text-dim)) 82%, transparent);
+  --pot-metal-dark: color-mix(in srgb, color-mix(in srgb, var(--theme-accent) 8%, var(--bg)) 92%, transparent);
+
+  /* ── Encre adaptative de la marmite ──
+     La tâche est submergée : elle n'a plus de papier opaque, donc son texte se
+     retrouve au-dessus d'une eau dont la teinte ET la luminosité changent avec
+     le thème (dark / light / random) et avec le palier de mijotage. Deux
+     mécanismes garantissent la lisibilité sans jamais reboucher l'eau :
+
+     1. --pot-clamp : `brightness()` appliqué en backdrop-filter par le verre de
+        la carte (le couvercle, lui, est opaque). Il RAMÈNE le fond échantillonné vers une
+        luminance connue (écrasé vers le sombre en thème sombre, vers le clair
+        en thème clair) — quelle que soit la couleur de l'eau derrière.
+     2. --pot-scrim / --pot-*-a : voile de la même luminance posé par-dessus.
+
+     Le fond composité est donc borné, et l'encre (--pot-ink / --pot-ink-dim)
+     peut être fixée par famille de thème. Vérifié aux deux bornes extrêmes
+     (backdrop noir pur ET blanc pur, inatteignables en pratique) : tout le
+     texte reste ≥ 5.3:1, soit au-dessus du plancher WCAG AA de 4.5:1. */
+  --pot-ink: #F4F8FA;
+  --pot-ink-dim: #D5DFE4;
+  --pot-scrim: 7, 12, 16;
+  --pot-card-a: 0.46;
+  --pot-clamp: 0.48;
+  /* Opacité de l'ombre de cavité au-dessus de l'eau (cf. .trk-pot-water). */
+  --pot-cavity: 0.52;
+  --pot-halo: rgba(0, 0, 0, 0.55);
+  --pot-edge: rgba(255, 255, 255, 0.24);
+  /* Accent lisible sur le verre (le rouille #b5541f du post-it y tomberait à
+     1.2:1) : l'accent du thème tiré vers l'encre. */
+  --pot-accent: color-mix(in srgb, var(--warn) 42%, var(--pot-ink));
+}
+/* Thème clair : l'eau est claire, l'encre bascule en sombre et le clamp pousse
+   le fond vers le haut au lieu du bas. Mêmes rôles, valeurs miroir. */
+.trk-app.sticky.light .trk-focus-zone {
+  --pot-ink: #1B1207;
+  --pot-ink-dim: #33260F;
+  --pot-scrim: 255, 252, 242;
+  --pot-card-a: 0.62;
+  --pot-clamp: 1.7;
+  /* Cuve claire : la même ombre de cavité y serait un bandeau gris franc. */
+  --pot-cavity: 0.3;
+  --pot-halo: rgba(255, 255, 255, 0.65);
+  --pot-edge: rgba(255, 255, 255, 0.6);
+}
+
+/* Marge sous la marmite pour laisser la place aux pieds et au feu (sinon
+   coupés par le bord de la fenêtre : le dock est ancré à 22px du bas). */
+.trk-app.sticky .trk-focus-zone.occupied {
+  bottom: 64px;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), bottom 0.25s ease;
+}
+
+.trk-app.sticky .trk-focus-shell {
+  /* Épaisseur de paroi : 3px sur les côtés, 4px au fond (1.5px partout en mode
+     dock standard). Une paroi d'un pixel et demi faisait lire une cuve en verre
+     dont l'eau touchait le bord ; là, le métal a une vraie tranche.
+     Le fond est plus épais que les côtés, comme une marmite. */
+  padding: 2px 3px 4px;
+  /* Silhouette de la cuve. La paroi INTÉRIEURE (cuve, eau, voile d'avant-plan)
+     reprend ces rayons moins l'épaisseur correspondante, axe par axe
+     (cf. --pot-r) : sans cet accord, l'arc du fond ne coïncidait pas avec celui
+     de l'eau et un croissant de métal apparaissait dans les deux coins bas. */
+  border-radius: 15px 15px 30px 30px;
+  /* Le dégradé vertical donne le galbe (haut éclairé, bas dans l'ombre) ; les
+     deux dégradés horizontaux ajoutent le reflet spéculaire vertical du métal
+     roulé, sinon la paroi se lit comme un aplat plat. */
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.22) 0%,
+      transparent 18%,
+      color-mix(in srgb, var(--pot-edge) 60%, transparent) 34%,
+      transparent 52%,
+      rgba(0, 0, 0, 0.16) 88%,
+      rgba(0, 0, 0, 0.28) 100%
+    ),
+    linear-gradient(
+      180deg,
+      var(--pot-metal-hi) 0%,
+      var(--pot-metal-mid) 55%,
+      var(--pot-metal-dark) 100%
+    );
+  /* Métal translucide (« verre givré ») : laisse deviner le fond de l'appli
+     derrière plutôt qu'un bloc de couleur plaqué, donc se fond naturellement
+     dans n'importe quel thème/motif au lieu d'y être étranger. */
+  backdrop-filter: blur(9px) saturate(1.15);
+  -webkit-backdrop-filter: blur(9px) saturate(1.15);
+  /* Les deux « joues » latérales (copies décalées de la silhouette, jadis
+     -13px/13px 6px 0 -10px) sont retirées : leur arc de fond, réduit de 10px par
+     le spread, ne suivait pas celui de la cuve et laissait deux languettes de
+     métal en travers des coins bas. Le galbe est porté par les dégradés. */
+  box-shadow:
+    0 14px 34px var(--shadow),
+    /* Occlusion interne : la paroi projette son ombre dans la cuve, ce qui
+       creuse le volume au lieu d'un rectangle posé à plat. */
+    inset 0 10px 20px -10px rgba(0, 0, 0, 0.75),
+    inset 0 -14px 26px -12px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px var(--pot-edge);
+}
+/* Halo de braise réfléchi par le bas de la cuve quand ça mijote. */
+.trk-app.sticky .trk-focus-zone.occupied .trk-focus-shell {
+  box-shadow:
+    0 14px 34px var(--shadow),
+    0 16px 30px -12px rgba(255, 122, 26, 0.5),
+    inset 0 10px 20px -10px rgba(0, 0, 0, 0.75),
+    inset 0 -14px 26px -12px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px var(--pot-edge);
+}
+.trk-app.sticky .trk-focus-inner {
+  --panel: #fdf1de;
+  --panel-alt: rgba(59, 42, 26, 0.08);
+  --text: #241a10;
+  --text-dim: #6f5a42;
+  --accent: #b5541f;
+  --warn: #8a4a12;
+  /* Plus de fond crème opaque : le corps entier de la marmite doit montrer
+     l'eau (posée par .trk-pot-water, cf. plus bas), pas un bloc beige plaqué
+     dessus. Le titre garde sa propre plaque (.trk-focus-head ci-dessous) et
+     la note son propre papier (.trk-focus-card) : rien d'autre ne porte de
+     texte à même ce fond, donc le passage en transparent est sans risque de
+     lisibilité. */
+  background: transparent;
+  /* Rayons de la paroi intérieure : rayons extérieurs (15/30) moins l'épaisseur
+     de paroi, séparément sur chaque axe — 3px en horizontal, 2px en haut et 4px
+     au fond en vertical. L'eau reprend --pot-r et épouse donc le fond de la cuve
+     au pixel. */
+  --pot-r: 12px 12px 27px 27px / 13px 13px 26px 26px;
+  border-radius: var(--pot-r);
+}
+/* Hauteur de la cuve quand ça mijote : sans ces marges la note occupait tout
+   l'intérieur et il ne restait aucune eau visible autour — « immergée » ne se
+   lisait pas. --pot-surface place la ligne de flottaison sous le bandeau ; la
+   note démarre juste en dessous et il reste un fond d'eau sous elle, là où
+   naissent les bulles. */
+.trk-app.sticky .trk-focus-zone.occupied .trk-focus-inner {
+  /* Ligne de flottaison. Le dessous du couvercle tombe à ~13px du haut de la
+     cuve : à 46px, il reste ~25px d'air entre lui et la crête la plus haute
+     (surface - 8px) — assez pour VOIR la vague onduler au lieu de la deviner
+     coincée sous la tôle. */
+  --pot-surface: 46px;
+  padding-bottom: 34px;
+}
+/* 40px sous le couvercle : la note démarre juste sous la ligne de flottaison
+   (immergée) tout en laissant l'eau libre respirer au-dessus d'elle. */
+.trk-app.sticky .trk-focus-zone.occupied .trk-focus-head { margin-bottom: 40px; }
+/* La vapeur s'échappe AU-DESSUS du couvercle et de son bouton (qui remonte à
+   ~26px au-dessus de la cuve), pas derrière eux. */
+.trk-app.sticky .trk-focus-zone.occupied .trk-focus-smoke { margin-bottom: 26px; }
+/* ── Le bandeau de titre EST le couvercle ──
+   Il ne vit plus à l'intérieur de la cuve : il déborde au-dessus et sur les
+   côtés, se pose sur le rebord et porte un bouton de préhension. Cela demande
+   que .trk-focus-shell cesse de rogner (overflow) en mode marmite — l'eau, les
+   vagues et les bulles restent contenues par .trk-pot-water, qui a son propre
+   overflow:hidden et son propre rayon.
+
+   Un couvercle est OPAQUE et plus large que la cuve : sa base est donc un
+   aplat plein (rgb(--pot-scrim)) et non plus un voile translucide. Translucide,
+   il laissait voir la page à travers la partie qui dépasse au-dessus de la
+   cuve — d'où un bandeau sombre flottant au lieu d'une tôle posée dessus. Le
+   backdrop-filter devient inutile (rien à échantillonner) et l'encre gagne du
+   contraste : --pot-ink-dim sur --pot-scrim plein, ≥ 12:1 dans les deux
+   familles de thème. */
+.trk-app.sticky .trk-focus-shell { overflow: visible; }
+/* Anneau conique animé du dock standard : sans overflow pour le rogner il
+   déborderait sur toute la page, et il fait double emploi avec le feu. */
+.trk-app.sticky .trk-focus-zone.occupied .trk-focus-shell::before { content: none; }
+.trk-app.sticky .trk-focus-head {
+  position: relative;
+  z-index: 3;
+  /* -24px de marge latérale contre 14px de padding de la cuve : le couvercle
+     dépasse donc de ~10px de chaque côté de la paroi, comme un vrai couvercle
+     qui COIFFE la marmite. À -13px il s'arrêtait pile au bord de la cuve et se
+     lisait comme un bandeau posé dedans.
+     Le padding-left de 24px annule ce décalage pour le contenu : le titre
+     reste aligné sur le bord gauche de la note, en dessous. */
+  margin: -34px -24px 24px;
+  /* 22px à gauche pour ramener le titre à l'aplomb de la note (la marge
+     négative décale le bloc de 24px), 7px à droite pour coller les contrôles au
+     coin. Le gap resserré à 5px garde titre + « en cuisine » + contrôles sur une
+     seule ligne, y compris avec les libellés français (les plus longs). */
+  padding: 11px 7px 10px 22px;
+  gap: 5px;
+  /* Rayons elliptiques : le dessus bombe, le dessous reste plat pour porter
+     sur le rebord — silhouette de couvercle, pas de simple bandeau. */
+  border-radius: 17px 17px 9px 9px / 26px 26px 9px 9px;
+  /* Aplat plein (couvercle opaque) surmonté des seules ARÊTES métalliques :
+     dôme éclairé en haut, tranche dans l'ombre en bas, bande centrale laissée
+     à l'aplat pour que le titre garde son contraste. */
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--pot-metal-hi) 80%, white) 0%,
+      color-mix(in srgb, var(--pot-metal-hi) 52%, transparent) 13%,
+      color-mix(in srgb, var(--pot-metal-hi) 14%, transparent) 30%,
+      transparent 44%,
+      transparent 64%,
+      color-mix(in srgb, var(--pot-metal-mid) 30%, transparent) 79%,
+      /* Arête roulée du bord : la ligne claire juste avant la tranche sombre
+         est ce qui fait lire une tôle emboutie plutôt qu'un bandeau plat. */
+      color-mix(in srgb, var(--pot-metal-hi) 48%, transparent) 90%,
+      rgba(0, 0, 0, 0.38) 100%
+    ),
+    rgb(var(--pot-scrim));
+  box-shadow:
+    inset 0 1px 0 var(--pot-edge),
+    inset 0 -3px 6px -3px rgba(0, 0, 0, 0.5),
+    /* Tranche de la tôle : une copie décalée de 3px sous l'arête basse donne
+       l'épaisseur du couvercle. */
+    0 3px 0 -1px var(--pot-metal-dark),
+    /* Le couvercle porte son ombre DANS la cuve : c'est ce qui le pose sur la
+       marmite au lieu de le faire flotter devant. */
+    0 8px 13px -5px rgba(0, 0, 0, 0.6),
+    0 16px 24px -14px rgba(0, 0, 0, 0.85);
+  color: var(--pot-ink-dim);
+  text-shadow: 0 1px 2px var(--pot-halo);
+}
+/* Bouton de préhension du couvercle (marmite froide comprise). */
+.trk-app.sticky .trk-focus-head::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 34px;
+  height: 13px;
+  margin-left: -17px;
+  border-radius: 10px 10px 5px 5px / 13px 13px 5px 5px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pot-metal-hi) 90%, white) 0%,
+    var(--pot-metal-hi) 42%,
+    var(--pot-metal-mid) 78%,
+    var(--pot-metal-dark) 100%
+  );
+  box-shadow: inset 0 1px 0 var(--pot-edge), 0 2px 5px rgba(0, 0, 0, 0.5);
+}
+/* Reflet spéculaire filant sur la tôle du couvercle. */
+.trk-app.sticky .trk-focus-head::before {
+  content: "";
+  position: absolute;
+  left: 13%;
+  top: 4px;
+  width: 30%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--pot-edge);
+  filter: blur(2px);
+}
+/* Contrôles calés dans le coin haut-droit du couvercle : les icônes tombent
+   ainsi à l'aplomb de la paroi droite de la cuve. */
+.trk-app.sticky .trk-focus-head-btns { margin-right: -1px; }
+.trk-app.sticky .trk-focus-head-btns .trk-icon-btn { padding: 5px; }
+/* Retirer de la marmite : action destructive, donc distinguée du « réduire »
+   voisin par sa couleur au survol (les deux icônes sont sinon jumelles). */
+.trk-app.sticky .trk-focus-release-btn:hover {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  color: color-mix(in srgb, var(--danger) 45%, var(--pot-ink));
+}
+.trk-app.sticky .trk-focus-head > svg { color: var(--pot-accent); }
+.trk-app.sticky .trk-focus-cooking { color: var(--pot-accent); }
+.trk-app.sticky .trk-focus-help { color: var(--pot-ink-dim); }
+.trk-app.sticky .trk-focus-help:hover,
+.trk-app.sticky .trk-focus-help:focus-visible { color: var(--pot-accent); }
+.trk-app.sticky .trk-focus-reduce-btn { color: var(--pot-ink-dim); }
+.trk-app.sticky .trk-focus-reduce-btn:hover {
+  background: rgba(var(--pot-scrim), 0.45);
+  color: var(--pot-ink);
+}
+/* Le placeholder vide (marmite froide) : même verre que la note submergée,
+   sans le voile de projet — sans plaque, son texte serait posé à même l'eau. */
+.trk-app.sticky .trk-focus-empty {
+  background: rgba(var(--pot-scrim), var(--pot-card-a));
+  backdrop-filter: blur(7px) brightness(var(--pot-clamp));
+  -webkit-backdrop-filter: blur(7px) brightness(var(--pot-clamp));
+  border-color: color-mix(in srgb, var(--pot-ink) 30%, transparent);
+  color: var(--pot-ink);
+}
+.trk-app.sticky .trk-focus-empty span { color: var(--pot-ink-dim); }
+.trk-app.sticky .trk-focus-empty-ring {
+  border-color: color-mix(in srgb, var(--pot-ink) 35%, transparent);
+  color: var(--pot-ink-dim);
+}
+/* L'infobulle d'aide a besoin d'un fond opaque : la même luminance que les
+   voiles, poussée à 100% — contraste maximal avec --pot-ink. */
+.trk-app.sticky .trk-focus-help-tip {
+  background: rgb(var(--pot-scrim));
+  border-color: var(--pot-edge);
+  color: var(--pot-ink);
+}
+.trk-app.sticky .trk-focus-help-tip::after { border-bottom-color: rgb(var(--pot-scrim)); }
+
+/* Rebord + anses + pieds de la marmite : éléments CSS à taille fixe (pas de
+   SVG étiré), posés en FRÈRE de .trk-focus-shell (qui a overflow:hidden, donc
+   rognerait tout ce qui en dépasse) — .trk-focus-zone (position:fixed) sert
+   de repère de positionnement, comme .trk-pot-fire plus bas. */
+.trk-pot-frame { display: none; }
+.trk-app.sticky .trk-pot-frame {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Derrière la cuve : seule la moitié extérieure des anses et des pieds
+     dépasse, comme sur une vraie marmite. Devant, les anneaux se détachaient
+     du corps et se lisaient comme deux « 0 » posés à côté. */
+  z-index: -1;
+}
+/* Plus de rebord : le couvercle tient désormais tout le haut de la silhouette.
+   Conservé en une ligne (l'élément reste dans le DOM, purement décoratif). */
+.trk-app.sticky .trk-pot-rim { display: none; }
+/* Le rebord est le seul élément qui doit lire comme du métal ÉPAIS : arête
+   supérieure éclairée, gorge d'ombre en dessous, et un point spéculaire fixe
+   sur la gauche (source de lumière constante avec le reste de l'appli). */
+/* Le rebord descend sous le couvercle : il fait désormais collerette (le
+   couvercle repose dessus) au lieu de coiffer la cuve. Étroit et bas — quand
+   il débordait de 15px il barrait la cuve comme une planche et masquait la
+   surface de l'eau juste en dessous. */
+.trk-app.sticky .trk-pot-rim {
+  position: absolute;
+  top: 16px;
+  left: -7px;
+  right: -7px;
+  height: 9px;
+  border-radius: 5px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pot-metal-hi) 88%, white) 0%,
+    var(--pot-metal-hi) 38%,
+    var(--pot-metal-mid) 72%,
+    var(--pot-metal-dark) 100%
+  );
+  box-shadow:
+    0 4px 8px var(--shadow),
+    inset 0 1px 0 var(--pot-edge),
+    inset 0 -2px 4px -1px rgba(0, 0, 0, 0.5);
+}
+.trk-app.sticky .trk-pot-rim::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 14%;
+  width: 22%;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--pot-edge);
+  filter: blur(1.5px);
+}
+/* Anses : plus courtes et chevauchant la paroi, sinon les anneaux se
+   détachaient du corps et se lisaient comme deux « 0 » posés à côté. Posées
+   plus bas que le couvercle (qui coiffe maintenant les 14 premiers pixels de la
+   cuve) pour ne pas se retrouver collées sous sa tranche. */
+.trk-app.sticky .trk-pot-handle {
+  position: absolute;
+  top: 46px;
+  width: 15px;
+  height: 23px;
+  border: 4px solid var(--pot-metal-mid);
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent 40%, rgba(0, 0, 0, 0.25));
+  box-shadow:
+    inset 0 0 0 1px var(--pot-metal-dark),
+    0 3px 5px var(--shadow);
+}
+/* Reflet sur la face externe : sans lui l'anneau se lit comme un trait plat. */
+.trk-app.sticky .trk-pot-handle::after {
+  content: "";
+  position: absolute;
+  inset: -2.5px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  border-top-color: var(--pot-edge);
+  border-left-color: var(--pot-edge);
+}
+.trk-app.sticky .trk-pot-handle-l { left: -16px; }
+.trk-app.sticky .trk-pot-handle-r { right: -16px; }
+/* Pieds : petits sabots arrondis. Les triangles CSS précédents se lisaient
+   comme deux pointes de flèche sous la cuve.
+   --pot-metal-dark est tiré vers --bg : sur un thème sombre les pieds
+   disparaissaient dans le fond, d'où le ton médian en haut. */
+.trk-app.sticky .trk-pot-leg {
+  position: absolute;
+  bottom: -10px;
+  width: 17px;
+  height: 15px;
+  border-radius: 2px 2px 6px 6px;
+  background: linear-gradient(180deg, var(--pot-metal-mid) 0%, var(--pot-metal-dark) 100%);
+  box-shadow: inset 0 1px 0 var(--pot-edge), 0 2px 4px var(--shadow);
+}
+.trk-app.sticky .trk-pot-leg-l { left: 21%; transform: rotate(-12deg); }
+.trk-app.sticky .trk-pot-leg-r { right: 21%; transform: rotate(12deg); }
+
+/* ── Eau : UN SEUL volume ──
+   Il y en avait deux visuellement : la bande de vague SVG (qui, avec ses deux
+   tracés pleins d'opacités différentes, formait sa propre nappe de 32px) et le
+   dégradé de la cuve qui reprenait plus bas dans une autre teinte. Le raccord
+   se lisait comme deux liquides superposés.
+
+   Désormais : .trk-pot-volume porte la totalité de l'eau. Sa bande haute
+   (.trk-wave-svg, --pot-band de haut) contient l'unique tracé plein qui dessine
+   la surface ; .trk-pot-body reprend EXACTEMENT sous cette bande, sans
+   recouvrement (donc sans alpha qui se cumule) et avec la même couleur au
+   raccord — le dégradé de profondeur se poursuit simplement vers le fond. Le
+   seul autre tracé est un LISERÉ de crête (stroke, jamais de fill) posé sur ce
+   même chemin : il souligne la surface sans créer de seconde masse.
+
+   Le conteneur entier houle verticalement (trk-pot-swell) : surface et corps
+   montent/descendent d'un bloc, jamais de décollement possible.
+
+   Jamais de texte à même ce fond : le couvercle (.trk-focus-head) et la note
+   (.trk-focus-card) portent chacun leur propre plaque. Teinte/vitesse pilotées
+   par .trk-boil-N. Pas de z-index négatif ici : ni .trk-focus-shell ni
+   .trk-focus-inner ne créent leur propre contexte d'empilement
+   (position:relative + z-index:auto), donc un z-index:-1 posé ici remontait
+   jusqu'au contexte de .trk-focus-zone (position:fixed) et se retrouvait peint
+   DERRIÈRE le fond de la marmite (.trk-focus-shell) — c'est ce qui rendait
+   l'eau/les bulles invisibles depuis le début. */
+.trk-pot-water { display: none; }
+.trk-app.sticky .trk-pot-water {
+  display: block;
+  position: absolute;
+  inset: 0;
+  /* Mêmes rayons que la paroi intérieure (--pot-r, posé par .trk-focus-inner) :
+     le fond de l'eau suit exactement l'arc du fond de la cuve, plus de croissant
+     de métal dans les coins bas. overflow:hidden suffit à rogner la vague (qui
+     est deux fois plus large) et les bulles — le clip-path qui doublait cette
+     découpe ne faisait que multiplier les occasions de désaccord. */
+  overflow: hidden;
+  border-radius: var(--pot-r);
+  /* Hauteur de la bande de vague (viewBox de 68 unités étirée sur 34px, donc
+     1u = 0,5px) et écart entre le haut de cette bande et la ligne de
+     flottaison moyenne du tracé (y=28u → 14px) : les deux servent à raccorder
+     .trk-pot-body au pixel. */
+  --pot-band: 34px;
+  --pot-amp: 14px;
+  /* Cavité au-dessus de la ligne de flottaison : assombrissement NEUTRE (aucune
+     teinte, donc impossible à lire comme un second liquide) qui remplace le
+     métal clair de la paroi vu par-dessus l'eau. Sans lui, la tranche d'air
+     entre le couvercle et la surface se lisait comme une bande grise posée sur
+     l'eau au lieu du dedans de la marmite. */
+  /* Une SEULE rampe, éteinte loin sous la surface : toute rupture de pente d'un
+     dégradé se voit comme un trait horizontal (bande de Mach), et un trait
+     horizontal dans une marmite se lit comme un second niveau d'eau. */
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, var(--pot-cavity, 0.52)) 0,
+    rgba(0, 0, 0, 0) calc(var(--pot-surface, 26px) + 46px)
+  );
+}
+.trk-app.sticky .trk-pot-volume {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  animation: trk-pot-swell calc(var(--boil-dur, 3.4s) * 3.1) ease-in-out infinite;
+}
+/* Houle d'ensemble : décalages non harmoniques du défilement des tracés, ce
+   qui casse la périodicité perçue (l'eau ne « reboucle » jamais à l'œil). */
+@keyframes trk-pot-swell {
+  0%, 100% { transform: translateY(0); }
+  28% { transform: translateY(-3px); }
+  52% { transform: translateY(1px); }
+  76% { transform: translateY(-1.5px); }
+}
+/* Corps de l'eau : démarre pile au bas de la bande de vague. Déborde de 10px
+   sous la cuve pour que la houle ne découvre jamais le fond. */
+.trk-app.sticky .trk-pot-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--pot-surface, 26px) - var(--pot-amp) + var(--pot-band));
+  bottom: -10px;
+  /* 0.5 en haut = la valeur exacte du dernier stop du dégradé SVG : le raccord
+     est invisible quelle que soit la couleur de l'eau. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--water-color, #2f8fae) 50%, transparent) 0%,
+    color-mix(in srgb, var(--water-color, #2f8fae) 62%, transparent) 42%,
+    color-mix(in srgb, var(--water-color, #2f8fae) 78%, transparent) 100%
+  );
+}
+/* Fond de cuve dans l'ombre. Ancré en BAS (et non sous la surface comme avant,
+   où son arête haute traçait une seconde ligne d'eau bien visible). */
+.trk-app.sticky .trk-pot-body::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 60%;
+  background: radial-gradient(140% 100% at 50% 118%, rgba(0, 0, 0, 0.5), transparent 62%);
+}
+
+/* ── Nappe d'avant-plan : ce qui rend la tâche « immergée » ──
+   Peinte APRÈS la carte (dernier enfant de .trk-focus-inner) : le voile, les
+   caustiques et trois bulles passent donc DEVANT la note. Alpha volontairement
+   faible (≤ 10%) — l'immersion est un signal visuel, pas un filtre : le
+   contraste du texte est déjà garanti par le verre de la carte. */
+.trk-pot-water-front { display: none; }
+.trk-app.sticky .trk-pot-water-front {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: var(--pot-r);
+  /* Voile ancré uniquement sur le BAS de la cuve, sans arête haute : le
+     précédent partait de --pot-surface et son bord franc + son ménisque
+     rectiligne dessinaient une seconde ligne d'eau, plate, juste au-dessus de
+     la vraie surface ondulante. Ici, plus aucun repère horizontal : seule la
+     vague porte la surface. */
+  background: linear-gradient(
+    180deg,
+    transparent 58%,
+    color-mix(in srgb, var(--water-color, #2f8fae) 13%, transparent) 100%
+  );
+}
+/* Caustiques : deux taches lumineuses qui dérivent, comme la lumière filtrée
+   par une surface agitée. Filtrées en écran doux pour ne pas laver le texte. */
+.trk-app.sticky .trk-pot-caustics {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: var(--pot-surface, 26px);
+  bottom: -20%;
+  background:
+    radial-gradient(38% 26% at 28% 34%, var(--pot-edge), transparent 62%),
+    radial-gradient(30% 20% at 72% 62%, var(--pot-edge), transparent 66%),
+    radial-gradient(24% 16% at 48% 84%, var(--pot-edge), transparent 68%);
+  opacity: 0.5;
+  filter: blur(6px);
+  animation: trk-pot-caustics calc(var(--boil-dur, 3.4s) * 2.6) ease-in-out infinite;
+}
+@keyframes trk-pot-caustics {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.35; }
+  50% { transform: translate(8px, -6px) scale(1.12); opacity: 0.6; }
+}
+/* Bulles d'avant-plan : plus grosses et plus floues que celles du fond — la
+   parallaxe de taille/netteté est ce qui place la note ENTRE les deux plans. */
+.trk-app.sticky .trk-bubble-front {
+  bottom: 6px;
+  width: 7px;
+  height: 7px;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.25) 62%, transparent 72%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  filter: blur(0.4px);
+  animation: trk-pot-bubble-rise calc(var(--boil-dur, 3.4s) * 1.25) ease-in infinite;
+}
+.trk-app.sticky .trk-bubble-front.f1 { left: 22%; animation-delay: 0.25s; animation-duration: calc(var(--boil-dur, 3.4s) * 1.45); --rise: -150px; --drift: -8px; }
+.trk-app.sticky .trk-bubble-front.f2 { left: 58%; width: 9px; height: 9px; animation-delay: 1.15s; animation-duration: calc(var(--boil-dur, 3.4s) * 1.12); --rise: -160px; --drift: 9px; }
+.trk-app.sticky .trk-bubble-front.f3 { left: 79%; width: 6px; height: 6px; animation-delay: 2.05s; animation-duration: calc(var(--boil-dur, 3.4s) * 1.62); --rise: -144px; --drift: -5px; }
+/* La carte flotte/bouillonne sur l'eau : léger tangage synchronisé au rythme
+   de la vague (--boil-dur), pour que la tâche « ait la forme » du bouillon
+   sans jamais toucher au texte (juste un transform sur le post-it entier).
+   Rejoue explicitement trk-focus-drop-in (déjà posée par .trk-focus-card en
+   base) car `animation` est un raccourci : le redéclarer ici l'écraserait
+   sinon. Exclu pendant .leaving/.drag-out pour ne jamais entrer en conflit
+   avec leurs propres animations (sortie de la tâche, retrait du drag). */
+.trk-app.sticky .trk-focus-zone.occupied:not(.leaving):not(.drag-out) .trk-focus-card {
+  animation: trk-focus-drop-in 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    trk-pot-bob var(--boil-dur, 3.4s) ease-in-out infinite;
+}
+@keyframes trk-pot-bob {
+  0%, 100% { transform: translateY(0) rotate(calc(var(--note-rot, 0deg) * 0.3 - 0.4deg)); }
+  50% { transform: translateY(-3px) rotate(calc(var(--note-rot, 0deg) * 0.3 + 0.4deg)); }
+}
+/* Bande de surface : ancrée de façon à ce que la ligne de flottaison moyenne du
+   tracé tombe pile sur --pot-surface. C'est elle qui matérialise la ligne sous
+   laquelle la tâche est immergée. */
+.trk-wave-svg {
+  position: absolute;
+  top: calc(var(--pot-surface, 26px) - var(--pot-amp, 14px));
+  left: 0;
+  /* 200% de large pour 400 unités de viewBox : le motif se répète tous les
+     200u, donc translateX(-50%) boucle sans couture. */
+  width: 200%;
+  height: var(--pot-band, 34px);
+}
+/* Le dégradé vit DANS le tracé (et non en fond de la cuve) : la profondeur
+   appartient ainsi au volume d'eau lui-même. Le stop bas (0.5) est la valeur
+   que .trk-pot-body reprend en haut. */
+.trk-water-stop-hi { stop-color: var(--water-color, #2f8fae); stop-opacity: 0.32; }
+.trk-water-stop-lo { stop-color: var(--water-color, #2f8fae); stop-opacity: 0.5; }
+.trk-wave-fill {
+  fill: url(#trk-water-fill);
+  animation: trk-wave-scroll calc(var(--boil-dur, 3.4s) * 1.7) linear infinite;
+}
+/* Liseré de crête : MÊME tracé et MÊME animation que la masse, donc collé à la
+   surface au pixel près (un second tracé plein, lui, ajoutait une nappe). */
+.trk-wave-crest {
+  fill: none;
+  stroke: color-mix(in srgb, var(--water-color, #2f8fae) 35%, white);
+  stroke-width: 1.6;
+  stroke-opacity: 0.6;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  animation: trk-wave-scroll calc(var(--boil-dur, 3.4s) * 1.7) linear infinite;
+}
+/* Il n'y a volontairement AUCUN second liseré immergé : celui qui défilait à
+   contresens sous la surface se lisait comme une seconde ligne d'eau glissant
+   au ras du haut de la note. Seule la crête de la vague principale est
+   dessinée. */
+@keyframes trk-wave-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.trk-bubble {
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #fff, rgba(255, 255, 255, 0.55) 58%, rgba(255, 255, 255, 0.12) 78%);
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.55);
+  animation: trk-pot-bubble-rise var(--boil-dur, 3.4s) ease-in infinite;
+}
+/* Durées et courses toutes différentes (et non plus un même rythme décalé) :
+   aucune colonne de bulles ne bat la mesure, le bouillonnement paraît
+   désordonné. --drift donne l'oscillation latérale de la remontée. */
+.trk-bubble.b1 { left: 14%; width: 5px; height: 5px; animation-delay: 0s;    animation-duration: calc(var(--boil-dur, 3.4s) * 1.15); --rise: -152px; --drift: 5px; }
+.trk-bubble.b2 { left: 32%; width: 4px; height: 4px; animation-delay: 0.5s;  animation-duration: calc(var(--boil-dur, 3.4s) * 0.92); --rise: -146px; --drift: -6px; }
+.trk-bubble.b3 { left: 50%; width: 6px; height: 6px; animation-delay: 1s;    animation-duration: calc(var(--boil-dur, 3.4s) * 1.34); --rise: -158px; --drift: 4px; }
+.trk-bubble.b4 { left: 68%; width: 4px; height: 4px; animation-delay: 1.4s;  animation-duration: calc(var(--boil-dur, 3.4s) * 1.02); --rise: -149px; --drift: -4px; }
+.trk-bubble.b5 { left: 85%; width: 5px; height: 5px; animation-delay: 0.8s;  animation-duration: calc(var(--boil-dur, 3.4s) * 1.21); --rise: -155px; --drift: 7px; }
+/* Les bulles meurent À LA SURFACE (--rise ≈ hauteur d'eau de la cuve) et non à
+   mi-hauteur : sinon elles s'évanouissent au milieu de l'eau, ce qui casse la
+   lecture du bouillonnement. */
+@keyframes trk-pot-bubble-rise {
+  0% { transform: translate(0, 0) scale(0.55); opacity: 0; }
+  12% { opacity: 0.95; }
+  40% { transform: translate(var(--drift, 4px), calc(var(--rise, -152px) * 0.4)) scale(0.85); }
+  70% { transform: translate(calc(var(--drift, 4px) * -0.6), calc(var(--rise, -152px) * 0.72)) scale(1); }
+  85% { opacity: 0.6; }
+  100% { transform: translate(var(--drift, 4px), var(--rise, -152px)) scale(1.15); opacity: 0; }
+}
+/* Teinte de l'eau dérivée de --theme-accent mélangé à --bg (pas un bleu figé
+   en dur) : --bg varie fortement entre dark/light/random, donc la marmite
+   change bien de ton avec le thème, pas seulement avec le mode. Le mélange
+   s'intensifie avec le palier de mijotage (--boil-1/2/3). */
+.trk-app.sticky .trk-focus-zone.trk-boil-1 {
+  --water-color: color-mix(in srgb, var(--theme-accent, #35a7a0) 72%, var(--bg));
+}
+.trk-app.sticky .trk-focus-zone.trk-boil-2 {
+  --water-color: color-mix(in srgb, var(--theme-accent, #35a7a0) 86%, var(--bg));
+}
+.trk-app.sticky .trk-focus-zone.trk-boil-3 {
+  --water-color: var(--theme-accent, #35a7a0);
+}
+
+/* Feu sous la marmite : vraies flammes en couches (silhouette « goutte »),
+   pas un flou de dégradé. Uniquement quand une tâche mijote. */
+.trk-pot-fire { display: none; }
+.trk-app.sticky .trk-pot-fire {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 70px;
+  height: 50px;
+  margin: -8px 0 0 -35px;
+  pointer-events: none;
+  z-index: 39;
+  transition: opacity 0.2s, filter 0.2s;
+}
+/* Lit de braises + halo au sol : le feu n'est plus suspendu dans le vide, il
+   éclaire ce sur quoi il repose. */
+.trk-app.sticky .trk-pot-fire::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 96px;
+  height: 22px;
+  margin-left: -48px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 148, 46, 0.55), rgba(214, 60, 12, 0.22) 58%, transparent 78%);
+  filter: blur(3px);
+  animation: trk-ember-glow calc(var(--boil-dur, 1.3s) * 1.6) ease-in-out infinite;
+}
+.trk-app.sticky .trk-pot-fire::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  width: 44px;
+  height: 8px;
+  margin-left: -22px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #ffd23c, #e2560f 62%, transparent);
+  filter: blur(1.5px);
+  animation: trk-ember-glow calc(var(--boil-dur, 1.3s) * 0.9) ease-in-out infinite;
+}
+@keyframes trk-ember-glow {
+  0%, 100% { opacity: 0.7; transform: scaleX(1); }
+  50% { opacity: 1; transform: scaleX(1.08); }
+}
+.trk-app.sticky .trk-flame {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  border-radius: 0 50% 50% 50%;
+}
+.trk-app.sticky .trk-flame-back {
+  width: 36px;
+  height: 48px;
+  margin-left: -18px;
+  background: linear-gradient(200deg, #ff9a2e 0%, #ff5b1f 55%, #c62a0c 100%);
+  filter: drop-shadow(0 0 9px rgba(255, 122, 26, 0.6));
+  animation: trk-flame-back var(--boil-dur, 1.3s) ease-in-out infinite;
+}
+.trk-app.sticky .trk-flame-mid {
+  width: 23px;
+  height: 36px;
+  margin-left: -11.5px;
+  background: linear-gradient(200deg, #ffc23c 0%, #ff7a1a 70%);
+  animation: trk-flame-mid calc(var(--boil-dur, 1.3s) * 0.82) ease-in-out infinite;
+}
+.trk-app.sticky .trk-flame-core {
+  width: 12px;
+  height: 22px;
+  margin-left: -6px;
+  background: linear-gradient(200deg, #fff6d0 0%, #ffd54a 80%);
+  animation: trk-flame-core calc(var(--boil-dur, 1.3s) * 0.6) ease-in-out infinite;
+}
+/* Le losange « goutte » (border-radius 0 50% 50% 50%) a son coin vif en
+   haut-gauche (NO). rotate(45deg) l'amène plein nord : la flamme pointe
+   vers le haut. La version précédente (rotate(-45deg)) la faisait pointer
+   plein ouest, à plat sur le côté — d'où le rendu incorrect signalé. */
+@keyframes trk-flame-back {
+  0%, 100% { transform: rotate(45deg) scale(1, 1); }
+  30% { transform: rotate(52deg) scale(0.92, 1.12); }
+  60% { transform: rotate(40deg) scale(1.06, 0.94); }
+}
+@keyframes trk-flame-mid {
+  0%, 100% { transform: rotate(45deg) scale(1, 1); }
+  35% { transform: rotate(38deg) scale(0.9, 1.15); }
+  70% { transform: rotate(50deg) scale(1.08, 0.9); }
+}
+@keyframes trk-flame-core {
+  0%, 100% { transform: rotate(45deg) translateY(0) scale(1, 1); }
+  50% { transform: rotate(45deg) translateY(-3px) scale(0.92, 1.2); }
+}
+.trk-app.sticky .trk-focus-zone.leaving .trk-pot-fire,
+.trk-app.sticky .trk-focus-zone.drag-out .trk-pot-fire {
+  opacity: 0.3;
+  filter: grayscale(0.6);
+}
+
+/* Fumée existante : plus dense/visible en mode sticky (même mécanique). */
+.trk-app.sticky .trk-focus-smoke i {
+  filter: blur(0.5px);
+}
+.trk-app.sticky .trk-focus-smoke i:nth-child(1) { --size: 24px; --peak: 0.62; }
+.trk-app.sticky .trk-focus-smoke i:nth-child(2) { --size: 32px; --peak: 0.68; }
+.trk-app.sticky .trk-focus-smoke i:nth-child(3) { --size: 21px; --peak: 0.58; }
+.trk-app.sticky .trk-focus-smoke i:nth-child(4) { --size: 35px; --peak: 0.7; }
+.trk-app.sticky .trk-focus-smoke i:nth-child(5) { --size: 25px; --peak: 0.62; }
+.trk-app.sticky .trk-focus-smoke i:nth-child(6) { --size: 29px; --peak: 0.65; }
+.trk-app.sticky .trk-focus-smoke i:nth-child(7) { --size: 22px; --peak: 0.55; }
+.trk-app.sticky .trk-focus-zone.trk-boil-3 .trk-focus-smoke i { --dur: 2.4s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .trk-app.sticky .trk-kanban-card,
+  .trk-app.sticky .trk-kanban-card.trk-sticky-landed,
+  .trk-app.sticky .trk-kanban-col.drag-over,
+  .trk-app.sticky .trk-pot-volume,
+  .trk-app.sticky .trk-wave-fill,
+  .trk-app.sticky .trk-wave-crest,
+  .trk-app.sticky .trk-bubble,
+  .trk-app.sticky .trk-bubble-front,
+  .trk-app.sticky .trk-pot-caustics,
+  .trk-app.sticky .trk-focus-card::before,
+  .trk-app.sticky .trk-pot-fire::before,
+  .trk-app.sticky .trk-pot-fire::after,
+  .trk-app.sticky .trk-flame-back,
+  .trk-app.sticky .trk-flame-mid,
+  .trk-app.sticky .trk-flame-core {
+    animation: none !important;
+    transition: none !important;
+  }
+  .trk-app.sticky .trk-focus-zone.occupied:not(.leaving):not(.drag-out) .trk-focus-card {
+    animation: none !important;
+  }
+}

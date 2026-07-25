@@ -5,6 +5,12 @@ const path = require("path");
 // dossier de données n'est pas résolu, puis écrites dans data/debug.log
 // (tronqué à chaque lancement : on ne garde que la dernière exécution).
 
+// Le tampon est borné : si AUCUN dossier n'est accessible en écriture,
+// attachFile échoue et rien ne vient jamais le vider. getDataDir n'a alors
+// pas de valeur à mettre en cache et se relance (en journalisant) à chaque
+// appel IPC — le tampon grossirait sans fin pendant toute la session.
+const MAX_BUFFERED_LINES = 500;
+
 function createLogger() {
   const buffer = [];
   let file = null;
@@ -32,6 +38,7 @@ function createLogger() {
       }
     } else {
       buffer.push(line);
+      if (buffer.length > MAX_BUFFERED_LINES) buffer.shift();
     }
   }
 
