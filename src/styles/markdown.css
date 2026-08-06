@@ -138,6 +138,9 @@
   white-space: nowrap;
 }
 .trk-md-menu-item:hover { background: var(--panel-alt); color: var(--accent); }
+.trk-md-menu-item.active { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+/* Rappel du raccourci clavier, aligné à droite de l'entrée de menu. */
+.trk-md-menu-shortcut { margin-left: auto; padding-left: 12px; font-size: 10.5px; color: var(--text-dim); }
 .trk-md-color-menu { min-width: 0; }
 .trk-md-color-grid {
   display: grid;
@@ -190,6 +193,21 @@
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .trk-md-color-apply-btn:hover { background: var(--panel); color: var(--accent); border-color: var(--accent); }
+/* Saisie d'URL (lien, image) : même popover, mais en ligne. */
+.trk-md-url-menu { flex-direction: row; align-items: center; gap: 6px; min-width: 230px; }
+.trk-md-url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--panel-alt);
+  color: var(--text);
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+}
+.trk-md-url-input:focus { border-color: var(--accent); }
 
 .trk-md-panes {
   display: flex;
@@ -212,6 +230,13 @@
   font-family: 'JetBrains Mono', 'Space Mono', monospace;
   line-height: 1.55;
 }
+/* Conteneur que rend EditorContent (Tiptap) autour du contentEditable. */
+.trk-md-pane-rich {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
 .trk-md-formatted {
   flex: 1;
   min-height: 0;
@@ -225,12 +250,26 @@
   cursor: text;
 }
 .trk-md-formatted:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent); }
-.trk-md-formatted-empty::before {
+/* Placeholder de l'extension Placeholder : posé sur le premier bloc vide.
+   `float` + `height: 0` pour que le texte n'occupe pas de place et laisse le
+   curseur au tout début de la ligne. */
+.trk-md-formatted p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--text-dim);
+  float: left;
+  height: 0;
   pointer-events: none;
 }
+/* Témoin d'upload d'une image collée (décoration, hors document). */
+.trk-md-upload-placeholder { color: var(--text-dim); }
 .trk-md-formatted input[type="checkbox"] { cursor: pointer; margin-right: 2px; }
+/* Liste de tâches (TaskList/TaskItem) : la case remplace la puce, et le
+   contenu de l'item reste sur la même ligne qu'elle. */
+.trk-md-formatted ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
+.trk-md-formatted ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 6px; }
+.trk-md-formatted ul[data-type="taskList"] li > label { flex: 0 0 auto; line-height: 1.55; }
+.trk-md-formatted ul[data-type="taskList"] li > div { flex: 1 1 auto; min-width: 0; }
+.trk-md-formatted ul[data-type="taskList"] li > div > p { margin-bottom: 0; }
 .trk-md-formatted h1, .trk-md-formatted h2, .trk-md-formatted h3 {
   font-family: 'Space Grotesk', sans-serif;
   margin: 0 0 8px;
@@ -271,6 +310,10 @@
 .trk-md-formatted img { max-width: 100%; border-radius: var(--radius-sm, 6px); vertical-align: bottom; }
 .trk-md-formatted table { border-collapse: collapse; width: 100%; margin: 0 0 10px; font-size: 12.5px; }
 .trk-md-formatted th, .trk-md-formatted td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; }
+.trk-md-formatted th p, .trk-md-formatted td p { margin: 0; }
+/* Cellules et nœuds sélectionnés (classes posées par ProseMirror). */
+.trk-md-formatted .selectedCell { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.trk-md-formatted .ProseMirror-selectednode { outline: 2px solid var(--accent); outline-offset: 1px; }
 .trk-md-formatted p:last-child { margin-bottom: 0; }
 
 /* Image collée : poignée de redimensionnement au coin bas-droit, visible au

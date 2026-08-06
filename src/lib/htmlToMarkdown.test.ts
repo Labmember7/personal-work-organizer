@@ -63,6 +63,30 @@ describe("htmlToMarkdown", () => {
     expect(htmlToMarkdown("<hr>")).toBe("---");
   });
 
+  it("préserve le souligné, absent du Markdown, en HTML brut", () => {
+    expect(htmlToMarkdown("<p><u>souligné</u></p>")).toBe("<u>souligné</u>");
+    expect(htmlToMarkdown(renderMarkdown("<u>souligné</u>"))).toBe("<u>souligné</u>");
+  });
+
+  it("ramène une marque exprimée en style inline vers la syntaxe Markdown", () => {
+    expect(htmlToMarkdown('<span style="font-weight: 700">gras</span>')).toBe("**gras**");
+    expect(htmlToMarkdown('<span style="font-style: italic">it</span>')).toBe("*it*");
+    expect(htmlToMarkdown('<span style="text-decoration: line-through">barré</span>')).toBe("~~barré~~");
+    expect(htmlToMarkdown('<span style="text-decoration: underline">sl</span>')).toBe("<u>sl</u>");
+  });
+
+  it("garde la couleur en HTML et le gras en Markdown quand le span porte les deux", () => {
+    expect(htmlToMarkdown('<span style="color:#ef4444;font-weight:bold">x</span>')).toBe(
+      '<span style="color:#ef4444">**x**</span>'
+    );
+  });
+
+  it("traduit un <font color> hérité de execCommand en span stylé", () => {
+    expect(htmlToMarkdown('<font color="#ff0000">rouge</font>')).toBe(
+      '<span style="color:#ff0000">rouge</span>'
+    );
+  });
+
   it("fait l'aller-retour avec renderMarkdown pour un document mixte", () => {
     const source =
       "# Titre\n\n**gras** et *italique*\n\n- [ ] a faire\n- [x] fait\n\n> une citation";
