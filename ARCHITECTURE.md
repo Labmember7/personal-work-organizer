@@ -180,6 +180,29 @@ l'hôte (`TaskProjection`, résolue via `lib/statuses.ts`), jamais recopié dans
 le document. Une référence dont la tâche a disparu est signalée (« tâche
 introuvable ») sans être supprimée automatiquement.
 
+**Édition (v2).** Trois accès au même vocabulaire d'actions — barre d'outils,
+clic droit, clavier — les libellés étant partagés entre le menu contextuel et
+la feuille de raccourcis (`?`). Points structurants :
+
+- **Historique** (`HIST`, `commit()` / `undo()` / `redo()`). La pile ne contient
+  que l'arbre (`treeSnapshot()`) : le pli et le mode de vue en sont exclus pour
+  qu'un Ctrl+Z ne fasse jamais sauter l'affichage. `BASE` porte l'état du
+  dernier point d'annulation ; une clé de fusion regroupe les frappes d'un même
+  champ, si bien qu'une saisie se défait d'un seul coup.
+- **Toute mutation passe par `commit()`.** C'est ce qui permet de supprimer sans
+  confirmation. La seule action encore confirmée en deux clics est l'import,
+  que l'annulation ne couvre pas : il remplace le document et vide l'historique.
+- **Menu contextuel** (`menuForNode` / `menuForLink` / `menuForCanvas`) : une
+  surface unique, dont l'arête gauche et la rubrique prennent la couleur de la
+  phase visée. Les états et priorités s'y règlent par bandes de pastilles, sans
+  sous-menu.
+- **Dépendances au pointeur** : poignée ronde d'un nœud sélectionné, ou
+  Alt + glisser. `connect()` refuse les doublons, les liens vers sa propre
+  branche et tout ce qui créerait un cycle (`dependsOn`).
+- La légende permanente a disparu du canevas : ses repères vivent dans la
+  feuille `?`. Les couleurs d'état viennent désormais des jetons de l'hôte
+  (`--ok` / `--warn` / `--danger`), pour rester justes sur le thème clair.
+
 ## Contrat IPC (preload -> main)
 
 | Canal | Requête | Réponse |
