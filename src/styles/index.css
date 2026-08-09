@@ -11,6 +11,7 @@
 @import "./tasklist.css";
 @import "./timelog.css";
 @import "./views.css";
+@import "./plugins.css";
 @import "./kanban.css";
 @import "./shared.css";
 @import "./charts.css";
@@ -21,3 +22,4 @@
 @import "./focus.css";
 @import "./random.css";
 @import "./sticky.css";
+@import "./debug.css";

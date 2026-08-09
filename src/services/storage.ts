@@ -17,6 +17,22 @@ interface ConfigBridge {
   setProjects(projects: Project[]): Promise<{ ok: boolean }>;
 }
 
+/**
+ * Plugin découvert côté disque, non validé : `manifestJson` est le texte brut
+ * du bloc `<script id="trk-plugin">`, la validation vit dans `lib/plugins/manifest.ts`.
+ */
+export interface RawPluginEntry {
+  file: string;
+  origin: "builtin" | "user";
+  manifestJson: string | null;
+  error?: string;
+}
+
+interface PluginsBridge {
+  list(): Promise<RawPluginEntry[]>;
+  saveFile(payload: { name: string; mime: string; base64?: string; text?: string }): Promise<{ canceled: boolean; filePath?: string }>;
+}
+
 declare global {
   interface Window {
     storage?: StorageBridge;
@@ -36,6 +52,7 @@ declare global {
       isMaximized(): Promise<boolean>;
       onMaximizedChanged(cb: (isMaximized: boolean) => void): () => void;
     };
+    plugins?: PluginsBridge;
   }
 }
 
@@ -61,6 +78,30 @@ export async function saveValue(key: string, value: unknown): Promise<boolean> {
     return !!(res && res.ok);
   }
   localStorage.setItem(LOCAL_PREFIX + key, JSON.stringify(value));
+  return true;
+}
+
+/** Clés (sans préfixe) commençant par `prefix`. Utilisé pour énumérer `plugin-doc:<id>:`. */
+export async function listKeys(prefix: string): Promise<string[]> {
+  if (hasIpc()) {
+    const res = await window.storage!.list(prefix);
+    return Array.isArray(res?.keys) ? res.keys : [];
+  }
+  const target = LOCAL_PREFIX + prefix;
+  const out: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(target)) out.push(key.slice(LOCAL_PREFIX.length));
+  }
+  return out;
+}
+
+export async function deleteValue(key: string): Promise<boolean> {
+  if (hasIpc()) {
+    const res = await window.storage!.delete(key);
+    return !!(res && res.deleted);
+  }
+  localStorage.removeItem(LOCAL_PREFIX + key);
   return true;
 }
 

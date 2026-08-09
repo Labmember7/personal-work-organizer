@@ -11,6 +11,7 @@ import { useUndoRedoShortcut } from "./hooks/useUndoRedoShortcut";
 import { AppHeader } from "./components/AppHeader.jsx";
 import { TitleBar } from "./components/TitleBar.jsx";
 import { Toast } from "./components/Toast.jsx";
+import { DebugConsole } from "./components/DebugConsole.jsx";
 import { useTasks } from "./features/tasks/useTasks";
 import { TaskList } from "./features/tasks/TaskList.jsx";
 import { TaskModal } from "./features/tasks/TaskModal.jsx";
@@ -25,6 +26,7 @@ import { useChartData } from "./features/charts/useChartData";
 import { ChartsSection } from "./features/charts/ChartsSection.jsx";
 import { useBackup } from "./features/backup/useBackup";
 import { ImportConfirmModal } from "./features/backup/ImportConfirmModal.jsx";
+import { PluginsSection } from "./features/plugins/PluginsSection.jsx";
 
 const THEME_STORAGE_KEY = "suivi-travaux-theme";
 const RANDOM_SEED_STORAGE_KEY = "suivi-travaux-random-seed";
@@ -240,6 +242,16 @@ export default function App() {
 
   const openEditTask = (task) => setEditing({ ...task });
 
+  // Un nœud de plugin peut pointer une tâche qui n'existe plus (supprimée
+  // depuis) : on le signale plutôt que de silencieusement ne rien faire.
+  const handleRevealTask = (id) => {
+    const task = tasks.find((tk) => tk.id === id);
+    if (task) openEditTask(task);
+    else setToast({ type: "error", text: t("plugin_task_not_found") });
+  };
+
+  const handlePluginToast = (message) => setToast({ type: "success", text: message });
+
   const handleDeleteTask = (id) => {
     store.deleteTask(id);
     setConfirm(null);
@@ -310,6 +322,7 @@ export default function App() {
       data-pattern={theme === "random" ? randomThemePattern(randomSeed) : undefined}
     >
       <TitleBar maximized={maximized} />
+      <DebugConsole />
 
       <div className="trk-content">
       {loading ? (
@@ -374,6 +387,15 @@ export default function App() {
                     onUnarchive: handleUnarchiveTask,
                     ...confirmProps,
                   }}
+                />
+              ) : viewMode === "plugins" ? (
+                <PluginsSection
+                  tasks={tasks}
+                  projects={projects}
+                  theme={theme}
+                  randomSeed={randomSeed}
+                  onRevealTask={handleRevealTask}
+                  onToast={handlePluginToast}
                 />
               ) : viewMode === "archived" ? (
                 <TaskList

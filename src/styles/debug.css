@@ -1,0 +1,94 @@
+/* Console de débogage (src/components/DebugConsole.jsx) : bandeau flottant,
+   au-dessus de tout (y compris le plein écran plugin à 55 et les toasts à 60)
+   puisque c'est justement l'outil pour diagnostiquer ce qui s'y passe. */
+.trk-debug-console {
+  /* Le bandeau vit dans les 38px du haut, la même bande que .trk-titlebar
+     (-webkit-app-region: drag) : sans ce contre-ordre explicite, un clic ici
+     est intercepté par le glissement de fenêtre au lieu d'atteindre le
+     bouton — même piège que .trk-traffic-lights dans TitleBar.jsx. */
+  -webkit-app-region: no-drag;
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+}
+.trk-debug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  appearance: none;
+  border: 1px solid var(--border);
+  border-top: none;
+  background: var(--panel);
+  color: var(--text-dim);
+  padding: 3px 10px;
+  border-radius: 0 0 8px 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px var(--shadow);
+}
+.trk-debug-toggle:hover { color: var(--text); }
+.trk-debug-count {
+  background: var(--panel-alt);
+  border-radius: 8px;
+  padding: 0 5px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.trk-debug-panel {
+  width: min(80vw, 760px);
+  max-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 14px 34px var(--shadow);
+  overflow: hidden;
+}
+.trk-debug-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.trk-debug-filter {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font: inherit;
+}
+.trk-debug-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.trk-debug-empty {
+  padding: 14px;
+  color: var(--text-dim);
+  text-align: center;
+}
+.trk-debug-line {
+  display: flex;
+  gap: 8px;
+  padding: 2px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+.trk-debug-line:hover { background: var(--panel-alt); }
+.trk-debug-time { flex: 0 0 auto; color: var(--text-dim); }
+.trk-debug-source { flex: 0 0 auto; color: var(--accent); }
+.trk-debug-text { flex: 1; min-width: 0; color: var(--text); }
+.trk-debug-warn .trk-debug-text { color: var(--warn); }
+.trk-debug-error .trk-debug-text { color: var(--danger); }

@@ -13,6 +13,9 @@ const CSP = [
   "font-src 'self' data:",
   "connect-src 'self'",
   "object-src 'none'",
+  // `default-src 'self'` couvrirait sinon `frame-src`, ce qui bloquerait
+  // l'iframe des plugins (scheme dédié, cf. ARCHITECTURE.md).
+  "frame-src 'self' app-plugin:",
 ].join("; ");
 
 const injectCsp = () => ({

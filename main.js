@@ -4,16 +4,23 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { createStore } = require("./electron/store");
 const { createLogger } = require("./electron/logger");
+const { resolvePluginDirs, listPlugins, readPluginHtml, wrapPluginHtml, PLUGIN_CSP } = require("./electron/plugins");
 
 const logger = createLogger();
 
 // Scheme privilégié pour servir les images collées dans les descriptions
 // (data/images/*) au renderer sandboxé sans exposer l'accès disque direct.
 // Doit être enregistré avant `app.whenReady()`.
+// `app-plugin` sert le HTML des plugins : PAS de `bypassCSP`, la CSP dédiée
+// (PLUGIN_CSP) doit s'appliquer à ce qu'il sert (cf. ARCHITECTURE.md).
 protocol.registerSchemesAsPrivileged([
   {
     scheme: "app-image",
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
+  },
+  {
+    scheme: "app-plugin",
+    privileges: { standard: true, secure: true, supportFetchAPI: true },
   },
 ]);
 
@@ -208,6 +215,53 @@ ipcMain.handle("images:prune", (_e, used) => {
   return { removed };
 });
 
+// --- Plugins ---------------------------------------------------------------
+// Un plugin = un fichier .html autonome. `builtin` = livré avec l'app (à côté
+// de main.js, dans `plugins/`) ; `user` = déposé par l'utilisateur à côté de
+// l'exécutable, sur le même modèle que `getDataDir()`. Le dossier "user" est
+// créé s'il est absent, pour que l'utilisateur sache où déposer un fichier.
+
+function getPluginDirs() {
+  const dirs = resolvePluginDirs(resolveBaseDir(), __dirname);
+  const userDir = dirs.find((d) => d.origin === "user");
+  try {
+    if (userDir && !fs.existsSync(userDir.dir)) fs.mkdirSync(userDir.dir, { recursive: true });
+  } catch (err) {
+    logger.log("Dossier de plugins utilisateur non créé:", err);
+  }
+  return dirs;
+}
+
+// Lu une seule fois : le SDK est un fichier statique livré avec l'app.
+let cachedPluginSdk = null;
+function getPluginSdk() {
+  if (cachedPluginSdk === null) {
+    cachedPluginSdk = fs.readFileSync(path.join(__dirname, "plugins", "sdk", "trk-plugin-sdk.js"), "utf-8");
+  }
+  return cachedPluginSdk;
+}
+
+// Découverte brute, non validée : la validation du manifeste (schéma,
+// apiVersion, capacités) vit côté renderer dans `lib/plugins/manifest.ts`.
+ipcMain.handle("plugins:list", () => listPlugins(getPluginDirs()));
+
+// Export d'un fichier de plugin (JSON, PNG…) via le dialogue natif : une
+// iframe sandboxée ne peut pas déclencher de téléchargement elle-même.
+ipcMain.handle("plugins:saveFile", async (e, payload) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const name = typeof payload?.name === "string" && payload.name ? payload.name : "export";
+  const { canceled, filePath } = await dialog.showSaveDialog(win, { title: "Exporter", defaultPath: name });
+  if (canceled || !filePath) return { canceled: true };
+  if (typeof payload.text === "string") {
+    fs.writeFileSync(filePath, payload.text, "utf-8");
+  } else if (typeof payload.base64 === "string") {
+    fs.writeFileSync(filePath, Buffer.from(payload.base64, "base64"));
+  } else {
+    return { canceled: true };
+  }
+  return { canceled: false, filePath };
+});
+
 // --- Export / Import : sauvegarde de toutes les données dans un seul
 // fichier JSON, choisi par l'utilisateur via les boîtes de dialogue
 // natives (cohérent avec les autres apps de bureau).
@@ -311,6 +365,18 @@ app.whenReady().then(() => {
     } catch {
       return new Response("Not found", { status: 404 });
     }
+  });
+
+  // Sert le HTML d'un plugin avec le SDK injecté en ligne et sa CSP dédiée.
+  // Jamais `bypassCSP` : PLUGIN_CSP doit s'appliquer à ce que reçoit l'iframe.
+  protocol.handle("app-plugin", (request) => {
+    const fileName = decodeURIComponent(new URL(request.url).pathname.replace(/^\/+/, ""));
+    const found = readPluginHtml(getPluginDirs(), fileName);
+    if (!found) return new Response("Not found", { status: 404 });
+    const wrapped = wrapPluginHtml(found.html, getPluginSdk());
+    return new Response(wrapped, {
+      headers: { "content-type": "text/html; charset=utf-8", "Content-Security-Policy": PLUGIN_CSP },
+    });
   });
 
   createWindow();

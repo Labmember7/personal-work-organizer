@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld("images", {
   prune: (usedFiles) => ipcRenderer.invoke("images:prune", usedFiles),
 });
 
+contextBridge.exposeInMainWorld("plugins", {
+  list: () => ipcRenderer.invoke("plugins:list"),
+  saveFile: (payload) => ipcRenderer.invoke("plugins:saveFile", payload),
+});
+
 contextBridge.exposeInMainWorld("windowControls", {
   minimize: () => ipcRenderer.invoke("window:minimize"),
   toggleMaximize: () => ipcRenderer.invoke("window:toggleMaximize"),

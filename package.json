@@ -71,7 +71,8 @@
       "main.js",
       "preload.js",
       "electron/**/*",
-      "!electron/**/*.test.js"
+      "!electron/**/*.test.js",
+      "plugins/**/*"
     ],
     "directories": {
       "output": "release"

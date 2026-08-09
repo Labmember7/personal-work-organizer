@@ -14,13 +14,28 @@ electron/
                      #   (tmp + rename), copie .bak, relecture de secours
   logger.js          # Journal data/debug.log (tronqué au lancement), tampon
                      #   mémoire borné tant qu'aucun dossier n'est écrivable
+  plugins.js         # Découverte brute des plugins (builtin + user), lecture
+                     #   d'un fichier par nom (garde anti-traversée), injection
+                     #   du SDK + CSP dédiée (wrapPluginHtml). Ne valide aucun
+                     #   manifeste : cf. src/lib/plugins/manifest.ts
 main.js              # Processus principal : fenêtre (frame:false, sandbox),
-                     #   handlers IPC (storage/config/images/dialogues/fenêtre),
-                     #   protocole app-image:, garde-fous de navigation,
-                     #   flush du store à la sortie
+                     #   handlers IPC (storage/config/images/plugins/dialogues/
+                     #   fenêtre), protocoles app-image: et app-plugin:,
+                     #   garde-fous de navigation, flush du store à la sortie
 preload.js           # contextBridge : window.storage / config / dataIO /
-                     #   images / windowControls (surface minimale, pas de
-                     #   Node côté renderer)
+                     #   images / plugins / windowControls (surface minimale,
+                     #   pas de Node côté renderer)
+
+plugins/             # Un plugin = un fichier .html autonome (manifeste
+                     #   embarqué). Livrés avec l'app (ici) ou déposés par
+                     #   l'utilisateur à côté de l'exécutable.
+  mindmap.html       # Carte mentale / feuille de route, liens en lecture
+                     #   seule vers les tâches. Moteur de rendu SVG maison.
+  sdk/trk-plugin-sdk.js # SDK injecté en ligne dans chaque plugin (jamais en
+                     #   sous-ressource) : window.TrkPlugin, cf. § Plugins
+  examples/          # Documents d'exemple au format `data` d'un plugin,
+                     #   sans valeur applicative propre (contenu métier
+                     #   historique conservé après une refonte)
 
 src/
   main.jsx           # Point d'entrée : polices locales (@fontsource), styles,
@@ -46,9 +61,18 @@ src/
                      #   htmlToMarkdown.ts (turndown + GFM, retour au Markdown),
                      #   images.ts (références app-image: d'une description)
                      #   src/utils.js = shim de ré-export
+    plugins/         # Contrat du système de plugins, logique pure :
+                     #   types.ts (constantes + types du protocole),
+                     #   manifest.ts (extraction + validation du manifeste),
+                     #   document.ts (enveloppe PluginDocument, clé de
+                     #   stockage, patch), bridge.ts (encode/décode postMessage,
+                     #   capacités), projection.ts (TaskProjection, thème)
   services/
     storage.ts       # Enveloppe l'IPC storage/config/images ; repli
-                     #   localStorage pour `vite dev` hors Electron
+                     #   localStorage pour `vite dev` hors Electron ;
+                     #   listKeys/deleteValue pour les documents de plugin
+    plugins.ts       # Découverte des plugins (IPC | repli import.meta.glob
+                     #   en dev), URL d'iframe, export de fichier (saveFile)
   hooks/             # Hooks génériques (TS) : useOutsideClick, useEscapeKey,
                      #   useLocalStorageState, useInterval, usePagination,
                      #   useUndoRedoShortcut (Ctrl+Z / Ctrl+Y globaux)
@@ -68,6 +92,9 @@ src/
     projects/        # useProjects, ProjectSidebar
     charts/          # useChartData, ChartsSection, GanttChart
     backup/          # useBackup, ImportConfirmModal
+    plugins/         # usePluginDocs (CRUD des documents), usePluginHost (le
+                     #   pont postMessage), PluginsSection, PluginDocBar,
+                     #   PluginFrame, NodeGlyph (cf. § Système de plugins)
   celebration.jsx    # Overlays canvas + sons Web Audio (bus partagé)
   tips.jsx           # Bulles d'aide et tutoriel de démarrage
 ```
@@ -102,6 +129,57 @@ src/
   (`storeTask`), pas du brouillon : le pointage reste juste même pendant
   une édition ouverte.
 
+## Système de plugins
+
+Un plugin est **un fichier HTML autonome** déposé dans `plugins/` (livré avec
+l'app) ou à côté de l'exécutable (déposé par l'utilisateur) — pas de
+recompilation, pas de plugin dans le bundle. Il est chargé dans une iframe
+`sandbox="allow-scripts"` et ne communique avec l'hôte que par `postMessage`.
+
+**Deux décisions non négociables** (cf. `PLUGIN_PLAN.md`) :
+1. Hébergement HTML chargé à l'exécution, jamais compilé.
+2. Un plugin **ne crée ni ne modifie jamais** une tâche : les liens vers les
+   entités de l'app (`EntityRef`) sont en lecture seule. `plugin:task:reveal`
+   (ouvrir une tâche dans l'app) est de la navigation, pas une mutation.
+
+### Chaîne de confiance
+1. `sandbox="allow-scripts"` → origine opaque : pas de `localStorage`, pas de
+   DOM parent, pas de navigation, pas de formulaire, `confirm()`/`alert()`
+   inopérants (le SDK et les plugins ne s'y fient jamais).
+2. La CSP servie avec le document du plugin (`PLUGIN_CSP`, `electron/plugins.js`)
+   coupe le réseau : `default-src 'none'; connect-src 'none'`.
+3. Le plugin n'a aucun accès disque ni IPC direct : il ne voit que ce que
+   l'hôte lui envoie, filtré par les capacités déclarées dans son manifeste
+   (`doc`, `tasks:read`, `task:reveal`, `file:save`, `toast`).
+4. L'hôte authentifie chaque message par `event.source === iframe.contentWindow`
+   (l'`event.origin` d'une iframe sandboxée vaut toujours `"null"`, inutilisable),
+   puis valide `ns`/`protocol`/`pluginId`/forme/capacité (`lib/plugins/bridge.ts`)
+   avant de dispatcher quoi que ce soit.
+5. Aucun message de mutation n'existe dans le protocole `trk.plugin`.
+
+### Format de document
+Enveloppe commune à tous les plugins (`lib/plugins/document.ts`), stockée sous
+`plugin-doc:<pluginId>:<docId>` : `{ schema, pluginId, dataVersion, id, title,
+scope, refs: EntityRef[], createdAt, updatedAt, data }`. Seul `data` appartient
+au plugin ; l'hôte gère le reste (liste des documents, portée globale/projet,
+liens, stockage) sans code spécifique par plugin.
+
+### Protocole (`ns: "trk.plugin"`, `protocol: 1`)
+`host:init/doc/snapshot/theme/lang/saved/error` (hôte → plugin) et
+`plugin:ready/doc:save/dirty/snapshot:refresh/task:reveal/toast/file:save`
+(plugin → hôte), chacun gardé par la capacité déclarée dans le manifeste. Le
+pont vit dans `features/plugins/usePluginHost.ts` côté hôte, et dans
+`plugins/sdk/trk-plugin-sdk.js` (`window.TrkPlugin`) côté plugin — ce dernier
+est injecté **en ligne** dans le document servi (jamais en sous-ressource, la
+CSP du plugin n'autorise que `script-src 'unsafe-inline'`).
+
+### Le plugin livré : `mindmap.html`
+Carte mentale / feuille de route. Un nœud peut référencer une tâche (`refs:
+[{kind:"task", id}]`) : le statut affiché vient de la projection envoyée par
+l'hôte (`TaskProjection`, résolue via `lib/statuses.ts`), jamais recopié dans
+le document. Une référence dont la tâche a disparu est signalée (« tâche
+introuvable ») sans être supprimée automatiquement.
+
 ## Contrat IPC (preload -> main)
 
 | Canal | Requête | Réponse |
@@ -114,6 +192,8 @@ src/
 | `config:setProjects` | `string[]` | `{ ok: true }` |
 | `images:save` | `ArrayBuffer` (image redimensionnée) | `{ url, width, height }` |
 | `images:prune` | `string[]` (fichiers encore référencés) | `{ removed }` |
+| `plugins:list` | — | `RawPluginEntry[]` (`{file, origin, manifestJson, error?}`, non validé) |
+| `plugins:saveFile` | `{ name, mime, text? \| base64? }` | `{ canceled, filePath? }` |
 | `data:export` | `BackupPayload` | `{ canceled, filePath? }` |
 | `data:import` | — | `{ canceled, filePath?, data?, error? }` |
 | `window:minimize/toggleMaximize/close/isMaximized` | — | — / booléen |
@@ -159,6 +239,11 @@ Notes :
 - `data/images/*.jpg` : images collées dans les descriptions, servies par le
   protocole `app-image:`. Elles ne sont référencées que par l'URL présente
   dans le Markdown ; les fichiers orphelins sont supprimés au démarrage.
+- `plugin-doc:<pluginId>:<docId>` : un document de plugin par clé (schéma
+  `PluginDocument`, cf. § Système de plugins), énuméré par
+  `storage:list("plugin-doc:<pluginId>:")`. Opaque pour l'hôte hors enveloppe
+  (`schema, pluginId, dataVersion, id, title, scope, refs, createdAt,
+  updatedAt`) ; `data` est laissé au plugin.
 
 ## Format de sauvegarde (export/import)
 
@@ -187,6 +272,13 @@ Notes :
 - `images:prune` ne supprime que les fichiers correspondant au motif écrit
   par `images:save` (`uuid.jpg`) dans `data/images` — même garde que le
   protocole `app-image:`, jamais de chemin venant du renderer.
+- **Plugins** : iframe `sandbox="allow-scripts"` (origine opaque, pas de
+  `bypassCSP`), CSP dédiée par document servi (`default-src 'none';
+  connect-src 'none'`, cf. § Système de plugins), authentification des
+  messages par `event.source`, capacités du manifeste comme seule surface
+  d'autorisation. `readPluginHtml`/`app-image` partagent la même garde de nom
+  de fichier (`^[\w-]+\.(html|jpg)$`) contre toute traversée de répertoire.
+  Aucun canal de mutation des tâches n'existe dans le protocole `trk.plugin`.
 
 ## Outillage
 
@@ -194,7 +286,7 @@ Notes :
 |---|---|
 | `npm run dev` | Vite en mode dev (repli localStorage, sans Electron) |
 | `npm start` | Build + Electron |
-| `npm test` | Vitest (150 tests : lib, i18n, modal, kanban, éditeur markdown, store, import, XSS) |
+| `npm test` | Vitest (~200 tests : lib, i18n, modal, kanban, éditeur markdown, store, import, XSS, plugins) |
 | `npm run typecheck` | `tsc --noEmit` strict sur `src/**/*.ts(x)` |
 | `npm run lint` | ESLint (react-hooks/exhaustive-deps actif) |
 | `npm run format` | Prettier |

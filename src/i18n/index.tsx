@@ -97,3 +97,15 @@ export const statusCountLabel = (t: Translate, lang: string, n: number): string 
   if (n === 0) return t("all_statuses");
   return format(dictFor(lang).status_count!, { n, s: plural(lang, n, lang === "fr" ? "s" : "es") });
 };
+
+// Sous-ensemble du dictionnaire envoyé aux plugins (`host:init`/`host:lang`) :
+// seulement les clés `plugin_*`, pour que le contrat reste celui documenté
+// plutôt que toute la surface interne de l'app.
+export const pluginDict = (lang: string): Dict => {
+  const source = dictFor(lang);
+  const out: Dict = {};
+  for (const key of Object.keys(source)) {
+    if (key.startsWith("plugin_")) out[key] = source[key]!;
+  }
+  return out;
+};

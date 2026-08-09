@@ -1,0 +1,156 @@
+/* Vue Plugins : uniquement des jetons (cf. tokens.css), jamais de couleur en
+   dur — un plugin doit suivre exactement le même thème (dark/light/random)
+   que le reste de l'app. */
+
+.trk-plugins { display: flex; flex-direction: column; gap: 10px; }
+
+.trk-plugins-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.trk-plugins-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.trk-plugin-switch { flex: 0 0 auto; }
+.trk-plugin-errors-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--warn);
+  cursor: help;
+}
+
+.trk-plugin-body { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+
+.trk-plugin-docbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.trk-plugin-doc-select { min-width: 180px; max-width: 320px; }
+.trk-plugin-docbar-spacer { flex: 1; }
+
+/* Cadre de l'iframe : la bordure et le fond en creux signalent qu'il s'agit
+   d'une surface distincte (contenu sandboxé), sans jouer les fausses
+   fenêtres natives — l'honnêteté du cadre vaut mieux que l'illusion. */
+.trk-plugin-frame {
+  position: relative;
+  min-height: var(--board-h);
+  height: var(--board-h);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--inset);
+  overflow: hidden;
+}
+.trk-plugin-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+  background: transparent;
+}
+
+/* Plein écran demandé par le plugin (capacité "fullscreen") : un changement
+   CSS côté hôte, pas la Fullscreen API du navigateur, pour rester cohérent
+   avec l'agrandissement des graphiques (cf. .trk-modal-overlay) plutôt que de
+   percer le sandbox de l'iframe.
+   `position: fixed` vit sur `.trk-plugin-body` (le PARENT du cadre), jamais
+   sur le cadre seul : la barre de documents et le bouton de sortie doivent
+   rester dans le MÊME élément fixe que l'iframe, sinon ils restent en flux
+   normal et se retrouvent visuellement recouverts par le cadre plein écran
+   (même z-index gagnant, peu importe l'ordre du DOM) — c'était le bug des
+   boutons non cliquables en plein écran. z-index sous les toasts (60) : un
+   plugin plein écran peut encore afficher un message via sa capacité
+   "toast". */
+.trk-plugin-body--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: var(--bg);
+  padding: 10px 14px 14px;
+}
+.trk-plugin-body--fullscreen .trk-plugin-frame {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+.trk-plugin-frame--fullscreen {
+  border-radius: 0;
+  border: none;
+}
+.trk-plugin-fullscreen-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.trk-plugin-fullscreen-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.trk-plugin-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 13px;
+  background: var(--inset);
+}
+
+.trk-plugins-empty { border-style: dashed; }
+.trk-plugin-path-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+}
+.trk-plugin-errors {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+}
+.trk-plugin-errors li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--warn);
+  text-align: left;
+}
+.trk-plugin-errors li svg { flex-shrink: 0; margin-top: 1px; }
+
+/* Glyphe signature (NodeGlyph) : respire doucement en attente, s'arrête net
+   si l'utilisateur préfère moins de mouvement. */
+.trk-node-glyph-pulse { animation: trk-node-pulse 1.8s ease-in-out infinite; }
+@keyframes trk-node-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trk-node-glyph-pulse { animation: none; opacity: 0.85; }
+}

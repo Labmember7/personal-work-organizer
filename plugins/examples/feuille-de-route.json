@@ -1,0 +1,375 @@
+{
+  "root": {
+    "id": "root",
+    "label": "Socle technique commun\nWeb & Configurateurs",
+    "children": [
+      {
+        "id": "pre",
+        "label": "Prérequis & bloquants",
+        "color": "#F0787A",
+        "side": "L",
+        "phase": 1,
+        "prio": "P0",
+        "children": [
+          {
+            "id": "pre-inv",
+            "label": "Inventaire des applications et de leurs versions",
+            "prio": "P0",
+            "phase": 1,
+            "stat": "doing",
+            "note": "R#SPACE, PCCN, DPA, EMIS, MUP : versions Angular/Node, outillage, dépôts, responsables."
+          },
+          {
+            "id": "pre-ng",
+            "label": "Migration Angular 10 → 14",
+            "prio": "P0",
+            "phase": 1,
+            "stat": "doing",
+            "deps": [
+              "pre-inv"
+            ],
+            "note": "Une version majeure à la fois, dans le monorepo Nx."
+          },
+          {
+            "id": "pre-node",
+            "label": "Contrainte Node 14 (Electron R#SPACE)",
+            "prio": "P0",
+            "phase": 1,
+            "stat": "decision",
+            "deps": [
+              "pre-inv"
+            ],
+            "note": "Blocage : le CLI Angular récent exige Node 22+. Décider du Node embarqué dans Electron avant d'aller plus loin."
+          },
+          {
+            "id": "pre-lts",
+            "label": "Cible LTS commune : Node, Angular, Express",
+            "prio": "P1",
+            "phase": 1,
+            "stat": "todo",
+            "deps": [
+              "pre-node"
+            ],
+            "note": "Une seule cible pour toutes les applis, réévaluée une fois par an."
+          }
+        ]
+      },
+      {
+        "id": "ci",
+        "label": "Socle CI/CD",
+        "color": "#34D8C0",
+        "side": "R",
+        "phase": 1,
+        "prio": "P0",
+        "children": [
+          {
+            "id": "ci-tpl",
+            "label": "Template de pipeline GitLab CI partagé",
+            "prio": "P0",
+            "phase": 1,
+            "stat": "todo",
+            "deps": [
+              "pre-inv"
+            ],
+            "note": "Un seul template inclus par toutes les applis : build, lint, tests, audit, publication.",
+            "children": [
+              {
+                "id": "ci-tpl-1",
+                "label": "Étapes et nommage identiques partout",
+                "prio": "P0",
+                "phase": 1,
+                "stat": "todo"
+              },
+              {
+                "id": "ci-tpl-2",
+                "label": "Runners et cache npm mutualisés",
+                "prio": "P1",
+                "phase": 1,
+                "stat": "todo"
+              }
+            ]
+          },
+          {
+            "id": "ci-lint",
+            "label": "Linting unifié — ESLint + Prettier",
+            "prio": "P0",
+            "phase": 1,
+            "stat": "todo",
+            "deps": [
+              "ci-tpl"
+            ],
+            "note": "Config publiée en paquet @actia/eslint-config, appliquée en pre-commit et bloquante en CI."
+          },
+          {
+            "id": "ci-sec",
+            "label": "Sécurité des dépendances npm",
+            "prio": "P0",
+            "phase": 1,
+            "stat": "todo",
+            "deps": [
+              "ci-tpl"
+            ],
+            "children": [
+              {
+                "id": "ci-sec-1",
+                "label": "npm audit bloquant au-delà d'un seuil",
+                "prio": "P0",
+                "phase": 1,
+                "stat": "todo"
+              },
+              {
+                "id": "ci-sec-2",
+                "label": "Mises à jour automatisées (Renovate)",
+                "prio": "P1",
+                "phase": 2,
+                "stat": "todo"
+              },
+              {
+                "id": "ci-sec-3",
+                "label": "Registry GitLab en proxy unique",
+                "prio": "P1",
+                "phase": 1,
+                "stat": "todo"
+              }
+            ]
+          },
+          {
+            "id": "ci-ut",
+            "label": "Framework de tests unitaires unifié — Vitest",
+            "prio": "P1",
+            "phase": 2,
+            "stat": "todo",
+            "deps": [
+              "ci-tpl",
+              "pre-ng"
+            ],
+            "note": "Migration Jasmine/Karma via le schematic officiel refactor-jasmine-vitest.",
+            "children": [
+              {
+                "id": "ci-ut-1",
+                "label": "Seuil de couverture minimal par appli",
+                "prio": "P2",
+                "phase": 2,
+                "stat": "todo"
+              }
+            ]
+          },
+          {
+            "id": "ci-e2e",
+            "label": "Tests E2E — Playwright",
+            "prio": "P2",
+            "phase": 3,
+            "stat": "todo",
+            "deps": [
+              "ci-ut",
+              "api-conv"
+            ],
+            "note": "Après les tests unitaires et la stabilisation de l'API. Parcours critiques uniquement."
+          },
+          {
+            "id": "ci-rel",
+            "label": "Versionnage et publication automatisés",
+            "prio": "P2",
+            "phase": 2,
+            "stat": "todo",
+            "deps": [
+              "ci-tpl"
+            ],
+            "note": "semantic-release + changelog généré, semver strict."
+          }
+        ]
+      },
+      {
+        "id": "ui",
+        "label": "Charte graphique & UI commune",
+        "color": "#9F8CF0",
+        "side": "R",
+        "phase": 2,
+        "prio": "P1",
+        "children": [
+          {
+            "id": "ui-tok",
+            "label": "Design tokens : couleurs, typographie, espacements",
+            "prio": "P0",
+            "phase": 1,
+            "stat": "todo",
+            "note": "Socle indépendant du framework, réutilisable jusque dans les configurateurs."
+          },
+          {
+            "id": "ui-dec",
+            "label": "◆ Décision : dépôt dédié (lib npm) ou monorepo",
+            "prio": "P0",
+            "phase": 1,
+            "stat": "decision",
+            "note": "Critères : rythme de publication, coût d'intégration, versions Angular divergentes entre applis."
+          },
+          {
+            "id": "ui-comp",
+            "label": "Composants communs",
+            "prio": "P1",
+            "phase": 2,
+            "stat": "todo",
+            "deps": [
+              "ui-tok",
+              "ui-dec"
+            ],
+            "children": [
+              {
+                "id": "ui-c1",
+                "label": "En-tête, pied de page, mise en page",
+                "prio": "P1",
+                "phase": 2,
+                "stat": "todo"
+              },
+              {
+                "id": "ui-c2",
+                "label": "Voyants et popovers contextuels",
+                "prio": "P1",
+                "phase": 2,
+                "stat": "todo"
+              },
+              {
+                "id": "ui-c3",
+                "label": "Tableaux, formulaires, fenêtres modales",
+                "prio": "P2",
+                "phase": 2,
+                "stat": "todo"
+              }
+            ]
+          },
+          {
+            "id": "ui-dist",
+            "label": "Distribution : registry npm GitLab + semver",
+            "prio": "P1",
+            "phase": 2,
+            "stat": "todo",
+            "deps": [
+              "ui-dec",
+              "ci-rel"
+            ],
+            "note": "Paquet @actia/ui-components, découpage possible en primitives / services / coquille applicative."
+          },
+          {
+            "id": "ui-doc",
+            "label": "Documentation vivante + générateur Nx",
+            "prio": "P2",
+            "phase": 3,
+            "stat": "todo",
+            "deps": [
+              "ui-comp"
+            ],
+            "note": "Storybook comme vitrine, générateur pour créer une appli conforme en une commande."
+          }
+        ]
+      },
+      {
+        "id": "api",
+        "label": "API REST unifiée",
+        "color": "#4FB8E8",
+        "side": "R",
+        "phase": 2,
+        "prio": "P1",
+        "children": [
+          {
+            "id": "api-conv",
+            "label": "Conventions REST : nommage, /v1, erreurs, pagination",
+            "prio": "P0",
+            "phase": 2,
+            "stat": "todo",
+            "note": "Document court et opposable, validé en revue d'équipe."
+          },
+          {
+            "id": "api-oas",
+            "label": "Contrat OpenAPI + client typé généré",
+            "prio": "P1",
+            "phase": 2,
+            "stat": "todo",
+            "deps": [
+              "api-conv"
+            ],
+            "note": "Le contrat fait foi ; le client TypeScript est généré, jamais écrit à la main."
+          },
+          {
+            "id": "api-sec",
+            "label": "Authentification et sécurité transverses",
+            "prio": "P1",
+            "phase": 2,
+            "stat": "todo",
+            "deps": [
+              "api-conv"
+            ]
+          },
+          {
+            "id": "api-core",
+            "label": "Socle backend commun (Express / NestJS)",
+            "prio": "P2",
+            "phase": 3,
+            "stat": "todo",
+            "deps": [
+              "pre-lts",
+              "api-oas"
+            ],
+            "note": "Journalisation, gestion d'erreurs, santé, configuration : mutualisés."
+          }
+        ]
+      },
+      {
+        "id": "mono",
+        "label": "Monorepo Configurateurs",
+        "color": "#E8B14F",
+        "side": "L",
+        "phase": 2,
+        "prio": "P2",
+        "children": [
+          {
+            "id": "mono-map",
+            "label": "Cartographie du code partagé (IEC 61850 / SCL)",
+            "prio": "P0",
+            "phase": 2,
+            "stat": "todo",
+            "deps": [
+              "pre-inv"
+            ],
+            "note": "Ce qui est réellement dupliqué aujourd'hui entre les configurateurs."
+          },
+          {
+            "id": "mono-dec",
+            "label": "◆ Décision : monorepo Nx unique ou multi-dépôts",
+            "prio": "P1",
+            "phase": 2,
+            "stat": "decision",
+            "deps": [
+              "mono-map",
+              "ui-dec"
+            ],
+            "note": "À trancher après la décision UI : les deux choix doivent rester cohérents."
+          },
+          {
+            "id": "mono-mig",
+            "label": "Stratégie de migration progressive",
+            "prio": "P2",
+            "phase": 3,
+            "stat": "todo",
+            "deps": [
+              "mono-dec"
+            ],
+            "note": "Une appli pilote d'abord, sans geler les développements en cours."
+          },
+          {
+            "id": "mono-plug",
+            "label": "Moteur de plugins YAML mutualisé",
+            "prio": "P2",
+            "phase": 3,
+            "stat": "todo",
+            "deps": [
+              "mono-dec"
+            ],
+            "note": "Extensibilité constructeur sans nouveau code par fabricant."
+          }
+        ]
+      }
+    ]
+  },
+  "view": "map",
+  "folded": []
+}

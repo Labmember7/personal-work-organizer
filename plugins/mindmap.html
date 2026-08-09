@@ -1,0 +1,1213 @@
+<meta charset="utf-8">
+<script type="application/json" id="trk-plugin">
+{
+  "id": "mindmap",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": { "fr": "Carte mentale", "en": "Mind map" },
+  "description": { "fr": "Feuille de route et arborescence de projet, avec liens en lecture seule vers les tâches.", "en": "Project roadmap and tree, with read-only links to tasks." },
+  "icon": "Network",
+  "capabilities": ["doc", "tasks:read", "task:reveal", "file:save", "toast", "fullscreen", "debug"],
+  "scopes": ["global", "project"]
+}
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plugin</title>
+<style>
+  :root{
+    --bg:#0B1418; --panel:#0F1D21; --panel-2:#132A2C; --line:#1E3A3C; --line-2:#2A5254;
+    --ink:#DCEAE7; --muted:#7E9A99; --accent:#34D8C0;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, Inter, Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;
+       -webkit-font-smoothing:antialiased}
+
+    .bar{position:fixed;top:0;left:0;right:0;min-height:56px;z-index:20;display:flex;align-items:center;
+       flex-wrap:wrap;gap:8px;padding:9px 14px;background:color-mix(in srgb,var(--bg) 82%, transparent);
+       backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .brand{display:flex;flex-direction:column;line-height:1.15;margin-right:6px;min-width:0}
+  .brand b{font-size:13px;font-weight:650;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+  .brand span{font:500 10px/1 var(--mono);color:var(--muted);letter-spacing:1.4px;text-transform:uppercase}
+  .bar>*{flex:0 0 auto}
+  .spacer{flex:1 1 auto;min-width:6px}
+  .bar::-webkit-scrollbar{height:6px}
+  .bar::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  button.tb{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+       font:500 12px var(--sans);padding:7px 11px;border-radius:7px;cursor:pointer;white-space:nowrap}
+  button.tb:hover{border-color:var(--line-2);background:var(--panel-2)}
+  button.tb.on{border-color:var(--accent);color:var(--accent)}
+  button.tb.primary{background:var(--accent);border-color:var(--accent);color:#062024;font-weight:650}
+  button.tb:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  select.tb{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+       font:500 12px var(--sans);padding:7px 26px 7px 11px;border-radius:7px;cursor:pointer;
+       background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+       background-position:calc(100% - 14px) 15px,calc(100% - 9px) 15px;background-size:5px 5px;background-repeat:no-repeat}
+  .sep{width:1px;height:24px;background:var(--line)}
+  .menuwrap{position:relative}
+  .menu{position:absolute;top:38px;right:0;min-width:210px;background:var(--panel);border:1px solid var(--line);
+        border-radius:10px;padding:6px;display:none;flex-direction:column;gap:3px;z-index:25;
+        box-shadow:0 14px 34px rgba(0,0,0,.4)}
+  .menu.open{display:flex}
+  .menu .tb{text-align:left;border-color:transparent;background:transparent;padding:8px 10px}
+  .menu .tb:hover{background:var(--panel-2);border-color:transparent}
+
+  /* ---------- canevas ---------- */
+  #canvas{position:fixed;inset:56px 0 0 0;cursor:grab}
+  #canvas.drag{cursor:grabbing}
+  svg{display:block;width:100%;height:100%;touch-action:none}
+  .nd{cursor:grab}
+  .nd:active{cursor:grabbing}
+  .nd:hover .box{filter:brightness(1.18)}
+
+  /* ---------- légende ---------- */
+  body.nolg .legend{display:none}
+  .legend{position:fixed;left:14px;bottom:14px;z-index:15;pointer-events:none;background:color-mix(in srgb,var(--panel) 92%,transparent);
+       border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:11px;color:var(--muted);
+       display:flex;gap:16px;flex-wrap:wrap;max-width:min(620px,calc(100% - 28px));backdrop-filter:blur(6px)}
+  .legend b{display:block;font:600 9px/1.6 var(--mono);letter-spacing:1.3px;text-transform:uppercase;color:var(--ink);margin-bottom:5px}
+  .legend i{font-style:normal;display:flex;align-items:center;gap:6px;margin:3px 0}
+  .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+  .chip{font:600 9px var(--mono);border:1px solid var(--line-2);border-radius:4px;padding:1px 4px;color:var(--ink)}
+
+  /* ---------- inspecteur ---------- */
+  .insp{position:fixed;top:56px;right:0;bottom:0;width:340px;z-index:18;background:var(--panel);
+       border-left:1px solid var(--line);transform:translateX(100%);transition:transform .22s ease;
+       display:flex;flex-direction:column}
+  .insp.open{transform:none}
+  @media (prefers-reduced-motion:reduce){.insp{transition:none}}
+  .insp header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .insp header .eyebrow{font:600 9px var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
+  .hint{font:400 10.5px var(--sans);color:var(--muted);margin-top:4px}
+  body.pres .insp,body.pres .lnk{display:none!important}
+  body.pres .nd{cursor:default}
+  .insp .body{padding:14px 16px;overflow:auto;flex:1}
+  .fld{margin-bottom:14px}
+  .fld label{display:block;font:600 9px var(--mono);letter-spacing:1.2px;text-transform:uppercase;
+       color:var(--muted);margin-bottom:5px}
+  .fld input,.fld textarea,.fld select{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);
+       border-radius:7px;padding:8px 9px;font:400 13px var(--sans);resize:vertical}
+  .row{display:flex;gap:9px}.row>*{flex:1}
+  .deps{max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:7px;background:var(--bg);padding:6px}
+  .deps label{display:flex;gap:7px;align-items:flex-start;padding:4px 5px;border-radius:5px;cursor:pointer;
+       font:400 12px var(--sans);color:var(--ink);text-transform:none;letter-spacing:0}
+  .deps label:hover{background:var(--panel-2)}
+  .deps input{width:auto;margin-top:2px}
+  .acts{display:flex;flex-wrap:wrap;gap:7px;padding:12px 16px;border-top:1px solid var(--line)}
+  .danger{color:#F0787A;border-color:#5A2A2E}
+
+  /* ---------- lien vers une tâche (lecture seule) ---------- */
+  .tasklink{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;font-size:12.5px;margin-bottom:8px}
+  .tasklink b{display:block;margin-bottom:3px;font-weight:650}
+  .tasklink .warn{color:#F0787A}
+
+  /* ---------- synthèse ---------- */
+  .modal{position:fixed;inset:0;z-index:30;background:rgba(4,10,12,.6);display:none;padding:44px 20px;overflow:auto}
+  .modal.open{display:block}
+  .sheet{max-width:900px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px 30px}
+  .sheet h2{margin:0 0 4px;font-size:19px;letter-spacing:-.2px}
+  .sheet .sub{color:var(--muted);font-size:12px;margin-bottom:22px}
+  .ph{margin:22px 0 10px;font:600 10px var(--mono);letter-spacing:1.6px;text-transform:uppercase;color:var(--accent);
+      border-bottom:1px solid var(--line);padding-bottom:6px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  td.p{width:34px;font:600 10px var(--mono)}
+  td.b{width:150px;color:var(--muted);font-size:11px}
+  td.s{width:86px;font-size:11px;color:var(--muted);text-align:right}
+  .dep-note{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+  .close{position:absolute;top:14px;right:18px}
+  .lnk{position:fixed;right:14px;bottom:14px;z-index:19;width:300px;background:var(--panel);
+       border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:none}
+  .lnk.open{display:block}
+  .lnk .eyebrow{font:600 9px var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);
+       margin-bottom:12px;line-height:1.6}
+  .lnk input[type=range]{width:100%;accent-color:var(--accent);padding:0}
+  @media (max-width:900px){.brand{display:none}}
+  @media (max-width:760px){.insp{width:100%}.legend{display:none}}
+</style>
+
+<div class="bar">
+  <div class="brand"><b id="brandTitle">—</b><span id="brandSubtitle" data-i18n="plugin_mindmap_brand_subtitle">Carte mentale</span></div>
+  <div class="sep"></div>
+  <select class="tb" id="vMode" data-i18n-title="plugin_mindmap_mode_title" title="Mode d'affichage">
+    <option value="map" data-i18n="plugin_mindmap_mode_map">Carte mentale</option>
+    <option value="flow" data-i18n="plugin_mindmap_mode_flow">Flux · phases</option>
+  </select>
+  <button class="tb" id="bSort" data-i18n="plugin_mindmap_sort" data-i18n-title="plugin_mindmap_sort_title" title="Réordonner par phase, dépendance puis priorité">Trier</button>
+  <div class="sep"></div>
+  <select class="tb" id="fPrio" data-i18n-title="plugin_mindmap_filter_prio_title" title="Filtrer par priorité">
+    <option value="" data-i18n="plugin_mindmap_prio_all">Toutes priorités</option>
+    <option value="P0" data-i18n="plugin_mindmap_prio_p0">P0 seulement</option>
+    <option value="P0,P1" data-i18n="plugin_mindmap_prio_p0p1">P0 + P1</option>
+    <option value="P2" data-i18n="plugin_mindmap_prio_p2">P2 seulement</option>
+  </select>
+  <select class="tb" id="fPhase" data-i18n-title="plugin_mindmap_filter_phase_title" title="Filtrer par phase">
+    <option value="" data-i18n="plugin_mindmap_phase_all">Toutes phases</option>
+  </select>
+  <button class="tb on" id="bDeps" data-i18n="plugin_mindmap_links" data-i18n-title="plugin_mindmap_links_title" title="Afficher les flèches de dépendance">Liens</button>
+  <button class="tb" id="bFold" data-i18n="plugin_mindmap_collapse">Replier</button>
+  <button class="tb" id="bPres" data-i18n="plugin_mindmap_present" data-i18n-title="plugin_mindmap_present_title" title="Masquer les outils d'édition">Présentation</button>
+  <button class="tb" id="bFull" data-i18n="plugin_mindmap_fullscreen" data-i18n-title="plugin_mindmap_fullscreen_title" title="Passer en plein écran">Plein écran</button>
+  <div class="spacer"></div>
+  <button class="tb" id="bSynth" data-i18n="plugin_mindmap_summary">Synthèse</button>
+  <button class="tb" id="bAdd" data-i18n="plugin_mindmap_add_phase" data-i18n-title="plugin_mindmap_add_phase_title" title="Créer une nouvelle phase">+ Phase</button>
+  <button class="tb" id="bFit" data-i18n="plugin_mindmap_recenter" data-i18n-title="plugin_mindmap_recenter_title" title="Recentrer la vue">Recentrer</button>
+  <div class="menuwrap">
+    <button class="tb" id="bMore" data-i18n-title="plugin_mindmap_more_title" title="Plus d'actions" aria-haspopup="true">⋯</button>
+    <div class="menu" id="menu">
+      <button class="tb" id="bLegend" data-i18n="plugin_mindmap_legend_hide">Masquer la légende</button>
+      <button class="tb" id="bReset" data-i18n="plugin_mindmap_auto_layout">Disposition automatique</button>
+      <button class="tb" id="bExport" data-i18n="plugin_mindmap_export_json">Exporter en JSON</button>
+      <button class="tb" id="bImport" data-i18n="plugin_mindmap_import_json"
+        data-i18n-title="plugin_mindmap_import_json_title" title="Remplacer cette carte par un fichier JSON exporté précédemment">Importer un JSON…</button>
+      <button class="tb" id="bPng" data-i18n="plugin_mindmap_export_png">Exporter en PNG</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="fImport" accept="application/json,.json" style="display:none">
+
+<div id="canvas"><svg id="svg"><g id="scene"></g></svg></div>
+
+<div class="legend">
+  <div><b data-i18n="plugin_mindmap_legend_priority">Priorité</b>
+    <i><span class="chip">P0</span> <span data-i18n="plugin_mindmap_legend_p0">critique — à lancer maintenant</span></i>
+    <i><span class="chip">P1</span> <span data-i18n="plugin_mindmap_legend_p1">important — dépend du P0</span></i>
+    <i><span class="chip">P2</span> <span data-i18n="plugin_mindmap_legend_p2">souhaitable — plus tard</span></i>
+  </div>
+  <div><b data-i18n="plugin_mindmap_legend_state">État</b>
+    <i><span class="dot" style="background:#7E9A99"></span> <span data-i18n="plugin_mindmap_legend_state_todo">à faire</span></i>
+    <i><span class="dot" style="background:#E8B14F"></span> <span data-i18n="plugin_mindmap_legend_state_doing">en cours</span></i>
+    <i><span class="dot" style="background:#46C98B"></span> <span data-i18n="plugin_mindmap_legend_state_done">terminé</span></i>
+    <i><span class="dot" style="background:#C39BF5"></span> <span data-i18n="plugin_mindmap_legend_state_decision">à décider en équipe</span></i>
+  </div>
+  <div><b data-i18n="plugin_mindmap_legend_read">Lecture</b>
+    <i data-i18n="plugin_mindmap_legend_drag">Glisser un point pour le déplacer</i>
+    <i data-i18n="plugin_mindmap_legend_click_edit">Clic sur un point pour l'éditer</i>
+    <i data-i18n="plugin_mindmap_legend_click_link">Clic sur un trait : accroches et courbure</i>
+    <i data-i18n="plugin_mindmap_legend_resize">Poignée en bas à droite : redimensionner</i>
+  </div>
+</div>
+
+<aside class="insp" id="insp">
+  <header><div style="flex:1"><div class="eyebrow" id="iPath">—</div>
+    <div class="hint" data-i18n="plugin_mindmap_hint_escape">Échap, ou clic dans le vide, pour sortir de l'édition</div></div>
+    <button class="tb primary" id="iClose" data-i18n="plugin_mindmap_finish">Terminer</button></header>
+  <div class="body">
+    <div class="fld"><label for="iLabel" data-i18n="plugin_mindmap_field_label">Intitulé</label><textarea id="iLabel" rows="2"></textarea></div>
+    <div class="fld" id="iColorRow" style="display:none">
+      <label for="iColor" data-i18n="plugin_mindmap_field_color">Couleur</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="color" id="iColor" aria-label="Couleur de la phase" data-i18n-aria-label="plugin_mindmap_field_color_aria"
+          style="width:38px;height:34px;padding:2px;border:1px solid var(--line);border-radius:7px;cursor:pointer;background:var(--bg)">
+        <span class="hint" style="margin:0" data-i18n="plugin_mindmap_color_hint">Utilisée pour la branche, les pastilles et la colonne du flux</span>
+      </div>
+    </div>
+    <div class="fld"><label for="iPrio" data-i18n="plugin_mindmap_legend_priority">Priorité</label><select id="iPrio">
+      <option value="">—</option><option>P0</option><option>P1</option><option>P2</option></select></div>
+    <div class="row">
+      <div class="fld"><label for="iStat" data-i18n="plugin_mindmap_legend_state">État</label><select id="iStat">
+        <option value="todo" data-i18n="plugin_mindmap_stat_todo">À faire</option>
+        <option value="doing" data-i18n="plugin_mindmap_stat_doing">En cours</option>
+        <option value="done" data-i18n="plugin_mindmap_stat_done">Terminé</option>
+        <option value="decision" data-i18n="plugin_mindmap_stat_decision">À décider</option></select></div>
+      <div class="fld"><label for="iOwner" data-i18n="plugin_mindmap_field_owner">Porteur</label>
+        <input id="iOwner" data-i18n-placeholder="plugin_mindmap_owner_placeholder" placeholder="ex. Thibault"></div>
+    </div>
+    <div class="fld"><label data-i18n="plugin_mindmap_field_deps">Dépend de</label><div class="deps" id="iDeps"></div></div>
+
+    <div class="fld" id="iTaskLinkBlock">
+      <label data-i18n="plugin_mindmap_field_task">Tâche liée</label>
+      <div class="tasklink" id="iTaskLinked" style="display:none">
+        <div id="iTaskLinkedInfo"></div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
+          <button class="tb" id="iTaskOpen" data-i18n="plugin_mindmap_task_open">Ouvrir la tâche</button>
+          <button class="tb danger" id="iTaskUnlink" data-i18n="plugin_mindmap_task_unlink">Délier</button>
+        </div>
+      </div>
+      <div id="iTaskSearchWrap">
+        <input id="iTaskSearch" data-i18n-placeholder="plugin_mindmap_task_search_placeholder" placeholder="Rechercher une tâche…" style="margin-bottom:6px">
+        <div class="deps" id="iTaskList"></div>
+      </div>
+    </div>
+
+    <div class="fld" id="iPhaseTasks" style="display:none">
+      <label data-i18n="plugin_mindmap_field_phase_tasks">Tâches de cette phase</label>
+      <div class="deps" id="iPhaseTaskList" style="margin-bottom:8px"></div>
+      <input id="iPhaseTaskSearch" data-i18n-placeholder="plugin_mindmap_phase_task_search_placeholder" placeholder="Ajouter une tâche du backlog…" style="margin-bottom:6px">
+      <div class="deps" id="iPhaseTaskPicker"></div>
+    </div>
+
+    <div class="fld"><label for="iNote" data-i18n="plugin_mindmap_field_note">Note / critère de fin</label><textarea id="iNote" rows="4"
+      data-i18n-placeholder="plugin_mindmap_note_placeholder" placeholder="Ce qui rend ce point terminé, contraintes, liens…"></textarea></div>
+
+    <details class="fld" id="manualAdd">
+      <summary style="cursor:pointer;font:600 9px var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)"
+        data-i18n="plugin_mindmap_manual_add">Ajout manuel</summary>
+      <div class="hint" data-i18n="plugin_mindmap_manual_add_hint">Pour un point qui n'est pas encore une tâche du backlog.</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
+        <button class="tb" id="aChild" data-i18n="plugin_mindmap_add_child">+ Sous-point</button>
+        <button class="tb" id="aSib" data-i18n="plugin_mindmap_add_sibling">+ Point voisin</button>
+      </div>
+    </details>
+  </div>
+  <div class="acts">
+    <button class="tb" id="aUp" data-i18n-title="plugin_mindmap_move_up" title="Monter">↑</button>
+    <button class="tb" id="aDown" data-i18n-title="plugin_mindmap_move_down" title="Descendre">↓</button>
+    <button class="tb" id="aSize" data-i18n="plugin_mindmap_auto_size">Taille auto</button>
+    <button class="tb danger" id="aDel" data-i18n="plugin_mindmap_delete">Supprimer</button>
+  </div>
+</aside>
+
+<div class="lnk" id="lnk">
+  <div class="eyebrow" id="lTitle">—</div>
+  <div class="row">
+    <div class="fld"><label for="lFrom" data-i18n="plugin_mindmap_anchor_from">Accroche départ</label><select id="lFrom">
+      <option value="" data-i18n="plugin_mindmap_anchor_auto">Auto</option>
+      <option value="t" data-i18n="plugin_mindmap_anchor_top">Haut</option>
+      <option value="b" data-i18n="plugin_mindmap_anchor_bottom">Bas</option>
+      <option value="l" data-i18n="plugin_mindmap_anchor_left">Gauche</option>
+      <option value="r" data-i18n="plugin_mindmap_anchor_right">Droite</option></select></div>
+    <div class="fld"><label for="lTo" data-i18n="plugin_mindmap_anchor_to">Accroche arrivée</label><select id="lTo">
+      <option value="" data-i18n="plugin_mindmap_anchor_auto">Auto</option>
+      <option value="t" data-i18n="plugin_mindmap_anchor_top">Haut</option>
+      <option value="b" data-i18n="plugin_mindmap_anchor_bottom">Bas</option>
+      <option value="l" data-i18n="plugin_mindmap_anchor_left">Gauche</option>
+      <option value="r" data-i18n="plugin_mindmap_anchor_right">Droite</option></select></div>
+  </div>
+  <div class="fld"><label for="lBow"><span data-i18n="plugin_mindmap_curvature">Courbure</span> — <span id="lBowV">1.0</span></label>
+    <input type="range" id="lBow" min="0" max="2.5" step="0.1" value="1"></div>
+  <div style="display:flex;gap:7px;flex-wrap:wrap">
+    <button class="tb" id="lAuto" data-i18n="plugin_mindmap_anchor_auto">Auto</button>
+    <button class="tb danger" id="lDel" data-i18n="plugin_mindmap_delete">Supprimer</button>
+    <button class="tb" id="lClose" data-i18n="plugin_mindmap_close">Fermer</button>
+  </div>
+  <div class="hint" data-i18n="plugin_mindmap_hint_escape">Échap, ou clic dans le vide, pour sortir de l'édition</div>
+</div>
+
+<div class="modal" id="modal"><div class="sheet" style="position:relative">
+  <button class="tb close" id="mClose" data-i18n-title="plugin_mindmap_close">✕</button>
+  <h2 data-i18n="plugin_mindmap_plan_title">Plan de marche par phase</h2>
+  <div class="sub" id="mSub"></div><div id="mBody"></div>
+</div></div>
+
+<script>
+/* ============================================================
+   DONNÉES — le contenu vit désormais dans le document du plugin
+   (host:init / host:doc), plus dans DATA en mémoire pendant l'édition.
+   Champs : label, prio (P0/P1/P2), phase (1/2/3),
+            stat (todo|doing|done|decision), owner, deps[], note, children[],
+            refs[] (lien lecture seule vers une tâche de l'app).
+   ============================================================ */
+function DEFAULT_DATA(){
+  return {id:"root", label:TrkPlugin.t("plugin_mindmap_default_root","Nouvelle carte"), children:[
+    {id:uid(), label:TrkPlugin.t("plugin_mindmap_default_axis","Phase 1"), color:PALETTE[0], side:"R", stat:"todo", children:[]}
+  ]};
+}
+let DATA = {id:"root", label:"…", children:[]}; // remplacé au premier rendu, avant même host:init
+
+/* ============================================================
+   MOTEUR
+   ============================================================ */
+const PALETTE=["#34D8C0","#9F8CF0","#4FB8E8","#E8B14F","#F0787A","#46C98B","#F49BC1"];
+const STAT={todo:{l:"À faire",c:"#7E9A99"},doing:{l:"En cours",c:"#E8B14F"},
+            done:{l:"Terminé",c:"#46C98B"},decision:{l:"À décider",c:"#C39BF5"}};
+/* Une « phase » est désormais une branche de premier niveau (n._d===1) : son
+   id, son libellé et sa couleur en font foi. Les tâches y sont attribuées en
+   devenant ses enfants directs (voir attachTaskToPhase). Plus de champ
+   `phase` numérique séparé — l'appartenance est structurelle (l'arbre). */
+const W=[250,268,236], PADX=15, PADY=12, LH=16.5, GY=13, GX=64, BUS=44, ELB=22;
+const FF="'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif";
+const FM="ui-monospace, Menlo, Consolas, monospace";
+
+const S={sel:null, link:null, view:"map", pres:false, full:false, folded:new Set(), deps:true, prio:"", phase:"",
+         vx:0, vy:0, k:1};
+
+const $=id=>document.getElementById(id);
+const svg=$("svg"), scene=$("scene"), canvas=$("canvas");
+const mc=document.createElement("canvas").getContext("2d");
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const rgba=(h,a)=>{h=h.replace("#","");return`rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`};
+// Le thème ne vient plus d'une classe body.light : ce sont les jetons posés
+// par TrkPlugin.applyTheme (host:init / host:theme) sur :root qui font foi.
+const cssVar=(name,fallback)=>getComputedStyle(document.documentElement).getPropertyValue(name).trim()||fallback;
+const ink=()=>cssVar("--ink","#DCEAE7");
+const muted=()=>cssVar("--muted","#7E9A99");
+const bgc=()=>cssVar("--bg","#0B1418");
+const linec=()=>cssVar("--line","#1E3A3C");
+const accentc=()=>cssVar("--accent","#34D8C0");
+let DARK=true; // affiné par applyHostTheme : pilote les nuances qu'un jeton seul ne capture pas (alpha des remplissages)
+
+function walk(n,f,p=null,d=0){f(n,p,d);(n.children||[]).forEach(c=>walk(c,f,n,d+1))}
+function index(){const m=new Map();walk(DATA,(n,p,d)=>{n._p=p;n._d=d;m.set(n.id,n)});return m}
+let IDX=index();
+const branchOf=n=>{let c=n;while(c&&c._d>1)c=c._p;return c};
+const colorOf=n=>n._d===0?accentc():(branchOf(n)?.color||accentc());
+const uid=()=>"n"+Math.random().toString(36).slice(2,8);
+
+function passFilter(n){
+  if(S.prio&&n.prio&&!S.prio.split(",").includes(n.prio))return false;
+  if(S.phase){const b=branchOf(n);if(!b||b.id!==S.phase)return false}
+  return true;
+}
+/* points réellement actionnables : tout sauf la racine et les phases elles-mêmes (des conteneurs, jamais des tâches) */
+function actionables(){const out=[];walk(DATA,n=>{
+  if(n._d<=1)return;out.push(n)});return out}
+/* rang = longueur du plus long chemin de dépendances en amont */
+function ranks(){
+  const memo=new Map(), stack=new Set(); let cyc=false;
+  const r=n=>{
+    if(memo.has(n.id))return memo.get(n.id);
+    if(stack.has(n.id)){cyc=true;return 0}
+    stack.add(n.id);let m=0;
+    (n.deps||[]).forEach(d=>{const s=IDX.get(d.id);if(s)m=Math.max(m,r(s)+1)});
+    stack.delete(n.id);memo.set(n.id,m);return m;
+  };
+  [...IDX.values()].forEach(n=>{if(n._d>0)r(n)});
+  return {rank:id=>memo.get(id)??0,cyc};
+}
+function visible(n){
+  if(n._d===0)return true;
+  if(S.phase){const b=branchOf(n);if(!b||b.id!==S.phase)return false}
+  if(n._d<=1)return true;
+  if(S.prio&&n.prio&&!S.prio.split(",").includes(n.prio))return false;
+  return true;
+}
+const kids=n=>S.folded.has(n.id)?[]:(n.children||[]).filter(visible);
+/* une dépendance = "id" (auto) ou {id, from:{s,t}, to:{s,t}, bow} */
+function normDeps(){walk(DATA,n=>{if(n.deps)n.deps=n.deps.map(d=>typeof d==="string"?{id:d}:d)})}
+function anchorPt(n,a){
+  const l=n.x,r=n.x+n.w,t=n.y-n.h/2,b=n.y+n.h/2;
+  if(a.s==="l")return{x:l,y:t+a.t*n.h,nx:-1,ny:0};
+  if(a.s==="r")return{x:r,y:t+a.t*n.h,nx:1,ny:0};
+  if(a.s==="t")return{x:l+a.t*n.w,y:t,nx:0,ny:-1};
+  return{x:l+a.t*n.w,y:b,nx:0,ny:1};
+}
+function nearestAnchor(n,px,py){
+  const l=n.x,r=n.x+n.w,t=n.y-n.h/2,b=n.y+n.h/2;
+  const cx=Math.max(l,Math.min(r,px)),cy=Math.max(t,Math.min(b,py));
+  const d={l:Math.abs(px-l),r:Math.abs(px-r),t:Math.abs(py-t),b:Math.abs(py-b)};
+  const s=Object.keys(d).reduce((a,k)=>d[k]<d[a]?k:a);
+  const cl=v=>Math.max(.08,Math.min(.92,v));
+  return (s==="l"||s==="r")?{s,t:cl((cy-t)/n.h)}:{s,t:cl((cx-l)/n.w)};
+}
+function anchorsFor(src,dst,d){
+  const rightward=src.x+src.w/2>dst.x+dst.w/2;
+  return [d.from||{s:rightward?"l":"r",t:.5}, d.to||{s:rightward?"r":"l",t:.5}];
+}
+function applyOff(n,ax,ay){
+  const x=ax+(n.dx||0), y=ay+(n.dy||0);
+  n.x+=x;n.y+=y;kids(n).forEach(c=>applyOff(c,x,y));
+}
+
+const _wc=new Map();
+function wrap(t,max,font){
+  const key=max+"|"+font+"|"+t;if(_wc.has(key))return _wc.get(key);
+  mc.font=font;const out=[];
+  t.split("\n").forEach(par=>{
+    let line="";
+    par.split(" ").forEach(w=>{
+      const test=line?line+" "+w:w;
+      if(mc.measureText(test).width>max&&line){out.push(line);line=w}else line=test;
+    });out.push(line);
+  });_wc.set(key,out);return out;
+}
+function size(n){
+  const d=Math.min(n._d,2), w=n.w0||(n._d===0?260:W[d]);
+  const fs=n._d===0?15:(n._d===1?13.5:12.5), fw=n._d<=1?650:500;
+  const font=`${fw} ${fs}px ${FF}`;
+  n._lines=wrap(n.label,w-2*PADX,font);n._fs=fs;n._fw=fw;
+  const meta=(n.prio||n.stat||n.owner)&&n._d>0?17:0;
+  n.w=w;n.h=Math.max(42,n._lines.length*LH+2*PADY+meta,n.h0||0);
+}
+function measure(n){
+  size(n);const ch=kids(n);
+  if(!ch.length){n._sub=n.h;return n._sub}
+  let t=0;ch.forEach(c=>t+=measure(c));t+=GY*(ch.length-1);
+  n._sub=Math.max(n.h,t);return n._sub;
+}
+function place(n,dir){
+  const ch=kids(n);if(!ch.length)return;
+  let t=0;ch.forEach(c=>t+=c._sub);t+=GY*(ch.length-1);
+  let y=n.y-t/2;
+  ch.forEach(c=>{
+    c.y=y+c._sub/2;
+    c.x=dir>0?n.x+n.w+GX:n.x-GX-c.w;
+    y+=c._sub+GY;place(c,dir);
+  });
+}
+function layout(){
+  IDX=index();
+  const roots=(DATA.children||[]).filter(visible);
+  roots.forEach(measure);size(DATA);
+  const L=roots.filter(r=>r.side==="L"), R=roots.filter(r=>r.side!=="L");
+  DATA.x=-130;DATA.y=0;DATA.w=260;
+  [[R,1],[L,-1]].forEach(([grp,dir])=>{
+    let t=0;grp.forEach(c=>t+=c._sub);t+=GY*2*(grp.length-1);
+    let y=-t/2;
+    grp.forEach(c=>{
+      c.y=y+c._sub/2;
+      c.x=dir>0?DATA.x+DATA.w+BUS+GX:DATA.x-BUS-GX-c.w;
+      y+=c._sub+GY*2;place(c,dir);
+    });
+    grp._bus=dir>0?DATA.x+DATA.w+BUS:DATA.x-BUS;
+    grp._dir=dir;
+  });
+  [...R,...L].forEach(r=>applyOff(r,0,0));
+  return {L,R};
+}
+
+function elbow(px,py,cx,cy,dir){
+  if(Math.abs(cy-py)<1.5)return `M${px},${py} L${cx},${cy}`;
+  const mx=px+dir*ELB, sy=Math.sign(cy-py), r=Math.min(10,Math.abs(cy-py)/2,ELB-2);
+  return `M${px},${py} L${mx-dir*r},${py} Q${mx},${py} ${mx},${py+sy*r} L${mx},${cy-sy*r} Q${mx},${cy} ${mx+dir*r},${cy} L${cx},${cy}`;
+}
+/* Pastille de statut d'une tâche liée (lecture seule) : coin haut-droit du
+   nœud. La donnée vient de TASKS (dernière projection reçue de l'hôte),
+   jamais recopiée dans le document — seul l'id de la tâche y est stocké. */
+function taskBadge(n){
+  const ref=(n.refs||[]).find(r=>r.kind==="task");
+  if(!ref)return"";
+  const task=TASKS.get(ref.id);
+  const bx=n.w-2, by=2;
+  if(!task){
+    return `<g transform="translate(${bx},${by})"><circle r="7" fill="${bgc()}" stroke="#F0787A" stroke-width="1.5"/>
+      <text y="3.5" text-anchor="middle" font-size="10" font-weight="700" fill="#F0787A">!</text>
+      <title>${esc(TrkPlugin.t("plugin_mindmap_task_missing","Tâche introuvable"))}</title></g>`;
+  }
+  const mins=task.minutes?` · ${task.minutes} ${TrkPlugin.t("plugin_mindmap_minutes_suffix","min")}`:"";
+  return `<g transform="translate(${bx},${by})"><circle r="7" fill="${bgc()}" stroke="${task.statutColor}" stroke-width="1.5"/>
+    <circle r="3" fill="${task.statutColor}"/>
+    <title>${esc(task.titre)} — ${esc(task.statutLabel)}${esc(mins)}</title></g>`;
+}
+function nodeSVG(n){
+  const c=colorOf(n), isRoot=n._d===0, sel=S.sel===n.id;
+  const st=STAT[n.stat]||null;
+  let g=`<g class="nd" data-id="${n.id}" transform="translate(${n.x},${n.y-n.h/2})">`;
+  g+=`<rect class="box" width="${n.w}" height="${n.h}" rx="${isRoot?10:8}"
+       fill="${isRoot?rgba(c,DARK?.2:.18):rgba(c,DARK?.15:.11)}"
+       stroke="${sel?c:rgba(c,DARK?.5:.55)}" stroke-width="${sel?2:1.1}"/>`;
+  if(!isRoot)g+=`<rect width="3" height="${n.h}" rx="1.5" fill="${c}" opacity="${n.prio==="P0"?1:n.prio==="P1"?.6:.3}"/>`;
+  let ty=PADY+12;
+  n._lines.forEach(l=>{g+=`<text x="${PADX}" y="${ty}" font-family="${FF}"
+      font-size="${n._fs}" font-weight="${n._fw}" fill="${ink()}">${esc(l)}</text>`;ty+=LH});
+  if(!isRoot&&(n.prio||st||n.owner)){
+    let x=PADX, my=n.h-PADY+1;
+    if(n.prio){g+=`<rect x="${x}" y="${my-9}" width="20" height="13" rx="3" fill="${rgba(c,.28)}" stroke="${rgba(c,.5)}"/>
+      <text x="${x+10}" y="${my}" text-anchor="middle" font-family="${FM}" font-size="9" font-weight="700" fill="${ink()}">${n.prio}</text>`;x+=25}
+    if(st){g+=`<circle cx="${x+4}" cy="${my-4}" r="3.6" fill="${st.c}"/>
+      <text x="${x+13}" y="${my}" font-family="${FF}" font-size="10" fill="${muted()}">${esc(st.l)}</text>`;
+      mc.font=`400 10px ${FF}`;x+=17+mc.measureText(st.l).width}
+    if(n.owner)g+=`<text x="${n.w-PADX}" y="${my}" text-anchor="end" font-family="${FF}" font-size="10" fill="${muted()}">${esc(n.owner)}</text>`;
+  }
+  const hid=(n.children||[]).length&&S.folded.has(n.id);
+  if(hid){const dir=(branchOf(n)?.side==="L")?-1:1;
+    g+=`<g data-fold="${n.id}"><circle cx="${dir>0?n.w+11:-11}" cy="${n.h/2}" r="9" fill="${bgc()}" stroke="${rgba(c,.6)}"/>
+      <text x="${dir>0?n.w+11:-11}" y="${n.h/2+3.5}" text-anchor="middle" font-size="10" font-weight="700" fill="${c}">${n.children.length}</text></g>`}
+  if(sel&&!isRoot&&!S.pres)g+=`<rect x="${n.w-11}" y="${n.h-11}" width="11" height="11" rx="2.5" fill="${c}"
+     data-rz="${n.id}" style="cursor:nwse-resize"/>`;
+  g+=taskBadge(n);
+  return g+"</g>";
+}
+
+function curve(A,B,bow){
+  const b=bow==null?1:+bow;
+  const k=Math.max(30,Math.hypot(B.x-A.x,B.y-A.y)*.34)*b;
+  return `M${A.x},${A.y} C${A.x+(A.nx||0)*k},${A.y+(A.ny||0)*k} ${B.x+(B.nx||0)*k},${B.y+(B.ny||0)*k} ${B.x},${B.y}`;
+}
+const PRO={P0:0,P1:1,P2:2};
+function sizeFlow(n){
+  const w=250, font=`600 13px ${FF}`;
+  n._lines=wrap(n.label,w-2*PADX,font);n._fs=13;n._fw=600;
+  n.w=w;n.h=Math.max(62,15+n._lines.length*LH+2*PADY+17);
+}
+function cardSVG(n){
+  const c=colorOf(n), sel=S.sel===n.id, st=STAT[n.stat]||STAT.todo;
+  let g=`<g class="nd" data-id="${n.id}" transform="translate(${n.x},${n.y-n.h/2})">`;
+  g+=`<rect class="box" width="${n.w}" height="${n.h}" rx="8" fill="${rgba(c,DARK?.15:.11)}"
+       stroke="${sel?c:rgba(c,DARK?.5:.55)}" stroke-width="${sel?2:1.1}"/>`;
+  g+=`<rect width="3" height="${n.h}" rx="1.5" fill="${c}" opacity="${n.prio==="P0"?1:n.prio==="P1"?.6:.3}"/>`;
+  g+=`<text x="${PADX}" y="${PADY+8}" font-family="${FM}" font-size="8.5" letter-spacing="1.2"
+       fill="${rgba(c,.95)}">${esc((branchOf(n)?.label||"").toUpperCase())}</text>`;
+  let ty=PADY+26;
+  n._lines.forEach(l=>{g+=`<text x="${PADX}" y="${ty}" font-family="${FF}" font-size="13" font-weight="600"
+       fill="${ink()}">${esc(l)}</text>`;ty+=LH});
+  const my=n.h-PADY+1;let x=PADX;
+  if(n.prio){g+=`<rect x="${x}" y="${my-9}" width="20" height="13" rx="3" fill="${rgba(c,.28)}" stroke="${rgba(c,.5)}"/>
+    <text x="${x+10}" y="${my}" text-anchor="middle" font-family="${FM}" font-size="9" font-weight="700" fill="${ink()}">${n.prio}</text>`;x+=26}
+  g+=`<circle cx="${x+4}" cy="${my-4}" r="3.6" fill="${st.c}"/>
+    <text x="${x+13}" y="${my}" font-family="${FF}" font-size="10" fill="${muted()}">${esc(st.l)}</text>`;
+  if(n.owner)g+=`<text x="${n.w-PADX}" y="${my}" text-anchor="end" font-family="${FF}" font-size="10" fill="${muted()}">${esc(n.owner)}</text>`;
+  return g+"</g>";
+}
+function renderFlow(){
+  IDX=index();
+  const {rank,cyc}=ranks();
+  const list=actionables().filter(passFilter);
+  /* une colonne par phase (branche de premier niveau), dans l'ordre de création ;
+     une phase sans tâche attribuée reste visible, colonne vide, en attente. */
+  const phaseNodes=(DATA.children||[]).filter(p=>!S.phase||p.id===S.phase);
+  const CW=250,GC=96;
+  const colOf=new Map(), cols=[];
+  phaseNodes.forEach((ph,i)=>{
+    const items=list.filter(n=>branchOf(n)===ph)
+      .sort((a,b)=>rank(a.id)-rank(b.id)||(PRO[a.prio]??9)-(PRO[b.prio]??9)||a.label.localeCompare(b.label));
+    items.forEach(sizeFlow);
+    const H=items.reduce((s,n)=>s+n.h,0)+12*Math.max(0,items.length-1);
+    let y=-H/2;
+    items.forEach(n=>{n.x=i*(CW+GC);n.y=y+n.h/2;y+=n.h+12;colOf.set(n.id,i)});
+    cols.push({ph,items,H,x:i*(CW+GC)});
+  });
+  const maxH=Math.max(120,...cols.map(c=>c.H),120);
+  let bands="",cards="",links="",back=0;
+  cols.forEach(c=>{
+    const col=c.ph.color||accentc();
+    bands+=`<rect x="${c.x-18}" y="${-maxH/2-52}" width="${CW+36}" height="${maxH+72}" rx="12"
+      fill="${rgba(DARK?"#FFFFFF":"#0B1418",DARK?.03:.04)}" stroke="${rgba(col,.45)}" stroke-dasharray="3 5"/>`;
+    bands+=`<text x="${c.x}" y="${-maxH/2-28}" font-family="${FM}" font-size="10" letter-spacing="1.6"
+      fill="${col}">${esc(c.ph.label.split("\n")[0].toUpperCase())}</text>`;
+    bands+=`<text x="${c.x}" y="${-maxH/2-13}" font-family="${FF}" font-size="11" fill="${muted()}">${c.items.length?TrkPlugin.t("plugin_mindmap_points_count","{n} point{s}").replace("{n}",c.items.length).replace("{s}",c.items.length>1?"s":""):TrkPlugin.t("plugin_mindmap_phase_no_tasks","Aucune tâche attribuée")}</text>`;
+  });
+  list.forEach(n=>{
+    (n.deps||[]).forEach(d=>{
+      const s=IDX.get(d.id);if(!s||colOf.get(s.id)===undefined)return;
+      const cs=colOf.get(s.id), cn=colOf.get(n.id), bad=cs>cn;if(bad)back++;
+      let A,B,bow=bad?1.5:1;
+      if(cs===cn){const dn=s.y<n.y, mx=s.x+s.w-34;bow=.45;
+        A={x:mx,y:s.y+(dn?s.h/2:-s.h/2),nx:0,ny:dn?1:-1};
+        B={x:n.x+n.w-34,y:n.y+(dn?-n.h/2:n.h/2),nx:0,ny:dn?-1:1};
+      }else{A={x:s.x+s.w,y:s.y,nx:1,ny:0};B={x:n.x,y:n.y,nx:-1,ny:0}}
+      const col=bad?"#F0787A":rgba(colorOf(s),.5);
+      links+=`<path d="${curve(A,B,bow)}" stroke="${col}" stroke-width="${bad?1.7:1.1}"
+        stroke-dasharray="${bad?"6 3":"4 4"}" fill="none" marker-end="url(#ar)"/>`;
+    });
+  });
+  cards=list.map(cardSVG).join("");
+  let warn="";
+  if(back||cyc){
+    const backTxt=back?TrkPlugin.t("plugin_mindmap_warn_backward","{n} dépendance(s) remonte(nt) vers une phase antérieure").replace("{n}",back):"";
+    const cycTxt=cyc?TrkPlugin.t("plugin_mindmap_warn_cycle","dépendance circulaire détectée"):"";
+    warn=`<text x="${-18}" y="${-maxH/2-76}" font-family="${FF}" font-size="12.5" fill="#F0787A">⚠ ${backTxt}${back&&cyc?" · ":""}${cycTxt}</text>`;
+  }
+  scene.innerHTML=`<defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0,1 L7,4 L0,7 z" fill="${muted()}"/></marker></defs>
+    <g>${bands}</g>${warn}<g opacity=".9">${links}</g><g>${cards}</g>`;
+  scene.setAttribute("transform",`translate(${S.vx},${S.vy}) scale(${S.k})`);
+}
+function render(){
+  if(S.view==="flow")return renderFlow();
+  const {L,R}=layout();
+  let edges="",nodes="",dep="",hnd="";
+  const H=(x,y,end,col)=>{hnd+=`<circle cx="${x}" cy="${y}" r="6.5" fill="${bgc()}" stroke="${col}" stroke-width="2" data-h="${end}" style="cursor:crosshair"/>`};
+  [[R,1],[L,-1]].forEach(([grp,dir])=>{
+    if(!grp.length)return;
+    const bx=grp._bus, ys=grp.map(c=>c.y);
+    edges+=`<path d="M${DATA.x+(dir>0?DATA.w:0)},0 L${bx},0" stroke="${linec()}" stroke-width="1.6" fill="none"/>`;
+    edges+=`<path d="M${bx},${Math.min(...ys,0)} L${bx},${Math.max(...ys,0)}" stroke="${linec()}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+    grp.forEach(c=>{
+      const lk=c.link, on=S.link==="t:"+c.id;
+      const A={x:bx,y:c.y+(lk&&lk.busDy||0),nx:dir,ny:0};
+      let B,d0;
+      if(lk&&(lk.to||lk.busDy!=null||lk.bow!=null)){
+        B=anchorPt(c,lk.to||{s:dir>0?"l":"r",t:.5});d0=curve(A,B,lk.bow);
+      }else{B={x:dir>0?c.x:c.x+c.w,y:c.y};d0=`M${A.x},${A.y} L${B.x},${B.y}`}
+      edges+=`<path d="${d0}" stroke="rgba(0,0,0,0)" stroke-width="14" fill="none" data-tlink="${c.id}" style="cursor:pointer"/>`;
+      edges+=`<path d="${d0}" stroke="${rgba(c.color,on?1:.75)}" stroke-width="${on?2.6:1.6}" fill="none" pointer-events="none"/>`;
+      edges+=`<rect x="${A.x-3}" y="${A.y-3}" width="6" height="6" fill="${c.color}" pointer-events="none"/>`;
+      if(on){H(A.x,A.y,"from",c.color);H(B.x,B.y,"to",c.color)}
+    });
+  });
+  walk(DATA,n=>{
+    if(n._d===0||!isShown(n))return;
+    const dir=branchOf(n)?.side==="L"?-1:1, col=colorOf(n);
+    if(n._d>=2&&n._p&&kids(n._p).includes(n)){
+      const lk=n.link, on=S.link==="t:"+n.id;
+      let A,B,d0;
+      if(lk&&(lk.from||lk.to||lk.bow!=null)){
+        A=anchorPt(n._p,lk.from||{s:dir>0?"r":"l",t:.5});
+        B=anchorPt(n,lk.to||{s:dir>0?"l":"r",t:.5});
+        d0=curve(A,B,lk.bow);
+      }else{
+        A={x:dir>0?n._p.x+n._p.w:n._p.x,y:n._p.y};B={x:dir>0?n.x:n.x+n.w,y:n.y};
+        d0=elbow(A.x,A.y,B.x,B.y,dir);
+      }
+      edges+=`<path d="${d0}" stroke="rgba(0,0,0,0)" stroke-width="14" fill="none" data-tlink="${n.id}" style="cursor:pointer"/>`;
+      edges+=`<path d="${d0}" stroke="${rgba(col,on?1:(n._d===2?.55:.4))}" stroke-width="${on?2.4:1.3}" fill="none" pointer-events="none"/>`;
+      if(on){H(A.x,A.y,"from",col);H(B.x,B.y,"to",col)}
+    }
+    nodes+=nodeSVG(n);
+  });
+  nodes=nodeSVG(DATA)+nodes;
+  if(S.deps){
+    walk(DATA,n=>{
+      if(!n.deps||n._d===0||!isShown(n))return;
+      n.deps.forEach(d=>{
+        const s=IDX.get(d.id);if(!s||!isShown(s))return;
+        const [af,at]=anchorsFor(s,n,d), A=anchorPt(s,af), B=anchorPt(n,at);
+        const path=curve(A,B,d.bow), key="d:"+n.id+"|"+d.id, on=S.link===key, col=colorOf(s);
+        dep+=`<path d="${path}" stroke="rgba(0,0,0,0)" stroke-width="16" fill="none" data-link="${key}" style="cursor:pointer"/>`;
+        dep+=`<path d="${path}" stroke="${on?col:rgba(col,.55)}" stroke-width="${on?2:1.2}"
+          stroke-dasharray="${on?"7 3":"4 4"}" fill="none" marker-end="url(#ar)" pointer-events="none"/>`;
+        if(on){H(A.x,A.y,"from",col);H(B.x,B.y,"to",col)}
+      });
+    });
+  }
+  scene.innerHTML=`<defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0,1 L7,4 L0,7 z" fill="${muted()}"/></marker></defs>
+    <g>${edges}</g><g opacity=".85">${dep}</g><g>${nodes}</g><g>${hnd}</g>`;
+  scene.setAttribute("transform",`translate(${S.vx},${S.vy}) scale(${S.k})`);
+}
+function isShown(n){let c=n;while(c&&c._d>0){if(!visible(c))return false;if(c!==n&&S.folded.has(c.id))return false;c=c._p}return true}
+
+/* ---------- vue ---------- */
+function fit(){
+  render();const b=scene.getBBox(), r=canvas.getBoundingClientRect();
+  const lg=S.nolg||innerWidth<760?0:(document.querySelector(".legend").offsetHeight+26);
+  const H=Math.max(200,r.height-lg);
+  S.k=Math.min(1.05,Math.min((r.width-70)/b.width,(H-70)/b.height));
+  S.vx=r.width/2-(b.x+b.width/2)*S.k;S.vy=H/2-(b.y+b.height/2)*S.k;
+  scene.setAttribute("transform",`translate(${S.vx},${S.vy}) scale(${S.k})`);
+}
+/* ============================================================
+   INTERACTIONS — un seul gestionnaire de pointeur.
+   La cible est relevée au pointerdown (fiable) : après un
+   setPointerCapture, l'événement click est réattribué à
+   l'élément capteur et ne désigne plus la carte cliquée.
+   ============================================================ */
+let nd=null,hd=null,rd=null,pan=null,press=null,lastTap={id:null,t:0};
+const toScene=e=>{const r=canvas.getBoundingClientRect();
+  return{x:(e.clientX-r.left-S.vx)/S.k,y:(e.clientY-r.top-S.vy)/S.k}};
+function exitEdit(){S.sel=null;S.link=null;
+  $("insp").classList.remove("open");$("lnk").classList.remove("open");render()}
+
+canvas.addEventListener("pointerdown",e=>{
+  if(e.button)return;
+  const t=e.target, cl=s=>t.closest?t.closest(s):null;
+  const h=cl("[data-h]"), fo=cl("[data-fold]"), rz=cl("[data-rz]"),
+        g=cl(".nd"), dl=cl("[data-link]"), tl=cl("[data-tlink]");
+  press={x:e.clientX,y:e.clientY,moved:false,
+    kind:h?"handle":fo?"fold":rz?"resize":g?"node":dl?"dep":tl?"tree":"bg",
+    id:fo?fo.dataset.fold:rz?rz.dataset.rz:g?g.dataset.id:dl?dl.dataset.link:tl?("t:"+tl.dataset.tlink):null,
+    end:h?h.dataset.h:null};
+  const edit=!S.pres&&S.view==="map";
+  if(edit&&press.kind==="resize"){const n=IDX.get(press.id);if(n)rd={n,sx:e.clientX,sy:e.clientY,w0:n.w,h0:n.h}}
+  else if(edit&&press.kind==="handle"&&S.link)hd={end:press.end};
+  else if(edit&&press.kind==="node"){const n=IDX.get(press.id);
+    if(n&&n._d>0)nd={n,sx:e.clientX,sy:e.clientY,x0:n.dx||0,y0:n.dy||0}}
+  if(!rd&&!hd&&!nd){pan={x:e.clientX-S.vx,y:e.clientY-S.vy};canvas.classList.add("drag")}
+  try{canvas.setPointerCapture(e.pointerId)}catch(_){}
+});
+
+canvas.addEventListener("pointermove",e=>{
+  if(!press)return;
+  if(Math.abs(e.clientX-press.x)+Math.abs(e.clientY-press.y)>4)press.moved=true;
+  if(rd){const n=rd.n;
+    n.w0=Math.max(150,Math.min(540,rd.w0+(e.clientX-rd.sx)/S.k));
+    n.h0=Math.max(42,rd.h0+(e.clientY-rd.sy)/S.k);render();scheduleSave();return}
+  if(hd&&S.link){
+    const p=toScene(e);
+    if(S.link.startsWith("d:")){
+      const[o,i]=S.link.slice(2).split("|"), own=IDX.get(o);
+      const d=(own&&own.deps||[]).find(x=>x.id===i);if(!d)return;
+      d[hd.end]=nearestAnchor(hd.end==="from"?IDX.get(i):own,p.x,p.y);
+    }else{
+      const n=IDX.get(S.link.slice(2));if(!n)return;n.link=n.link||{};
+      if(hd.end==="to")n.link.to=nearestAnchor(n,p.x,p.y);
+      else if(n._d>=2)n.link.from=nearestAnchor(n._p,p.x,p.y);
+      else n.link.busDy=Math.max(-200,Math.min(200,p.y-n.y));
+    }
+    render();scheduleSave();return;
+  }
+  if(nd){nd.n.dx=nd.x0+(e.clientX-nd.sx)/S.k;nd.n.dy=nd.y0+(e.clientY-nd.sy)/S.k;render();scheduleSave();return}
+  if(pan){S.vx=e.clientX-pan.x;S.vy=e.clientY-pan.y;
+    scene.setAttribute("transform",`translate(${S.vx},${S.vy}) scale(${S.k})`)}
+});
+
+function finish(e){
+  const p=press;press=null;nd=hd=rd=pan=null;canvas.classList.remove("drag");
+  try{if(e&&e.pointerId!=null&&canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId)}catch(_){}
+  if(!p||p.moved||S.pres)return;
+  if(p.kind==="handle")return;
+  if(p.kind==="fold"){S.folded.delete(p.id);render();scheduleSave();return}
+  if(p.kind==="node"||p.kind==="resize"){
+    const now=Date.now();
+    if(lastTap.id===p.id&&now-lastTap.t<400&&S.view==="map"){
+      lastTap={id:null,t:0};const n=IDX.get(p.id);
+      if(n&&(n.children||[]).length){S.folded.has(n.id)?S.folded.delete(n.id):S.folded.add(n.id);render();scheduleSave();return}
+    }
+    lastTap={id:p.id,t:now};select(p.id);return;
+  }
+  if(p.kind==="dep"||p.kind==="tree"){selectLink(p.id);return}
+  exitEdit();
+}
+canvas.addEventListener("pointerup",finish);
+canvas.addEventListener("pointercancel",finish);
+addEventListener("blur",()=>{press=null;nd=hd=rd=pan=null;canvas.classList.remove("drag")});
+
+canvas.addEventListener("wheel",e=>{e.preventDefault();
+  const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  const k=Math.min(2.2,Math.max(.28,S.k*(e.deltaY<0?1.12:.89)));
+  S.vx=mx-(mx-S.vx)*k/S.k;S.vy=my-(my-S.vy)*k/S.k;S.k=k;
+  scene.setAttribute("transform",`translate(${S.vx},${S.vy}) scale(${S.k})`)},{passive:false});
+
+/* ---------- inspecteur ---------- */
+function pathOf(n){const p=[];let c=n;while(c){p.unshift(c.label.split("\n")[0]);c=c._p}return p.slice(1).join(" › ")||TrkPlugin.t("plugin_mindmap_root_label","Racine")}
+function select(id){
+  S.sel=id;S.link=null;$("lnk").classList.remove("open");
+  const n=IDX.get(id);if(!n)return;
+  $("insp").classList.add("open");
+  $("iPath").textContent=pathOf(n);
+  $("iLabel").value=n.label;$("iPrio").value=n.prio||"";
+  $("iStat").value=n.stat||"todo";$("iOwner").value=n.owner||"";$("iNote").value=n.note||"";
+  const sub=new Set();walk(n,x=>sub.add(x.id));
+  $("iDeps").innerHTML=[...IDX.values()].filter(x=>x._d>0&&!sub.has(x.id))
+    .map(x=>`<label><input type="checkbox" value="${x.id}" ${(n.deps||[]).some(d=>d.id===x.id)?"checked":""}>
+      <span>${esc(x.label.split("\n")[0])}</span></label>`).join("");
+  const isPhase=n._d===1;
+  $("iColorRow").style.display=isPhase?"":"none";
+  if(isPhase)$("iColor").value=n.color||accentc();
+  $("iPhaseTasks").style.display=isPhase?"":"none";
+  $("iTaskLinkBlock").style.display=isPhase?"none":"";
+  if(isPhase){$("iPhaseTaskSearch").value="";renderPhaseTasks(n)}else renderTaskLink(n);
+  render();
+}
+function cur(){return IDX.get(S.sel)}
+const bind=(el,fn)=>$(el).addEventListener("input",()=>{const n=cur();if(!n)return;fn(n);render();scheduleSave()});
+$("iLabel").addEventListener("input",()=>{const n=cur();if(!n)return;n.label=$("iLabel").value;
+  if(n._d===1)syncPhaseUI();render();scheduleSave()});
+$("iColor").addEventListener("input",()=>{const n=cur();if(!n||n._d!==1)return;
+  n.color=$("iColor").value;render();scheduleSave()});
+bind("iPrio",n=>n.prio=$("iPrio").value||null);
+bind("iStat",n=>n.stat=$("iStat").value);
+bind("iOwner",n=>n.owner=$("iOwner").value);
+bind("iNote",n=>n.note=$("iNote").value);
+$("iDeps").addEventListener("change",()=>{const n=cur();if(!n)return;
+  const old=n.deps||[];
+  n.deps=[...$("iDeps").querySelectorAll("input:checked")].map(i=>old.find(d=>d.id===i.value)||{id:i.value});render();scheduleSave()});
+$("iClose").onclick=()=>exitEdit();
+
+/* ---------- lien vers une tâche (lecture seule) ---------- */
+let TASKS=new Map();
+function updateTasks(){
+  TASKS=new Map((TrkPlugin.tasks()||[]).map(t=>[t.id,t]));
+  render();
+  const n=cur();if(n){if(n._d===1)renderPhaseTasks(n);else renderTaskLink(n)}
+}
+function renderTaskLink(n){
+  const ref=(n.refs||[]).find(r=>r.kind==="task");
+  const linked=$("iTaskLinked"), search=$("iTaskSearchWrap");
+  if(ref){
+    linked.style.display="";search.style.display="none";
+    const task=TASKS.get(ref.id);
+    $("iTaskLinkedInfo").innerHTML=task
+      ?`<b>${esc(task.titre)}</b>${esc(task.statutLabel)}${task.minutes?" · "+task.minutes+" "+esc(TrkPlugin.t("plugin_mindmap_minutes_suffix","min")):""}`
+      :`<span class="warn">${esc(TrkPlugin.t("plugin_mindmap_task_missing","Tâche introuvable"))}</span>`;
+  }else{
+    linked.style.display="none";search.style.display="";
+    $("iTaskSearch").value="";renderTaskSearch("");
+  }
+}
+function renderTaskSearch(q){
+  const needle=q.trim().toLowerCase();
+  const list=[...TASKS.values()].filter(t=>!needle||t.titre.toLowerCase().includes(needle)).slice(0,30);
+  $("iTaskList").innerHTML=list.length?list.map(t=>
+    `<label data-task="${t.id}"><span>${esc(t.titre)}</span> <span class="hint" style="margin:0">· ${esc(t.projet)}</span></label>`
+  ).join(""):`<div class="hint" style="padding:6px">${esc(TrkPlugin.t("plugin_mindmap_task_none","Aucune tâche"))}</div>`;
+}
+$("iTaskSearch").addEventListener("input",e=>renderTaskSearch(e.target.value));
+$("iTaskList").addEventListener("click",e=>{
+  const row=e.target.closest("[data-task]");if(!row)return;
+  const n=cur();if(!n)return;
+  n.refs=[{kind:"task",id:row.dataset.task}];render();scheduleSave();renderTaskLink(n);
+});
+$("iTaskOpen").onclick=()=>{const n=cur();const ref=n&&(n.refs||[]).find(r=>r.kind==="task");if(ref)TrkPlugin.revealTask(ref.id)};
+$("iTaskUnlink").onclick=()=>{const n=cur();if(!n)return;n.refs=[];render();scheduleSave();renderTaskLink(n)};
+
+/* ---------- attribution de tâches du backlog à une phase ----------
+   Une phase se peuple en choisissant des tâches déjà créées ailleurs dans
+   l'appli (jamais créées ici : capacité "tasks:read" seulement). Chaque choix
+   crée un point enfant qui hérite la priorité et l'état de la tâche ; toute
+   tâche déjà attribuée à une phase disparaît des résultats de recherche. */
+function mapPrio(p){return p==="critique"?"P0":p==="haute"?"P1":"P2"}
+function mapStat(s){return(s==="done"||s==="termine")?"done":(s==="todo"||s==="analyser")?"todo":"doing"}
+function attachedTaskIds(){return new Set(collectRefs().filter(r=>r.kind==="task").map(r=>r.id))}
+function attachTaskToPhase(phase,task){
+  const n={id:uid(),label:task.titre,prio:mapPrio(task.priorite),stat:mapStat(task.statut),deps:[],children:[],refs:[{kind:"task",id:task.id}]};
+  phase.children=phase.children||[];phase.children.push(n);
+  S.folded.delete(phase.id);IDX=index();
+  renderPhaseTasks(phase);render();scheduleSave();
+}
+function renderPhaseTasks(phase){
+  const items=(phase.children||[]).map(c=>({node:c,ref:(c.refs||[]).find(r=>r.kind==="task")})).filter(x=>x.ref);
+  $("iPhaseTaskList").innerHTML=items.length?items.map(({node,ref})=>{
+    const task=TASKS.get(ref.id);
+    const label=task?esc(task.titre):`<span class="warn">${esc(TrkPlugin.t("plugin_mindmap_task_missing","Tâche introuvable"))}</span>`;
+    const chip=node.prio?`<span class="chip">${node.prio}</span>`:"";
+    const title=task?task.titre:"";
+    return `<label style="cursor:default"><span style="flex:1">${label}</span> ${chip}
+      <button class="tb danger" data-detach="${node.id}" style="padding:2px 7px;font-size:11px"
+        aria-label="${esc(TrkPlugin.t('plugin_mindmap_detach_task','Retirer {t}').replace('{t}',title))}">×</button></label>`;
+  }).join(""):`<div class="hint" style="padding:6px">${esc(TrkPlugin.t("plugin_mindmap_phase_no_tasks","Aucune tâche attribuée"))}</div>`;
+  renderPhaseTaskPicker(phase);
+}
+function renderPhaseTaskPicker(phase){
+  const used=attachedTaskIds(), q=($("iPhaseTaskSearch").value||"").trim().toLowerCase();
+  const list=[...TASKS.values()].filter(t=>!used.has(t.id)&&(!q||t.titre.toLowerCase().includes(q))).slice(0,30);
+  $("iPhaseTaskPicker").innerHTML=list.length?list.map(t=>
+    `<label data-pick="${t.id}"><span style="flex:1">${esc(t.titre)}</span>
+      <span class="chip" style="border-color:${t.prioriteColor};color:${t.prioriteColor}">${esc(t.prioriteLabel)}</span></label>`
+  ).join(""):`<div class="hint" style="padding:6px">${esc(TrkPlugin.t(q?"plugin_mindmap_task_none":"plugin_mindmap_backlog_empty",q?"Aucune correspondance":"Backlog vide"))}</div>`;
+}
+$("iPhaseTaskSearch").addEventListener("input",()=>{const n=cur();if(n&&n._d===1)renderPhaseTaskPicker(n)});
+$("iPhaseTaskList").addEventListener("click",e=>{
+  const b=e.target.closest("[data-detach]");if(!b)return;
+  const n=cur();if(!n||n._d!==1)return;
+  n.children=(n.children||[]).filter(c=>c.id!==b.dataset.detach);
+  IDX=index();renderPhaseTasks(n);render();scheduleSave();
+});
+$("iPhaseTaskPicker").addEventListener("click",e=>{
+  const row=e.target.closest("[data-pick]");if(!row)return;
+  const phase=cur();if(!phase||phase._d!==1)return;
+  const task=TASKS.get(row.dataset.pick);if(!task)return;
+  attachTaskToPhase(phase,task);
+});
+
+/* ---------- confirmation en deux clics ----------
+   confirm()/alert() natifs sont bloqués par le sandbox de l'iframe (pas
+   d'allow-modals) : un deuxième clic dans les ~2,5s vaut confirmation. */
+function armConfirm(btn,run){
+  if(btn.dataset.armed){delete btn.dataset.armed;btn.textContent=btn.dataset.label;run();return}
+  btn.dataset.label=btn.dataset.label||btn.textContent;
+  btn.dataset.armed="1";btn.textContent=TrkPlugin.t("plugin_mindmap_confirm_prompt","Confirmer ?");
+  setTimeout(()=>{if(btn.dataset.armed){delete btn.dataset.armed;btn.textContent=btn.dataset.label}},2500);
+}
+
+function addNode(parent,after){
+  const isPhase=parent._d===0;
+  const n={id:uid(),label:isPhase?TrkPlugin.t("plugin_mindmap_new_phase","Nouvelle phase"):TrkPlugin.t("plugin_mindmap_new_point","Nouveau point"),
+    stat:"todo",deps:[],children:[]};
+  if(!isPhase)n.prio="P1";
+  if(isPhase){n.color=PALETTE[(parent.children||[]).length%PALETTE.length];
+    const l=parent.children.filter(c=>c.side==="L").length;n.side=l*2<parent.children.length?"L":"R"}
+  parent.children=parent.children||[];
+  parent.children.splice(after!=null?after+1:parent.children.length,0,n);
+  S.folded.delete(parent.id);IDX=index();select(n.id);$("iLabel").focus();$("iLabel").select();
+  if(isPhase)syncPhaseUI();
+  scheduleSave();
+}
+$("aChild").onclick=()=>{const n=cur();if(n)addNode(n)};
+$("aSib").onclick=()=>{const n=cur();if(n&&n._p)addNode(n._p,n._p.children.indexOf(n))};
+$("aDel").onclick=e=>armConfirm(e.currentTarget,()=>{
+  const n=cur();if(!n||!n._p)return;
+  const wasPhase=n._d===1;
+  n._p.children.splice(n._p.children.indexOf(n),1);
+  walk(DATA,x=>{if(x.deps)x.deps=x.deps.filter(d=>d.id!==n.id)});
+  S.sel=null;$("insp").classList.remove("open");IDX=index();
+  if(wasPhase){if(S.phase===n.id)S.phase="";syncPhaseUI()}
+  render();scheduleSave();
+});
+const move=d=>{const n=cur();if(!n||!n._p)return;const a=n._p.children,i=a.indexOf(n),j=i+d;
+  if(j<0||j>=a.length)return;a.splice(i,1);a.splice(j,0,n);render();scheduleSave()};
+$("aUp").onclick=()=>move(-1);$("aDown").onclick=()=>move(1);
+$("aSize").onclick=()=>{const n=cur();if(!n)return;delete n.w0;delete n.h0;render();scheduleSave()};
+$("bAdd").onclick=()=>addNode(DATA);
+
+/* ---------- panneau lien ---------- */
+const lab=n=>n?n.label.split("\n")[0]:"?";
+function curLink(){
+  if(!S.link)return null;
+  if(S.link.startsWith("d:")){const[o,i]=S.link.slice(2).split("|");
+    return (IDX.get(o)?.deps||[]).find(x=>x.id===i)||null}
+  const n=IDX.get(S.link.slice(2));if(!n)return null;n.link=n.link||{};return n.link;
+}
+function selectLink(key){
+  S.link=key;S.sel=null;$("insp").classList.remove("open");
+  const d=curLink();if(!d)return;
+  let bus=false;
+  if(key.startsWith("d:")){const[o,i]=key.slice(2).split("|");
+    $("lTitle").textContent=TrkPlugin.t("plugin_mindmap_link_dep","Dépendance")+" · "+lab(IDX.get(i))+"  →  "+lab(IDX.get(o));}
+  else{const n=IDX.get(key.slice(2));bus=n._d===1;
+    $("lTitle").textContent=TrkPlugin.t("plugin_mindmap_link_link","Liaison")+" · "+(bus?TrkPlugin.t("plugin_mindmap_link_bus","Axe central"):lab(n._p))+"  →  "+lab(n);}
+  $("lDel").style.display=key.startsWith("d:")?"":"none";
+  $("lFrom").disabled=bus;
+  $("lFrom").value=d.from?d.from.s:"";$("lTo").value=d.to?d.to.s:"";
+  $("lBow").value=d.bow==null?1:d.bow;$("lBowV").textContent=(+$("lBow").value).toFixed(1);
+  $("lnk").classList.add("open");render();
+}
+const setEnd=(k,v)=>{const d=curLink();if(!d)return;
+  if(!v)delete d[k];else d[k]={s:v,t:d[k]?d[k].t:.5};render();scheduleSave()};
+$("lFrom").onchange=e=>setEnd("from",e.target.value);
+$("lTo").onchange=e=>setEnd("to",e.target.value);
+$("lBow").oninput=e=>{const d=curLink();if(!d)return;d.bow=+e.target.value;
+  $("lBowV").textContent=(+e.target.value).toFixed(1);render();scheduleSave()};
+$("lAuto").onclick=()=>{const d=curLink();if(!d)return;
+  delete d.from;delete d.to;delete d.bow;delete d.busDy;selectLink(S.link);scheduleSave()};
+$("lDel").onclick=()=>{const d=curLink();if(!d)return;const[o]=S.link.slice(2).split("|");
+  const own=IDX.get(o);own.deps=own.deps.filter(x=>x!==d);
+  S.link=null;$("lnk").classList.remove("open");render();scheduleSave()};
+$("lClose").onclick=()=>{S.link=null;$("lnk").classList.remove("open");render()};
+
+/* ---------- barre d'outils ---------- */
+$("fPrio").onchange=e=>{S.prio=e.target.value;render()};
+$("fPhase").onchange=e=>{S.phase=e.target.value;render()};
+$("bDeps").onclick=e=>{S.deps=!S.deps;e.target.classList.toggle("on",S.deps);render()};
+$("bFold").onclick=e=>{
+  if(S.folded.size){S.folded.clear();e.target.textContent=TrkPlugin.t("plugin_mindmap_collapse","Replier")}
+  else{walk(DATA,n=>{if(n._d>=1&&(n.children||[]).length)S.folded.add(n.id)});e.target.textContent=TrkPlugin.t("plugin_mindmap_expand","Déplier")}
+  fit();scheduleSave()};
+$("vMode").onchange=e=>{S.view=e.target.value;exitEdit();fit();scheduleSave()};
+$("bSort").onclick=()=>{
+  IDX=index();const {rank}=ranks();
+  walk(DATA,n=>{if(n._d===0||!n.children)return;
+    n.children.sort((a,b)=>rank(a.id)-rank(b.id)||(PRO[a.prio]??9)-(PRO[b.prio]??9))});
+  fit();scheduleSave();
+};
+/* liste de phases affichée dans le filtre du flux : reconstruite après toute
+   création/suppression/renommage d'une phase, jamais à chaque frame de rendu. */
+function syncPhaseUI(){
+  const phases=DATA.children||[], sel=$("fPhase"), prev=sel.value;
+  sel.innerHTML=`<option value="">${esc(TrkPlugin.t("plugin_mindmap_phase_all","Toutes phases"))}</option>`+
+    phases.map(p=>`<option value="${p.id}">${esc(p.label.split("\n")[0])}</option>`).join("");
+  sel.value=phases.some(p=>p.id===prev)?prev:"";
+  S.phase=sel.value;
+}
+$("bPres").onclick=e=>{S.pres=!S.pres;document.body.classList.toggle("pres",S.pres);
+  e.target.textContent=S.pres?TrkPlugin.t("plugin_mindmap_edit","Éditer"):TrkPlugin.t("plugin_mindmap_present","Présentation");e.target.classList.toggle("on",S.pres);
+  if(S.pres)exitEdit();else render()};
+/* Le plein écran est un changement de mise en page côté hôte (capacité
+   "fullscreen") : ce plugin ne fait que le demander/le relâcher et refléter
+   l'état dans son propre bouton — l'hôte peut aussi le couper (ex. on
+   change de plugin), d'où setFullscreen() plutôt qu'un simple toggle inline. */
+function setFullscreen(on){
+  S.full=on;
+  const b=$("bFull");
+  b.textContent=on?TrkPlugin.t("plugin_mindmap_exit_fullscreen","Quitter le plein écran"):TrkPlugin.t("plugin_mindmap_fullscreen","Plein écran");
+  b.classList.toggle("on",on);
+}
+$("bFull").onclick=()=>{setFullscreen(!S.full);TrkPlugin.requestFullscreen(S.full)};
+$("bLegend").onclick=e=>{S.nolg=!S.nolg;document.body.classList.toggle("nolg",S.nolg);
+  e.target.textContent=S.nolg?TrkPlugin.t("plugin_mindmap_legend_show","Afficher la légende"):TrkPlugin.t("plugin_mindmap_legend_hide","Masquer la légende");fit()};
+$("bMore").onclick=e=>{e.stopPropagation();$("menu").classList.toggle("open")};
+$("menu").onclick=()=>$("menu").classList.remove("open");
+addEventListener("click",()=>$("menu").classList.remove("open"));
+$("bFit").onclick=fit;
+$("bReset").onclick=e=>armConfirm(e.currentTarget,()=>{
+  walk(DATA,n=>{delete n.dx;delete n.dy;delete n.w0;delete n.h0;delete n.link;
+    (n.deps||[]).forEach(d=>{delete d.from;delete d.to;delete d.bow})});
+  S.link=null;$("lnk").classList.remove("open");fit();scheduleSave();
+});
+
+/* ---------- persistance : document du plugin, plus de téléchargement direct ---------- */
+function collectRefs(){
+  const out=[],seen=new Set();
+  walk(DATA,n=>{(n.refs||[]).forEach(r=>{const key=r.kind+":"+r.id;if(!seen.has(key)){seen.add(key);out.push(r)}})});
+  return out;
+}
+function cleanData(){
+  return JSON.parse(JSON.stringify(DATA,(k,v)=>k.startsWith("_")||["x","y","w","h"].includes(k)?undefined:v));
+}
+let saveTimer=null;
+function scheduleSave(){
+  TrkPlugin.markDirty(true);
+  if(saveTimer)clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    saveTimer=null;
+    TrkPlugin.save({data:{root:cleanData(),view:S.view,folded:[...S.folded]},dataVersion:1,refs:collectRefs()});
+    TrkPlugin.markDirty(false);
+  },300);
+}
+$("bExport").onclick=()=>{
+  const payload={root:cleanData(),view:S.view,folded:[...S.folded]};
+  TrkPlugin.saveFile({name:(document.title||"carte-mentale")+".json",mime:"application/json",text:JSON.stringify(payload,null,2)});
+};
+/* Import : remplace la carte en cours par un JSON exporté (même format que
+   `bExport`). Fichier lu par le navigateur (`FileReader`), jamais par
+   l'hôte — l'iframe sandboxée n'a besoin d'aucun privilège supplémentaire
+   pour ça, contrairement à l'écriture (`plugin:file:save`) qui doit passer
+   par un dialogue natif côté process principal. Une fois la carte remplacée,
+   `scheduleSave()` la fait persister via le même canal que l'auto-save
+   habituel : l'import ne fait qu'écrire le document autrement, il n'invente
+   pas un second mécanisme de sauvegarde.
+   Le clic sur le bouton doit rester le DÉCLENCHEUR DIRECT de `fImport.click()`
+   (aucun armement avant) : Chrome n'ouvre le sélecteur de fichier natif que
+   dans la pile d'un vrai geste utilisateur, et `armConfirm()` aurait consommé
+   ce geste sur le premier clic sans jamais ouvrir de dialogue — c'était le
+   bug initial (« l'import n'ouvre pas de popup »). La confirmation à deux
+   clics (même motif que `aDel`/`bReset`) s'arme donc APRÈS coup, une fois le
+   fichier choisi et validé, sur un second clic qui n'a plus besoin d'ouvrir
+   quoi que ce soit. */
+function importError(reason){
+  console.warn("[mindmap] import refusé"+(reason?" : "+reason:""));
+  TrkPlugin.toast(TrkPlugin.t("plugin_mindmap_import_error","Fichier invalide : ce n'est pas une carte exportée depuis ce plugin."));
+}
+let pendingImport=null,importArmTimer=null;
+function disarmImport(){
+  const btn=$("bImport");
+  if(btn.dataset.armed){delete btn.dataset.armed;btn.textContent=btn.dataset.label}
+  pendingImport=null;
+}
+function armImport(payload){
+  pendingImport=payload;
+  const btn=$("bImport");
+  btn.dataset.label=btn.dataset.label||btn.textContent;
+  btn.dataset.armed="1";
+  btn.textContent=TrkPlugin.t("plugin_mindmap_confirm_prompt","Confirmer ?");
+  clearTimeout(importArmTimer);
+  importArmTimer=setTimeout(disarmImport,4000);
+}
+$("bImport").onclick=e=>{
+  const btn=e.currentTarget;
+  if(btn.dataset.armed&&pendingImport){
+    clearTimeout(importArmTimer);
+    const payload=pendingImport;disarmImport();
+    DATA=payload.root;
+    S.view=payload.view==="flow"?"flow":"map";
+    S.folded=new Set(Array.isArray(payload.folded)?payload.folded:[]);
+    S.sel=null;S.link=null;$("insp").classList.remove("open");$("lnk").classList.remove("open");
+    normDeps();IDX=index();$("vMode").value=S.view;syncPhaseUI();fit();
+    scheduleSave();
+    console.log("[mindmap] import : carte remplacée et sauvegarde programmée");
+    TrkPlugin.toast(TrkPlugin.t("plugin_mindmap_import_success","Carte importée."));
+    return;
+  }
+  console.log("[mindmap] import : ouverture du sélecteur de fichier");
+  $("fImport").click();
+};
+$("fImport").addEventListener("change",e=>{
+  const file=e.target.files&&e.target.files[0];
+  e.target.value=""; // pour pouvoir réimporter le même fichier ensuite
+  if(!file){console.log("[mindmap] import : sélection annulée");return}
+  console.log("[mindmap] import : fichier choisi",file.name,file.size+" o");
+  const reader=new FileReader();
+  reader.onerror=()=>importError("lecture du fichier échouée");
+  reader.onload=()=>{
+    let payload;
+    try{payload=JSON.parse(String(reader.result))}catch(err){importError("JSON invalide ("+err.message+")");return}
+    if(!payload||typeof payload!=="object"||!payload.root||typeof payload.root.id!=="string"){importError("structure inattendue (pas de champ root.id)");return}
+    console.log("[mindmap] import : fichier valide, confirmation demandée");
+    armImport(payload);
+  };
+  reader.readAsText(file);
+});
+$("bPng").onclick=()=>{
+  const b=scene.getBBox(),m=40,w=b.width+2*m,h=b.height+2*m,s=2;
+  const out=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${b.x-m} ${b.y-m} ${w} ${h}">
+    <rect x="${b.x-m}" y="${b.y-m}" width="${w}" height="${h}" fill="${bgc()}"/>${scene.innerHTML}</svg>`;
+  const img=new Image();
+  img.onload=()=>{const c=document.createElement("canvas");c.width=w*s;c.height=h*s;
+    const x=c.getContext("2d");x.scale(s,s);x.drawImage(img,0,0);
+    try{
+      const dataUrl=c.toDataURL("image/png");
+      TrkPlugin.saveFile({name:(document.title||"carte-mentale")+".png",mime:"image/png",base64:dataUrl.split(",")[1]});
+    }catch(err){TrkPlugin.toast(TrkPlugin.t("plugin_mindmap_png_error","Export PNG bloqué ici. Enregistrez le fichier et ouvrez-le dans un navigateur."))}};
+  img.onerror=()=>TrkPlugin.toast(TrkPlugin.t("plugin_mindmap_png_unavailable","Export PNG indisponible dans ce contexte. Utilisez « Enregistrer » puis ouvrez le fichier localement."));
+  img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(out);
+};
+
+/* ---------- vue synthèse ---------- */
+$("bSynth").onclick=()=>{
+  IDX=index();
+  const order={P0:0,P1:1,P2:2,"":3};
+  let html="";let total=0;
+  (DATA.children||[]).forEach(ph=>{
+    const list=actionables().filter(n=>branchOf(n)===ph).sort((a,b)=>(order[a.prio||""]-order[b.prio||""]));
+    total+=list.length;
+    html+=`<div class="ph" style="color:${ph.color||accentc()};border-color:${rgba(ph.color||accentc(),.5)}">${esc(ph.label.split("\n")[0])} · ${TrkPlugin.t("plugin_mindmap_points_count","{n} point{s}").replace("{n}",list.length).replace("{s}",list.length>1?"s":"")}</div>`;
+    if(!list.length){html+=`<div class="hint" style="margin:0 0 10px">${esc(TrkPlugin.t("plugin_mindmap_phase_no_tasks","Aucune tâche attribuée"))}</div>`;return}
+    html+="<table>";
+    list.forEach(n=>{
+      const deps=(n.deps||[]).map(d=>IDX.get(d.id)?.label.split("\n")[0]).filter(Boolean);
+      html+=`<tr><td class="p">${n.prio||"—"}</td><td class="b">${esc(branchOf(n)?.label||"")}</td>
+        <td>${esc(n.label)}${deps.length?`<span class="dep-note">${esc(TrkPlugin.t("plugin_mindmap_after","après :"))} ${esc(deps.join(" · "))}</span>`:""}</td>
+        <td class="s">${esc((STAT[n.stat]||STAT.todo).l)}${n.owner?" · "+esc(n.owner):""}</td></tr>`;
+    });html+="</table>";
+  });
+  $("mSub").textContent=TrkPlugin.t("plugin_mindmap_plan_sub","{n} points, triés par phase puis par priorité. Les dépendances indiquent ce qui doit être fait avant.").replace("{n}",total);
+  $("mBody").innerHTML=html;$("modal").classList.add("open");
+};
+$("mClose").onclick=()=>$("modal").classList.remove("open");
+$("modal").onclick=e=>{if(e.target.id==="modal")$("modal").classList.remove("open")};
+addEventListener("keydown",e=>{if(e.key==="Escape"){
+  $("modal").classList.remove("open");exitEdit();
+  if(S.full){setFullscreen(false);TrkPlugin.requestFullscreen(false)}
+}});
+
+const barEl=document.querySelector('.bar');
+const syncBar=()=>{canvas.style.top=barEl.offsetHeight+'px'};
+new ResizeObserver(syncBar).observe(barEl);syncBar();
+// L'app hôte redimensionne l'iframe (bascule de vue, sidebar…) sans que la
+// fenêtre de haut niveau change de taille : un ResizeObserver sur le corps
+// du document capte ce cas, que le `resize` de window ne couvre pas toujours.
+new ResizeObserver(()=>{syncBar();render()}).observe(document.body);
+addEventListener("resize",()=>{syncBar();render()});
+
+/* ---------- i18n ---------- */
+function applyI18n(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{el.textContent=TrkPlugin.t(el.getAttribute("data-i18n"),el.textContent)});
+  document.querySelectorAll("[data-i18n-title]").forEach(el=>{el.title=TrkPlugin.t(el.getAttribute("data-i18n-title"),el.title)});
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el=>{el.placeholder=TrkPlugin.t(el.getAttribute("data-i18n-placeholder"),el.placeholder)});
+  document.querySelectorAll("[data-i18n-aria-label]").forEach(el=>{el.setAttribute("aria-label",TrkPlugin.t(el.getAttribute("data-i18n-aria-label"),el.getAttribute("aria-label")))});
+}
+function applyDomainI18n(){
+  STAT.todo.l=TrkPlugin.t("plugin_mindmap_stat_todo","À faire");
+  STAT.doing.l=TrkPlugin.t("plugin_mindmap_stat_doing","En cours");
+  STAT.done.l=TrkPlugin.t("plugin_mindmap_stat_done","Terminé");
+  STAT.decision.l=TrkPlugin.t("plugin_mindmap_stat_decision","À décider");
+}
+
+/* ---------- thème et titre pilotés par l'hôte ---------- */
+function applyHostTheme(theme){
+  if(!theme||!theme.tokens)return;
+  DARK=!!theme.dark;
+  const t=theme.tokens, r=document.documentElement.style;
+  if(t["--bg"])r.setProperty("--bg",t["--bg"]);
+  if(t["--panel"])r.setProperty("--panel",t["--panel"]);
+  if(t["--panel-alt"])r.setProperty("--panel-2",t["--panel-alt"]);
+  if(t["--border"]){r.setProperty("--line",t["--border"]);r.setProperty("--line-2",t["--border"])}
+  if(t["--text"])r.setProperty("--ink",t["--text"]);
+  if(t["--text-dim"])r.setProperty("--muted",t["--text-dim"]);
+  if(t["--accent"])r.setProperty("--accent",t["--accent"]);
+  render();
+}
+function applyTitle(title){
+  document.title=title||TrkPlugin.t("plugin_mindmap_untitled","Sans titre");
+  $("brandTitle").textContent=document.title;
+}
+
+/* ---------- document du plugin ---------- */
+let loadedDocId=null;
+function loadDoc(doc){
+  applyTitle(doc&&doc.title);
+  // Un même id de document ne peut changer ici que par un renommage côté
+  // hôte : recharger l'arbre entier écraserait la sélection, le pan/zoom et
+  // le pli en cours pour rien (et créerait un écho après notre propre
+  // sauvegarde, puisque l'hôte nous renvoie le document à chaque patch).
+  if(doc&&doc.id===loadedDocId)return;
+  loadedDocId=doc?doc.id:null;
+  const data=doc&&doc.data;
+  DATA=(data&&data.root)?data.root:DEFAULT_DATA();
+  S.view=(data&&data.view)||"map";S.folded=new Set((data&&data.folded)||[]);
+  S.sel=null;S.link=null;$("insp").classList.remove("open");$("lnk").classList.remove("open");
+  normDeps();IDX=index();$("vMode").value=S.view;
+  syncPhaseUI();
+  fit();
+}
+
+/* ---------- amorçage ---------- */
+DATA=DEFAULT_DATA();normDeps();syncPhaseUI();fit(); // premier rendu, avant même la connexion à l'hôte
+TrkPlugin.ready().then(init=>{
+  applyI18n();applyDomainI18n();
+  applyHostTheme(init.theme);
+  updateTasks();
+  loadDoc(init.doc);
+});
+TrkPlugin.on("doc",loadDoc);
+TrkPlugin.on("snapshot",updateTasks);
+TrkPlugin.on("theme",applyHostTheme);
+TrkPlugin.on("lang",()=>{applyI18n();applyDomainI18n();render()});
+// L'hôte peut couper le plein écran de son propre chef (bouton de sortie
+// côté hôte, Échap) : on aligne juste notre bouton, sans renvoyer
+// `requestFullscreen` (cf. setFullscreen, pas de round-trip infini).
+TrkPlugin.on("fullscreen",setFullscreen);
+</script>
