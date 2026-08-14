@@ -58,10 +58,70 @@ function buildFromCandidates(
   return { plugins: [...byId.values()], errors };
 }
 
+/**
+ * PoC du format `trk.extension/2` : un plugin est un dossier `plugins/<id>/`
+ * avec un `manifest.json`. Seules les vues déclaratives sont gérées ici — elles
+ * n'ont besoin d'aucune iframe, d'aucune origine et d'aucun protocole, donc
+ * d'aucune modification du processus principal.
+ *
+ * Raccourci assumé de la démonstration : `import.meta.glob` embarque le contenu
+ * des fichiers au build, ce qui rend la démo visible aussi dans l'app packagée.
+ * La découverte réellement dynamique (déposer un dossier à côté de
+ * l'exécutable) demande d'étendre l'IPC `plugins:list` aux dossiers.
+ */
+function discoverDeclarative(): PluginSource[] {
+  const manifests = import.meta.glob("/plugins/*/manifest.json", { query: "?raw", import: "default", eager: true });
+  const specs = import.meta.glob("/plugins/*/views/*.trkv", { query: "?raw", import: "default", eager: true });
+
+  const out: PluginSource[] = [];
+  for (const [path, json] of Object.entries(manifests)) {
+    let manifest: Record<string, unknown>;
+    try {
+      manifest = JSON.parse(json) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (manifest.format !== "trk.extension/2" || typeof manifest.id !== "string") continue;
+
+    const contributes = manifest.contributes as { views?: Record<string, unknown>[] } | undefined;
+    const view = contributes?.views?.find((v) => v.kind === "declarative");
+    if (!view || typeof view.spec !== "string") continue;
+
+    const dir = path.slice(0, path.lastIndexOf("/"));
+    const raw = specs[`${dir}/${view.spec}`];
+    if (!raw) continue;
+    let spec: Record<string, unknown>;
+    try {
+      spec = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+
+    out.push({
+      manifest: {
+        id: manifest.id,
+        version: typeof manifest.version === "string" ? manifest.version : "0.0.0",
+        apiVersion: 1,
+        name: (manifest.name ?? manifest.id) as PluginSource["manifest"]["name"],
+        capabilities: ["tasks:read"],
+        ...(typeof manifest.icon === "string" ? { icon: manifest.icon } : {}),
+      },
+      url: "",
+      origin: "builtin",
+      file: `${manifest.id}/manifest.json`,
+      declarative: spec,
+    });
+  }
+  return out;
+}
+
 export async function discoverPlugins(): Promise<{ plugins: PluginSource[]; errors: PluginLoadError[] }> {
+  const declarative = discoverDeclarative();
+
   if (hasIpc()) {
     const raw = await window.plugins!.list();
-    return buildFromCandidates(raw, (file) => `app-plugin://local/${file}`);
+    const found = buildFromCandidates(raw, (file) => `app-plugin://local/${file}`);
+    return { plugins: [...found.plugins, ...declarative], errors: found.errors };
   }
 
   // Hors Electron : Vite sert la racine du projet, `plugins/*.html` y est
@@ -72,7 +132,8 @@ export async function discoverPlugins(): Promise<{ plugins: PluginSource[]; erro
     const manifestJson = extractManifestBlock(html);
     return manifestJson ? { file, origin: "builtin", manifestJson } : { file, origin: "builtin", manifestJson: null, error: "no-manifest" };
   });
-  return buildFromCandidates(candidates, (file) => `/plugins/${file}`);
+  const found = buildFromCandidates(candidates, (file) => `/plugins/${file}`);
+  return { plugins: [...found.plugins, ...declarative], errors: found.errors };
 }
 
 export interface PluginFilePayload {

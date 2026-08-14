@@ -8,6 +8,7 @@ import { pushLog } from "../../lib/debugLog";
 import { localized, scopesOf } from "../../lib/plugins/manifest";
 import { projectSnapshot, themeSnapshot } from "../../lib/plugins/projection";
 import { discoverPlugins } from "../../services/plugins";
+import { DeclarativeView } from "./DeclarativeView.jsx";
 import { NodeGlyph } from "./NodeGlyph.jsx";
 import { PluginDocBar } from "./PluginDocBar.jsx";
 import { PluginFrame } from "./PluginFrame.jsx";
@@ -64,6 +65,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
   // Un plugin "singleton" (une carte, pas une liste) n'a pas d'affordance
   // pour créer son propre document : l'hôte lui en garantit un.
   useEffect(() => {
+    if (activePlugin?.declarative) return; // une vue déclarative n'a pas de document
     if (activePlugin?.manifest.singleton && !docsStore.loading && docsStore.docs.length === 0) {
       docsStore.createDoc(localized(activePlugin.manifest.name, lang), { kind: "global" });
     }
@@ -194,7 +196,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
           </div>
         )}
 
-        {!activePlugin?.manifest.singleton && (
+        {!activePlugin?.manifest.singleton && !activePlugin?.declarative && (
           <PluginDocBar
             docs={docsStore.docs}
             activeId={docsStore.activeId}
@@ -207,7 +209,9 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
           />
         )}
 
-        {docsStore.loading || !activePlugin ? (
+        {activePlugin?.declarative ? (
+          <DeclarativeView spec={activePlugin.declarative} snapshot={snapshot} lang={lang} />
+        ) : docsStore.loading || !activePlugin ? (
           <div className="trk-loading">{t("loading")}</div>
         ) : docsStore.activeDoc ? (
           <PluginFrame

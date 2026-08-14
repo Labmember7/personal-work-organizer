@@ -154,3 +154,63 @@
 @media (prefers-reduced-motion: reduce) {
   .trk-node-glyph-pulse { animation: none; opacity: 0.85; }
 }
+
+/* --- PoC vue déclarative (trk.view/1) : rendu par l'hôte, pas d'iframe. ---- */
+.trk-dv {
+  overflow: auto;
+  padding: var(--space-3);
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.trk-dv-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.trk-dv-table th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.trk-dv-table td {
+  padding: var(--space-2) var(--space-3);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.trk-dv-table tbody tr:hover { background: var(--panel-alt); }
+.trk-dv-table tfoot td {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.trk-dv-badge {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.trk-dv-badge--muted { background: var(--gauge-track); color: var(--text-dim); }
+.trk-dv-badge--danger { background: var(--danger); color: #fff; }
+.trk-dv-gauge {
+  position: relative;
+  height: var(--control-h-sm);
+  background: var(--gauge-track);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.trk-dv-gauge-fill { height: 100%; background: var(--accent); }
+.trk-dv-gauge span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text);
+}

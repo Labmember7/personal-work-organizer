@@ -1,0 +1,61 @@
+{
+  "spec": "trk.view/1",
+
+  "source": "tasks",
+  "where": "not archived",
+  "group": "projet",
+  "sort": "-sum(items, 'minutes')",
+
+  "empty": { "fr": "Aucune tâche active.", "en": "No active task." },
+
+  "layout": {
+    "type": "table",
+    "columns": [
+      {
+        "label": { "fr": "Projet", "en": "Project" },
+        "value": "group | default('(sans projet)')",
+        "width": "1fr"
+      },
+      {
+        "label": { "fr": "Tâches", "en": "Tasks" },
+        "value": "count(items)",
+        "align": "right",
+        "width": "6rem"
+      },
+      {
+        "label": { "fr": "Terminées", "en": "Done" },
+        "value": "count(filter(items, it.done))",
+        "align": "right",
+        "width": "7rem"
+      },
+      {
+        "label": { "fr": "Pointé", "en": "Logged" },
+        "value": "sum(items, 'minutes') | duration",
+        "align": "right",
+        "width": "8rem"
+      },
+      {
+        "label": { "fr": "En retard", "en": "Overdue" },
+        "value": "count(filter(items, overdue(it.echeance) and not it.done))",
+        "as": "badge",
+        "tone": "if(count(filter(items, overdue(it.echeance) and not it.done)) > 0, 'danger', 'muted')",
+        "align": "right",
+        "width": "7rem"
+      },
+      {
+        "label": { "fr": "Avancement", "en": "Progress" },
+        "value": "round(avg(items, 'weight'))",
+        "as": "gauge",
+        "width": "11rem"
+      }
+    ],
+    "footer": [
+      { "value": "'Total'" },
+      { "value": "count(tasks)", "align": "right" },
+      { "value": "count(filter(tasks, it.done))", "align": "right" },
+      { "value": "sum(tasks, 'minutes') | duration", "align": "right" },
+      { "value": "count(filter(tasks, overdue(it.echeance) and not it.done))", "align": "right" },
+      { "value": "round(avg(tasks, 'weight'))", "as": "gauge" }
+    ]
+  }
+}

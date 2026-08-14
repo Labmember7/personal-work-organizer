@@ -72,6 +72,12 @@ export interface PluginSource {
   origin: "builtin" | "user";
   /** Nom de fichier, pour les diagnostics. */
   file: string;
+  /**
+   * PoC du format `trk.extension/2` : spécification `trk.view/1` d'une vue
+   * déclarative, rendue par l'hôte au lieu d'être chargée dans une iframe.
+   * Absente pour un plugin v1 (un fichier .html), qui garde `url`.
+   */
+  declarative?: Record<string, unknown>;
 }
 
 /** Plugin trouvé mais inutilisable (manifeste invalide, API trop récente). */

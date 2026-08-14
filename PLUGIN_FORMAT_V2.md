@@ -8,6 +8,14 @@
 > Remplace le modèle « un plugin = un fichier `.html` » (`apiVersion 1`, cf.
 > `PLUGIN_PLAN.md`). Les plugins v1 continuent de fonctionner sans modification.
 
+## Annexes
+
+| | Contenu |
+|---|---|
+| [A — `trkx`, le langage d'expression](docs/plugins/trkx-langage.md) | Grammaire, précédence, types, portées, table close de fonctions, budget d'évaluation, diagnostics, API du module. |
+| [B — Anatomie d'un plugin](docs/plugins/anatomie-plugin.md) | Deux paquets complets fichier par fichier (déclaratif et `app`), cycle de vie en 8 étapes, où vivent les octets. |
+| [C — Confinement](docs/plugins/confinement.md) | Modèle de menace, les 7 couches, tableau vecteur → verrou, quotas, invariants testés, limites assumées. |
+
 ---
 
 ## 1. Pourquoi changer

@@ -1,0 +1,32 @@
+{
+  "format": "trk.extension/2",
+
+  "id": "charge",
+  "version": "1.0.0",
+  "publisher": "bzarai",
+  "license": "MIT",
+
+  "engines": { "api": 2, "app": ">=2.0.0" },
+
+  "name": { "fr": "Charge par projet", "en": "Load per project" },
+  "description": {
+    "fr": "Pointé cumulé et avancement moyen, par projet. Aucune ligne de JS.",
+    "en": "Logged time and average progress, per project. Zero lines of JS."
+  },
+  "icon": "BarChart3",
+
+  "permissions": ["tasks:read"],
+
+  "contributes": {
+    "views": [
+      {
+        "id": "charge",
+        "title": { "fr": "Charge", "en": "Load" },
+        "icon": "BarChart3",
+        "kind": "declarative",
+        "spec": "views/charge.trkv",
+        "scopes": ["global"]
+      }
+    ]
+  }
+}
