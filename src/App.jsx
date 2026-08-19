@@ -27,6 +27,8 @@ import { ChartsSection } from "./features/charts/ChartsSection.jsx";
 import { useBackup } from "./features/backup/useBackup";
 import { ImportConfirmModal } from "./features/backup/ImportConfirmModal.jsx";
 import { PluginsSection } from "./features/plugins/PluginsSection.jsx";
+import { discoverPlugins } from "./services/plugins";
+import { collectTaskColumns, collectTaskPanels } from "./lib/plugins/contrib";
 
 const THEME_STORAGE_KEY = "suivi-travaux-theme";
 const RANDOM_SEED_STORAGE_KEY = "suivi-travaux-random-seed";
@@ -48,6 +50,23 @@ export default function App() {
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null); // { id, action: "delete" | "archive" | "unarchive" }
   const [toast, setToast] = useState(null);
+
+  // ── Colonnes de tâches contribuées par les plugins (v2) ──
+  // Découverte une fois au montage ; les colonnes s'affichent dans chaque
+  // ligne de la vue liste (cf. TaskRow). Découplé de PluginsSection pour
+  // rester disponible quelle que soit la vue active.
+  const [taskColumns, setTaskColumns] = useState([]);
+  const [taskPanels, setTaskPanels] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { plugins } = await discoverPlugins();
+      if (cancelled) return;
+      setTaskColumns(collectTaskColumns(plugins));
+      setTaskPanels(collectTaskPanels(plugins));
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Thème et célébrations ──
   // theme = palette de couleurs (dark / light / random) ; le mode sticky
@@ -410,6 +429,7 @@ export default function App() {
                     onUnarchive: handleUnarchiveTask,
                     ...confirmProps,
                     timeLogOps,
+                    taskColumns,
                   }}
                 />
               ) : (
@@ -424,6 +444,7 @@ export default function App() {
                     onUnarchive: handleUnarchiveTask,
                     ...confirmProps,
                     timeLogOps,
+                    taskColumns,
                   }}
                 />
               )}
@@ -482,6 +503,7 @@ export default function App() {
               onClose={() => setEditing(null)}
               timeLogOps={timeLogOps}
               onToast={setToast}
+              taskPanels={taskPanels}
             />
           )}
         </>

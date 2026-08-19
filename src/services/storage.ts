@@ -30,6 +30,8 @@ export interface RawPluginEntry {
   root?: string;
   /** Spec déclarative embarquée (v2, vue déclarative) ; absente sinon. */
   specJson?: string;
+  /** Specs des `taskPanels` déclaratifs (v2) ; clé = id du panneau, valeur = JSON brut. */
+  panelSpecs?: Record<string, string>;
   /** Nature de l'entrée. */
   kind?: "html" | "folder";
 }

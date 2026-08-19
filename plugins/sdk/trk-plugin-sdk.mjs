@@ -24,10 +24,11 @@ const state = {
   doc: null,
   snapshot: null,
   theme: null,
+  settings: {},
   ready: false,
 };
 
-const listeners = { doc: [], snapshot: [], theme: [], lang: [], saved: [], error: [], fullscreen: [] };
+const listeners = { doc: [], snapshot: [], theme: [], lang: [], saved: [], error: [], fullscreen: [], settings: [] };
 // Commandes contribuées : l'hôte envoie `host:command` quand l'utilisateur
 // clique le bouton de la barre d'outils de la vue ; le plugin s'est abonné
 // via `trk.commands.on(id, cb)`.
@@ -148,10 +149,12 @@ function handleHostMessage(raw) {
       state.theme = message.theme || null;
       state.doc = message.doc || null;
       state.snapshot = message.snapshot || null;
+      state.settings = message.settings || {};
       state.ready = true;
       if (state.theme) applyTheme(state.theme);
       for (const r of readyResolvers) r(message);
       readyResolvers = [];
+      emit("settings", state.settings);
       break;
     case "host:doc":
       state.doc = message.doc || null;
@@ -190,6 +193,10 @@ function handleHostMessage(raw) {
           }
         }
       }
+      break;
+    case "host:settings":
+      state.settings = message.settings || {};
+      emit("settings", state.settings);
       break;
     default:
       break;
@@ -274,21 +281,32 @@ const TrkPlugin = {
    * gestionnaire déclenché quand l'utilisateur clique le bouton de la barre
    * d'outils ; renvoie une fonction de désabonnement. `enable(id, on)` signale
    * à l'hôte l'activation de la commande (désactive le bouton sinon). */
-  commands: {
-    on(id, cb) {
-      if (!commandListeners[id]) commandListeners[id] = [];
-      commandListeners[id].push(cb);
-      return () => {
-        const arr = commandListeners[id];
-        if (!arr) return;
-        const idx = arr.indexOf(cb);
-        if (idx !== -1) arr.splice(idx, 1);
-      };
+    commands: {
+      on(id, cb) {
+        if (!commandListeners[id]) commandListeners[id] = [];
+        commandListeners[id].push(cb);
+        return () => {
+          const arr = commandListeners[id];
+          if (!arr) return;
+          const idx = arr.indexOf(cb);
+          if (idx !== -1) arr.splice(idx, 1);
+        };
+      },
+      enable(id, on) {
+        guarded("commands", { type: "plugin:command:enable", id, enabled: !!on });
+      },
     },
-    enable(id, on) {
-      guarded("commands", { type: "plugin:command:enable", id, enabled: !!on });
+    /** Réglages du plugin (`contributes.settings`). `get()` renvoie le jeu
+     * effectif (défauts + stockage) ; `set(id, value)` persiste et déclenche
+     * un `host:settings` de retour. */
+    settings: {
+      get() {
+        return state.settings;
+      },
+      set(id, value) {
+        guarded("settings", { type: "plugin:settings:set", id, value });
+      },
     },
-  },
 };
 
 export default TrkPlugin;

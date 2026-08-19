@@ -64,6 +64,8 @@ export function capabilityFor(type: string): PluginCapability | null {
       return "fullscreen";
     case "plugin:command:enable":
       return "commands";
+    case "plugin:settings:set":
+      return "settings";
     case "plugin:log":
       return "debug";
     default:
@@ -82,6 +84,7 @@ const PLUGIN_MESSAGE_TYPES = new Set<string>([
   "plugin:file:save",
   "plugin:fullscreen",
   "plugin:command:enable",
+  "plugin:settings:set",
   "plugin:log",
 ]);
 
@@ -113,6 +116,8 @@ function messageShapeOk(message: Record<string, unknown>): boolean {
       return typeof message.on === "boolean";
     case "plugin:command:enable":
       return typeof message.id === "string" && message.id.length > 0 && typeof message.enabled === "boolean";
+    case "plugin:settings:set":
+      return typeof message.id === "string" && message.id.length > 0;
     case "plugin:log":
       return (
         typeof message.level === "string" &&

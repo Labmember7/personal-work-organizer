@@ -17,10 +17,14 @@ interface UsePluginHostOptions {
   theme: HostTheme;
   lang: string;
   dict: Record<string, string>;
+  /** Réglages effectifs du plugin (défauts fusionnés au stockage utilisateur). */
+  settings: Record<string, unknown>;
   onDocPatch: (patch: PluginDocPatch) => void;
   onRevealTask: (id: string) => void;
   onToast: (message: string) => void;
   onFullscreen: (on: boolean) => void;
+  /** Persiste un réglage plugin et renvoie le nouveau jeu de réglages complet. */
+  onSettingsSet?: (id: string, value: unknown) => Promise<Record<string, unknown>> | Record<string, unknown>;
   /** Relais diagnostic (capacité "debug") : console.log/warn/error du plugin. */
   onLog?: (pluginId: string, level: "log" | "info" | "warn" | "error", args: string[]) => void;
 }
@@ -38,10 +42,12 @@ export function usePluginHost({
   theme,
   lang,
   dict,
+  settings,
   onDocPatch,
   onRevealTask,
   onToast,
   onFullscreen,
+  onSettingsSet,
   onLog,
 }: UsePluginHostOptions): PluginHost {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -60,6 +66,8 @@ export function usePluginHost({
   langRef.current = lang;
   const dictRef = useRef(dict);
   dictRef.current = dict;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const onDocPatchRef = useRef(onDocPatch);
   onDocPatchRef.current = onDocPatch;
   const onRevealTaskRef = useRef(onRevealTask);
@@ -68,6 +76,8 @@ export function usePluginHost({
   onToastRef.current = onToast;
   const onFullscreenRef = useRef(onFullscreen);
   onFullscreenRef.current = onFullscreen;
+  const onSettingsSetRef = useRef(onSettingsSet);
+  onSettingsSetRef.current = onSettingsSet;
   const onLogRef = useRef(onLog);
   onLogRef.current = onLog;
 
@@ -105,8 +115,16 @@ export function usePluginHost({
             capabilities,
             doc: docRef.current,
             snapshot: snapshotRef.current,
+            settings: settingsRef.current,
           });
           break;
+        case "plugin:settings:set": {
+          const next = onSettingsSetRef.current?.(message.id, message.value);
+          Promise.resolve(next).then((merged) => {
+            if (merged) postRef.current({ type: "host:settings", settings: merged });
+          });
+          break;
+        }
         case "plugin:doc:save":
           onDocPatchRef.current(message.patch);
           break;
@@ -168,6 +186,12 @@ export function usePluginHost({
     // nouvel objet à chaque rendu de l'hôte ; seul un changement de `lang`
     // doit déclencher l'envoi (cf. dictRef, toujours à jour dans host:init).
   }, [ready, lang]);
+
+  // Les réglages du plugin peuvent changer sans rechargement de l'iframe
+  // (éditeur de l'hôte) : on les pousse à chaque mise à jour.
+  useEffect(() => {
+    if (ready) postRef.current({ type: "host:settings", settings });
+  }, [ready, settings]);
 
   return { iframeRef, ready, post };
 }

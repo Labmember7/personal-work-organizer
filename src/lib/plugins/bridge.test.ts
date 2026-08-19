@@ -109,6 +109,20 @@ describe("decodePluginMessage", () => {
     const env = encode("demo", { type: "plugin:command:enable", id: "demo.hello", enabled: true });
     expect(decodePluginMessage(env, "demo", caps)).toBeNull();
   });
+
+  it("accepte plugin:settings:set avec la capacité settings", () => {
+    const env = encode("demo", { type: "plugin:settings:set", id: "demo.curve", value: "bezier" });
+    expect(decodePluginMessage(env, "demo", ["settings"] as const)).toEqual({
+      type: "plugin:settings:set",
+      id: "demo.curve",
+      value: "bezier",
+    });
+  });
+
+  it("rejette plugin:settings:set sans la capacité settings", () => {
+    const env = encode("demo", { type: "plugin:settings:set", id: "demo.curve", value: "bezier" });
+    expect(decodePluginMessage(env, "demo", caps)).toBeNull();
+  });
 });
 
 describe("capabilityFor", () => {

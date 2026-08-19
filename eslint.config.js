@@ -6,7 +6,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
 
 export default tseslint.config(
-  { ignores: ["dist/", "release/", "node_modules/"] },
+  { ignores: ["dist/", "release/", "node_modules/", "scripts/tutorial-encode.mjs"] },
 
   // Renderer (React) : JS/JSX/TS/TSX de src/.
   {
@@ -65,6 +65,16 @@ export default tseslint.config(
   },
 
   // Fichiers de test : globals vitest via imports explicites, rien à ajouter.
+
+  // CLI de développement (scripts/*.mjs) : Node ESM.
+  {
+    files: ["scripts/**/*.mjs"],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      sourceType: "module",
+      globals: { ...globals.node },
+    },
+  },
 
   // Désactive les règles de formatage en conflit avec Prettier.
   prettier

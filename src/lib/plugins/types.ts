@@ -146,6 +146,12 @@ export interface PluginSource {
    * plugin v1 (un fichier .html), qui garde `url`.
    */
   declarative?: Record<string, unknown>;
+  /**
+   * Format `trk.extension/2` : specs `trk.view/1` des `taskPanels` déclaratifs,
+   * lues une fois à la découverte (clé = id du panneau, valeur = JSON brut).
+   * Absente pour un plugin sans panneau déclaratif ou v1.
+   */
+  panelSpecs?: Record<string, string>;
 }
 
 /** Plugin trouvé mais inutilisable (manifeste invalide, API trop récente). */
@@ -267,6 +273,8 @@ export interface HostInitMessage {
   capabilities: PluginCapability[];
   doc: PluginDocument | null;
   snapshot: HostSnapshot | null;
+  /** Réglages effectifs du plugin (défauts fusionnés au stockage utilisateur). */
+  settings: Record<string, unknown>;
 }
 
 export type HostMessage =
@@ -283,7 +291,9 @@ export type HostMessage =
   | { type: "host:fullscreen"; on: boolean }
   /** Une commande contribuée par le plugin a été déclenchée par l'utilisateur
    * dans la barre d'outils de la vue. `id` = `contributes.commands[].id`. */
-  | { type: "host:command"; id: string; args?: unknown };
+  | { type: "host:command"; id: string; args?: unknown }
+  /** Réglages du plugin mis à jour (éditeur de l'hôte ou `plugin:settings:set`). */
+  | { type: "host:settings"; settings: Record<string, unknown> };
 
 // ── Messages : plugin -> hôte ──────────────────────────────────────────────
 
@@ -311,7 +321,10 @@ export type PluginMessage =
   | { type: "plugin:log"; level: "log" | "info" | "warn" | "error"; args: string[] }
   /** Le plugin signale (ou révoque) l'activation d'une de ses commandes, pour
    * que l'hôte désactive le bouton correspondant dans la barre d'outils. */
-  | { type: "plugin:command:enable"; id: string; enabled: boolean };
+  | { type: "plugin:command:enable"; id: string; enabled: boolean }
+  /** Le plugin écrit l'une de ses valeurs de réglage ; l'hôte persiste et
+   * répond par `host:settings`. */
+  | { type: "plugin:settings:set"; id: string; value: unknown };
 
 /** Enveloppe transportée par postMessage, dans les deux sens. */
 export interface PluginEnvelope<M = HostMessage | PluginMessage> {
