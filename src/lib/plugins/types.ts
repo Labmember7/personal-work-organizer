@@ -28,7 +28,12 @@ export type PluginCapability =
   | "file:save" // demander l'enregistrement d'un fichier (export)
   | "toast" // afficher un message dans l'app
   | "fullscreen" // demander que le cadre du plugin recouvre toute la fenêtre
-  | "debug"; // relayer ses console.log/warn/error vers la console de débogage de l'hôte
+  | "debug" // relayer ses console.log/warn/error vers la console de débogage de l'hôte
+  | "commands" // contribuer des commandes à la barre d'outils de sa vue
+  | "settings" // lire et suivre ses propres réglages (contributes.settings)
+  | "columns" // contribuer une colonne à la liste des tâches
+  | "panels" // contribuer un panneau dans le modal d'édition d'une tâche
+  | "state"; // espace clé/valeur privé (plugin-state:<id>:<clé>)
 
 export const PLUGIN_CAPABILITIES: readonly PluginCapability[] = [
   "doc",
@@ -38,6 +43,11 @@ export const PLUGIN_CAPABILITIES: readonly PluginCapability[] = [
   "toast",
   "fullscreen",
   "debug",
+  "commands",
+  "settings",
+  "columns",
+  "panels",
+  "state",
 ];
 
 /** Libellé traduit : `{ fr, en }`, ou une simple chaîne si le plugin est monolingue. */
@@ -61,6 +71,60 @@ export interface PluginManifest {
   scopes?: PluginScopeKind[];
   /** Vrai si le plugin ne gère qu'un seul document (pas de liste). */
   singleton?: boolean;
+
+  // ── Points de contribution (`trk.extension/2`, cf. PLUGIN_FORMAT_V2.md) ──
+  /** Commandes contribuées à la barre d'outils de la vue du plugin. */
+  commands?: CommandContrib[];
+  /** Colonnes contribuées à la liste des tâches. */
+  taskColumns?: TaskColumnContrib[];
+  /** Panneaux contribués au modal d'édition d'une tâche. */
+  taskPanels?: TaskPanelContrib[];
+  /** Réglages déclarés, lus via le SDK et notifiés de leur changement. */
+  settings?: Record<string, SettingDef>;
+}
+
+/** Commande contribuée à la barre d'outils de la vue du plugin. */
+export interface CommandContrib {
+  id: string;
+  icon?: string;
+  title?: LocalizedText;
+  /** Expression `trkx` (contexte de vue) déterminant la visibilité/activation. */
+  when?: string;
+}
+
+/** Colonne contribuée à la liste des tâches. */
+export interface TaskColumnContrib {
+  id: string;
+  /** Expression `trkx` évaluée par tâche ; résultat affiché dans la cellule. */
+  value: string;
+  as?: string;
+  width?: string;
+  /** Expression `trkx` (contexte de tâche) déterminant le ton de la cellule. */
+  tone?: string;
+  label?: LocalizedText;
+}
+
+/** Panneau contribué au modal d'édition d'une tâche. */
+export interface TaskPanelContrib {
+  id: string;
+  kind: "declarative" | "app";
+  /** Vue déclarative (`trk.view/1`) si `kind === "declarative"`. */
+  spec?: string;
+  /** Page `app` si `kind === "app"`. */
+  entry?: string;
+  title?: LocalizedText;
+}
+
+export type SettingType = "enum" | "number" | "boolean" | "string";
+
+/** Définition de réglage déclaré par un plugin (contributes.settings). */
+export interface SettingDef {
+  type: SettingType;
+  values?: string[];
+  min?: number;
+  max?: number;
+  default?: unknown;
+  label?: LocalizedText;
 }
 
 /** Un plugin découvert : son manifeste, où le charger, d'où il vient. */
@@ -216,7 +280,10 @@ export type HostMessage =
   /** L'hôte a changé l'état plein écran de son propre chef (ex. bouton de
    * sortie côté hôte, Échap) : le plugin recale son affichage sans que ce
    * soit lui qui ait initié le changement via `requestFullscreen`. */
-  | { type: "host:fullscreen"; on: boolean };
+  | { type: "host:fullscreen"; on: boolean }
+  /** Une commande contribuée par le plugin a été déclenchée par l'utilisateur
+   * dans la barre d'outils de la vue. `id` = `contributes.commands[].id`. */
+  | { type: "host:command"; id: string; args?: unknown };
 
 // ── Messages : plugin -> hôte ──────────────────────────────────────────────
 
@@ -241,7 +308,10 @@ export type PluginMessage =
    * interceptée) fait dans l'iframe, relayé vers la console de débogage de
    * l'hôte — invisible autrement, l'iframe sandboxée n'a pas de devtools
    * facilement accessible depuis l'app. Texte déjà aplati côté SDK. */
-  | { type: "plugin:log"; level: "log" | "info" | "warn" | "error"; args: string[] };
+  | { type: "plugin:log"; level: "log" | "info" | "warn" | "error"; args: string[] }
+  /** Le plugin signale (ou révoque) l'activation d'une de ses commandes, pour
+   * que l'hôte désactive le bouton correspondant dans la barre d'outils. */
+  | { type: "plugin:command:enable"; id: string; enabled: boolean };
 
 /** Enveloppe transportée par postMessage, dans les deux sens. */
 export interface PluginEnvelope<M = HostMessage | PluginMessage> {

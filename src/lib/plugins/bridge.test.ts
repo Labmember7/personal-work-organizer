@@ -95,6 +95,20 @@ describe("decodePluginMessage", () => {
     const badArgs = { ns: PLUGIN_MESSAGE_NS, protocol: PLUGIN_API_VERSION, pluginId: "mindmap", message: { type: "plugin:log", level: "log", args: [1] } };
     expect(decodePluginMessage(badArgs, "mindmap", ["debug"] as const)).toBeNull();
   });
+
+  it("accepte plugin:command:enable avec la capacité commands", () => {
+    const env = encode("demo", { type: "plugin:command:enable", id: "demo.hello", enabled: true });
+    expect(decodePluginMessage(env, "demo", ["commands"] as const)).toEqual({
+      type: "plugin:command:enable",
+      id: "demo.hello",
+      enabled: true,
+    });
+  });
+
+  it("rejette plugin:command:enable sans la capacité commands", () => {
+    const env = encode("demo", { type: "plugin:command:enable", id: "demo.hello", enabled: true });
+    expect(decodePluginMessage(env, "demo", caps)).toBeNull();
+  });
 });
 
 describe("capabilityFor", () => {

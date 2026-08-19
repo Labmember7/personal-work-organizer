@@ -8,6 +8,7 @@
 
 import { extractManifestBlock, parseManifest } from "../lib/plugins/manifest";
 import { parseManifestV2 } from "../lib/plugins/manifest2";
+import type { PluginManifestV2 } from "../lib/plugins/manifest2";
 import { parseViewSpecText } from "../lib/plugins/viewSpec";
 import type { PluginCapability, PluginManifest, PluginScopeKind, PluginSource } from "../lib/plugins/types";
 import type { PluginLoadError } from "../lib/plugins/types";
@@ -29,16 +30,7 @@ function reasonFromRawError(error: string | undefined): PluginLoadError["reason"
 }
 
 /** Normalise un manifeste v2 (`trk.extension/2`) en `PluginManifest` v1. */
-function normalizeV2Manifest(m: {
-  id: string;
-  version: string;
-  name: PluginManifest["name"];
-  description?: PluginManifest["description"];
-  icon?: string;
-  permissions?: string[];
-  engines?: { api?: number };
-  contributes?: { views?: Array<{ scopes?: PluginScopeKind[]; singleton?: boolean }> };
-}): PluginManifest {
+function normalizeV2Manifest(m: PluginManifestV2): PluginManifest {
   const caps = (m.permissions ?? []) as PluginCapability[];
   const firstView = Array.isArray(m.contributes?.views) ? m.contributes!.views![0] : undefined;
   return {
@@ -51,6 +43,10 @@ function normalizeV2Manifest(m: {
     capabilities: caps,
     ...(Array.isArray(firstView?.scopes) ? { scopes: firstView!.scopes! } : {}),
     ...(firstView?.singleton === true ? { singleton: true } : {}),
+    ...(m.contributes?.commands ? { commands: m.contributes.commands } : {}),
+    ...(m.contributes?.taskColumns ? { taskColumns: m.contributes.taskColumns } : {}),
+    ...(m.contributes?.taskPanels ? { taskPanels: m.contributes.taskPanels } : {}),
+    ...(m.contributes?.settings ? { settings: m.contributes.settings } : {}),
   };
 }
 

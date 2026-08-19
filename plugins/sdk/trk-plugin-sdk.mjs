@@ -28,6 +28,10 @@ const state = {
 };
 
 const listeners = { doc: [], snapshot: [], theme: [], lang: [], saved: [], error: [], fullscreen: [] };
+// Commandes contribuées : l'hôte envoie `host:command` quand l'utilisateur
+// clique le bouton de la barre d'outils de la vue ; le plugin s'est abonné
+// via `trk.commands.on(id, cb)`.
+const commandListeners = {};
 const readyResolvers = [];
 let readyPromise = null;
 
@@ -176,6 +180,17 @@ function handleHostMessage(raw) {
     case "host:fullscreen":
       emit("fullscreen", !!message.on);
       break;
+    case "host:command":
+      if (message.id && commandListeners[message.id]) {
+        for (const cb of commandListeners[message.id]) {
+          try {
+            cb(message.args);
+          } catch (e) {
+            console.error("[TrkPlugin] erreur dans un gestionnaire de commande '" + message.id + "'", e);
+          }
+        }
+      }
+      break;
     default:
       break;
   }
@@ -255,6 +270,25 @@ const TrkPlugin = {
     };
   },
   applyTheme,
+  /** Commandes contribuées (`contributes.commands`). `on(id, cb)` abonne un
+   * gestionnaire déclenché quand l'utilisateur clique le bouton de la barre
+   * d'outils ; renvoie une fonction de désabonnement. `enable(id, on)` signale
+   * à l'hôte l'activation de la commande (désactive le bouton sinon). */
+  commands: {
+    on(id, cb) {
+      if (!commandListeners[id]) commandListeners[id] = [];
+      commandListeners[id].push(cb);
+      return () => {
+        const arr = commandListeners[id];
+        if (!arr) return;
+        const idx = arr.indexOf(cb);
+        if (idx !== -1) arr.splice(idx, 1);
+      };
+    },
+    enable(id, on) {
+      guarded("commands", { type: "plugin:command:enable", id, enabled: !!on });
+    },
+  },
 };
 
 export default TrkPlugin;
