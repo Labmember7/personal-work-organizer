@@ -117,6 +117,7 @@ function readFolderPlugin(dir, origin) {
   }
   let id = null;
   let specJson = undefined;
+  let panelSpecs = undefined;
   try {
     const m = JSON.parse(manifestJson);
     id = typeof m.id === "string" ? m.id : null;
@@ -129,11 +130,23 @@ function readFolderPlugin(dir, origin) {
         specJson = null;
       }
     }
+    const panels = Array.isArray(m.contributes?.taskPanels) ? m.contributes.taskPanels : [];
+    const panelMap = {};
+    for (const p of panels) {
+      if (p && p.kind === "declarative" && typeof p.spec === "string") {
+        try {
+          panelMap[p.id] = fs.readFileSync(path.join(dir, p.spec), "utf-8");
+        } catch {
+          panelMap[p.id] = null;
+        }
+      }
+    }
+    if (Object.keys(panelMap).length) panelSpecs = panelMap;
   } catch {
     // manifeste illisible : on garde l'id du nom de dossier ci-dessous
   }
   if (!id) id = path.basename(dir);
-  return { id, file: `${id}/manifest.json`, origin, root: dir, manifestJson, specJson };
+  return { id, file: `${id}/manifest.json`, origin, root: dir, manifestJson, specJson, ...(panelSpecs ? { panelSpecs } : {}) };
 }
 
 // Liste brute des dossiers plugins (v2) présents dans les racines. Un dossier

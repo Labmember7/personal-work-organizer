@@ -94,3 +94,10 @@
 .trk-app.light .trk-status-pill {
   color: color-mix(in srgb, var(--pill-color, var(--text-dim)) 62%, black);
 }
+/* Colonne de tâche contribuée par un plugin (taskColumns) : pastille optionnelle
+   (as: "badge"/"gauge") ou simple texte inline dans la rangée de méta. */
+.trk-plugin-col {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+}
+.trk-plugin-col-badge { height: 20px; }

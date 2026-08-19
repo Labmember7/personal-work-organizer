@@ -5,16 +5,21 @@ import { PRIORITIES, isSimpleTask, statusesForTask } from "../../utils";
 import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { MarkdownEditor } from "../../components/MarkdownEditor.jsx";
 import { TimeLogSection } from "../timelog/TimeLogSection.jsx";
+import { localized } from "../../lib/plugins/manifest";
+import { projectTask } from "../../lib/plugins/projection";
+import { DeclarativeView } from "../plugins/DeclarativeView.jsx";
+import { PluginFrame } from "../plugins/PluginFrame.jsx";
 
 // Modal de création/édition d'une tâche. Le composant possède son brouillon
 // (copie de `initial`) ; la fermeture demande confirmation si le brouillon a
 // été modifié. Les timeLogs ne passent pas par le brouillon : la section de
 // pointage lit `storeTask` (version du store) et mute via timeLogOps.
-export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, timeLogOps, onToast }) {
-  const { t } = useLang();
+export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, timeLogOps, onToast, taskPanels }) {
+  const { t, lang } = useLang();
   const [draft, setDraft] = useState(initial);
   const [descMode, setDescMode] = useState("formatted");
   const [confirmClose, setConfirmClose] = useState(false);
+  const panelFrameRef = useRef(null);
   const initialRef = useRef(initial);
 
   const isDirty = () => JSON.stringify(draft) !== JSON.stringify(initialRef.current);
@@ -168,6 +173,46 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
                 <div className="trk-timelog-hint">{t("time_hint")}</div>
               )}
             </div>
+            {Array.isArray(taskPanels) && taskPanels.length > 0 && (
+              <div className="trk-modal-task-panels">
+                {taskPanels.map((panelInstance) => {
+                  const { panel, specJson, pluginId } = panelInstance;
+                  const title = localized(panel.title, lang) || panel.id;
+                  if (panel.kind === "app" && panel.entry) {
+                    return (
+                      <section key={pluginId + ":" + panel.id} className="trk-task-panel">
+                        <h4 className="trk-task-panel-title">{title}</h4>
+                        <iframe
+                          className="trk-task-panel-frame"
+                          src={`app-plugin://${pluginId}/${panel.entry}`}
+                          title={title}
+                          sandbox="allow-scripts allow-same-origin"
+                        />
+                      </section>
+                    );
+                  }
+                  let spec = null;
+                  if (panel.kind === "declarative" && typeof specJson === "string") {
+                    try {
+                      spec = JSON.parse(specJson);
+                    } catch {
+                      spec = null;
+                    }
+                  }
+                  if (!spec) return null;
+                  const sourceTask = storeTask ?? draft;
+                  const base = { now: new Date().toISOString().slice(0, 10), lang };
+                  const projected = projectTask(sourceTask);
+                  const taskCtx = { ...base, ...projected, task: projected };
+                  return (
+                    <section key={pluginId + ":" + panel.id} className="trk-task-panel">
+                      <h4 className="trk-task-panel-title">{title}</h4>
+                      <DeclarativeView spec={spec} lang={lang} rows={[taskCtx]} settings={{}} />
+                    </section>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="trk-modal-actions">
             <button type="button" className="trk-btn-secondary" onClick={requestClose}>{t("cancel")}</button>

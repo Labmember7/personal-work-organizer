@@ -1,4 +1,6 @@
 {
+  "$schema": "schema/trk-manifest-2.json",
+
   "format": "trk.extension/2",
 
   "id": "demo-app",
@@ -15,7 +17,7 @@
   },
   "icon": "FlaskConical",
 
-  "permissions": ["tasks:read", "commands", "toast"],
+  "permissions": ["tasks:read", "commands", "toast", "settings"],
 
   "contributes": {
     "views": [
@@ -35,6 +37,30 @@
         "title": { "fr": "Dire bonjour", "en": "Say hello" },
         "icon": "Sparkles"
       }
-    ]
+    ],
+    "taskColumns": [
+      {
+        "id": "demo.minutes",
+        "label": { "fr": "Pointé (min)", "en": "Logged (min)" },
+        "value": "task.minutes",
+        "as": "badge",
+        "tone": "#4CAF6D"
+      }
+    ],
+    "taskPanels": [
+      {
+        "id": "demo.related",
+        "title": { "fr": "Panneau démo", "en": "Demo panel" },
+        "kind": "declarative",
+        "spec": "views/related.trkv"
+      }
+    ],
+    "settings": {
+      "demo.greet": {
+        "type": "string",
+        "default": "Bonjour",
+        "label": { "fr": "Message d'accueil", "en": "Greeting" }
+      }
+    }
   }
 }

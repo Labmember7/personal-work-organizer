@@ -247,6 +247,28 @@ function getPluginSdk() {
 // éventuellement `specJson` (vue déclarative embarquée).
 ipcMain.handle("plugins:list", () => [...listPlugins(getPluginDirs()), ...discoverFolders(getPluginDirs())]);
 
+// Rechargement à chaud d'un plugin en développement (non packagé uniquement) :
+// surveille le dossier et notifie le renderer via `host:reload`.
+const activePluginWatchers = new Map();
+ipcMain.handle("plugins:watch", (e, { id, dir } = {}) => {
+  if (app.isPackaged) return { ok: false, reason: "packaged" };
+  if (!id || typeof dir !== "string") return { ok: false, reason: "invalid" };
+  const previous = activePluginWatchers.get(id);
+  if (previous) previous.close();
+  let watcher;
+  try {
+    watcher = fs.watch(dir, { recursive: true }, () => {
+      for (const w of BrowserWindow.getAllWindows()) {
+        if (!w.isDestroyed()) w.webContents.send("host:reload", { id });
+      }
+    });
+  } catch (err) {
+    return { ok: false, reason: String(err && err.message ? err.message : err) };
+  }
+  activePluginWatchers.set(id, watcher);
+  return { ok: true };
+});
+
 // Export d'un fichier de plugin (JSON, PNG…) via le dialogue natif : une
 // iframe sandboxée ne peut pas déclencher de téléchargement elle-même.
 ipcMain.handle("plugins:saveFile", async (e, payload) => {

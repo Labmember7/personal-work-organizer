@@ -23,10 +23,11 @@
     doc: null,
     snapshot: null,
     theme: null,
+    settings: {},
     ready: false,
   };
 
-  var listeners = { doc: [], snapshot: [], theme: [], lang: [], saved: [], error: [], fullscreen: [] };
+  var listeners = { doc: [], snapshot: [], theme: [], lang: [], saved: [], error: [], fullscreen: [], settings: [] };
   // Commandes contribuées : l'hôte envoie `host:command` quand l'utilisateur
   // clique le bouton de la barre d'outils de la vue ; le plugin s'est abonné
   // via `trk.commands.on(id, cb)`.
@@ -155,10 +156,12 @@
         state.theme = message.theme || null;
         state.doc = message.doc || null;
         state.snapshot = message.snapshot || null;
+        state.settings = message.settings || {};
         state.ready = true;
         if (state.theme) applyTheme(state.theme);
         for (var i = 0; i < readyResolvers.length; i++) readyResolvers[i](message);
         readyResolvers = [];
+        emit("settings", state.settings);
         break;
       case "host:doc":
         state.doc = message.doc || null;
@@ -191,17 +194,21 @@
           // simplement un bouton désynchronisé, rien de plus grave.
           emit("fullscreen", !!message.on);
           break;
-        case "host:command":
-          if (message.id && commandListeners[message.id]) {
-            commandListeners[message.id].forEach(function (cb) {
-              try {
-                cb(message.args);
-              } catch (e) {
-                console.error("[TrkPlugin] erreur dans un gestionnaire de commande '" + message.id + "'", e);
-              }
-            });
-          }
-          break;
+      case "host:command":
+        if (message.id && commandListeners[message.id]) {
+          commandListeners[message.id].forEach(function (cb) {
+            try {
+              cb(message.args);
+            } catch (e) {
+              console.error("[TrkPlugin] erreur dans un gestionnaire de commande '" + message.id + "'", e);
+            }
+          });
+        }
+        break;
+      case "host:settings":
+        state.settings = message.settings || {};
+        emit("settings", state.settings);
+        break;
       default:
         break;
     }
@@ -304,6 +311,17 @@
       },
       enable: function (id, on) {
         guarded("commands", { type: "plugin:command:enable", id: id, enabled: !!on });
+      },
+    },
+    /** Réglages du plugin (`contributes.settings`). `get()` renvoie le jeu
+     * effectif (défauts + stockage) ; `set(id, value)` persiste et déclenche
+     * un `host:settings` de retour. */
+    settings: {
+      get: function () {
+        return state.settings;
+      },
+      set: function (id, value) {
+        guarded("settings", { type: "plugin:settings:set", id: id, value: value });
       },
     },
   };

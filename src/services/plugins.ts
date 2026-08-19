@@ -108,6 +108,7 @@ export function buildFromCandidates(
         format: 2,
         ...(entry.root ? { root: entry.root } : {}),
         ...(entry.specJson ? { declarative: parseDeclarativeSpec(entry.specJson) } : {}),
+        ...(entry.panelSpecs ? { panelSpecs: entry.panelSpecs } : {}),
       });
       continue;
     }
@@ -158,6 +159,15 @@ function discoverDeclarative(): PluginSource[] {
     if (typeof raw !== "string") continue;
     const spec = parseDeclarativeSpec(raw);
 
+    // Panneaux déclaratifs de tâche : specs lues depuis le même glob.
+    const panelSpecs: Record<string, string> = {};
+    for (const p of contributes?.taskPanels ?? []) {
+      if (p && p.kind === "declarative" && typeof p.spec === "string") {
+        const praw = specs[`${dir}/${p.spec}`];
+        if (typeof praw === "string") panelSpecs[p.id] = praw;
+      }
+    }
+
     out.push({
       manifest: normalizeV2Manifest(v2.manifest),
       url: "",
@@ -166,6 +176,7 @@ function discoverDeclarative(): PluginSource[] {
       format: 2,
       root: dir,
       ...(spec ? { declarative: spec } : {}),
+      ...(Object.keys(panelSpecs).length ? { panelSpecs } : {}),
     });
   }
   return out;

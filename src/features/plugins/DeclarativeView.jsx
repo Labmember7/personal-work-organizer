@@ -46,8 +46,8 @@ function Cell({ col, ctx }) {
   return <td style={style}>{text(value)}</td>;
 }
 
-export function DeclarativeView({ spec, snapshot, lang }) {
-  const rows = useMemo(() => {
+export function DeclarativeView({ spec, snapshot, lang, rows: providedRows, settings }) {
+  const computed = useMemo(() => {
     const base = { now: new Date().toISOString().slice(0, 10), lang };
     const all = snapshot?.tasks ?? [];
 
@@ -77,13 +77,20 @@ export function DeclarativeView({ spec, snapshot, lang }) {
     return { base, kept, list };
   }, [spec, snapshot, lang]);
 
+  // Un panneau de tâche fournit ses propres lignes (ex. la tâche courante) :
+  // on court-circuite la dérivation depuis le snapshot.
+  const base = providedRows ? {} : computed.base;
+  const kept = providedRows ? providedRows : computed.kept;
+  const list = providedRows ? providedRows : computed.list;
+  const settingsCtx = settings ?? {};
+
   const columns = spec.layout?.columns ?? [];
 
-  if (rows.list.length === 0) {
+  if (list.length === 0) {
     return <div className="trk-empty">{localized(spec.empty, lang) || "—"}</div>;
   }
 
-  const footerCtx = { ...rows.base, tasks: rows.kept };
+  const footerCtx = { ...base, tasks: kept, settings: settingsCtx };
 
   return (
     <div className="trk-dv">
@@ -98,10 +105,14 @@ export function DeclarativeView({ spec, snapshot, lang }) {
           </tr>
         </thead>
         <tbody>
-          {rows.list.map((ctx, r) => (
+          {list.map((ctx, r) => (
             <tr key={r}>
               {columns.map((col, i) => (
-                <Cell key={i} col={col} ctx={ctx} />
+                <Cell
+                  key={i}
+                  col={col}
+                  ctx={{ ...ctx, settings: { ...(typeof ctx.settings === "object" && ctx.settings ? ctx.settings : {}), ...settingsCtx } }}
+                />
               ))}
             </tr>
           ))}

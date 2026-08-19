@@ -7,6 +7,8 @@ import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { pushLog } from "../../lib/debugLog";
 import { localized, scopesOf } from "../../lib/plugins/manifest";
 import { projectSnapshot, themeSnapshot } from "../../lib/plugins/projection";
+import { usePluginSettings } from "./usePluginSettings";
+import { savePluginSettings } from "../../lib/plugins/settings";
 import { discoverPlugins } from "../../services/plugins";
 import { DeclarativeView } from "./DeclarativeView.jsx";
 import { NodeGlyph } from "./NodeGlyph.jsx";
@@ -29,6 +31,49 @@ function iconFor(name) {
   return (name && LucideIcons[name]) || Puzzle;
 }
 
+// Éditeur des réglages déclarés par le plugin (`contributes.settings`) : chaque
+// réglage est rendu selon son `type`, et toute modification est propagée à
+// l'hôte (persistance + `host:settings` vers l'iframe via `usePluginHost`).
+function PluginSettingsEditor({ defs, values, onChange, lang }) {
+  const ids = Object.keys(defs);
+  return (
+    <div className="trk-plugin-settings">
+      <span className="trk-plugin-settings-title">Réglages</span>
+      {ids.map((id) => {
+        const def = defs[id];
+        const value = values[id];
+        const label = localized(def.label, lang) || id;
+        return (
+          <div className="trk-plugin-setting" key={id}>
+            <label>{label}</label>
+            {def.type === "enum" ? (
+              <select value={String(value ?? "")} onChange={(e) => onChange(id, e.target.value)}>
+                {(def.values ?? []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            ) : def.type === "boolean" ? (
+              <input type="checkbox" checked={!!value} onChange={(e) => onChange(id, e.target.checked)} />
+            ) : def.type === "number" ? (
+              <input
+                type="number"
+                value={Number(value ?? 0)}
+                min={def.min}
+                max={def.max}
+                onChange={(e) => onChange(id, Number(e.target.value))}
+              />
+            ) : (
+              <input type="text" value={String(value ?? "")} onChange={(e) => onChange(id, e.target.value)} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // La vue « Plugins » : découverte des fichiers .html de `plugins/`, sélection
 // du plugin puis de son document, et le pont vers l'iframe sandboxée. Toute
 // la mutation des tâches reste hors de portée : ce module ne fait que lire
@@ -42,6 +87,16 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
   const [reloadKey, setReloadKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
 
+  const refreshPlugins = (bump) => {
+    setDiscovering(true);
+    return discoverPlugins().then((result) => {
+      if (bump) setReloadKey((k) => k + 1);
+      setPlugins(result.plugins);
+      setLoadErrors(result.errors);
+      setDiscovering(false);
+    });
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -54,6 +109,17 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Rechargement à chaud (mode dev) : le processus principal surveille le
+  // dossier du plugin et notifie via l'IPC `host:reload`. On redécouvre les
+  // plugins (relecture manifeste + specs) et on remonte la vue active.
+  useEffect(() => {
+    if (!window.plugins || typeof window.plugins.onReload !== "function") return;
+    const handler = ({ id }) => {
+      void refreshPlugins(true);
+    };
+    window.plugins.onReload(handler);
   }, []);
 
   const activePlugin = plugins.find((p) => p.manifest.id === selectedId) ?? plugins[0] ?? null;
@@ -83,6 +149,8 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
 
   const dict = useMemo(() => pluginDict(lang), [lang]);
 
+  const settingsApi = usePluginSettings(activePlugin?.manifest.id ?? null, activePlugin?.manifest.settings);
+
   const host = usePluginHost({
     plugin: activePlugin,
     doc: docsStore.activeDoc,
@@ -90,10 +158,18 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
     theme: hostTheme,
     lang,
     dict,
+    settings: settingsApi.settings,
     onDocPatch: docsStore.saveActive,
     onRevealTask,
     onToast,
     onFullscreen: setFullscreen,
+    onSettingsSet: (id, value) => {
+      const next = { ...settingsApi.settings, [id]: value };
+      settingsApi.setSetting(id, value);
+      const pid = activePlugin?.manifest.id;
+      if (pid) void savePluginSettings(pid, next);
+      return next;
+    },
     onLog: (pid, level, args) => pushLog("plugin:" + pid, level, ...args),
   });
 
@@ -215,6 +291,19 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
           </div>
         ) : null}
 
+        {activePlugin?.manifest.settings && Object.keys(activePlugin.manifest.settings).length > 0 ? (
+          <PluginSettingsEditor
+            defs={activePlugin.manifest.settings}
+            values={settingsApi.settings}
+            onChange={(id, value) => {
+              settingsApi.setSetting(id, value);
+              const pid = activePlugin.manifest.id;
+              void savePluginSettings(pid, { ...settingsApi.settings, [id]: value });
+            }}
+            lang={lang}
+          />
+        ) : null}
+
         {!activePlugin?.manifest.singleton && !activePlugin?.declarative && (
           <PluginDocBar
             docs={docsStore.docs}
@@ -229,7 +318,13 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
         )}
 
         {activePlugin?.declarative ? (
-          <DeclarativeView spec={activePlugin.declarative} snapshot={snapshot} lang={lang} />
+          <DeclarativeView
+            key={reloadKey}
+            spec={activePlugin.declarative}
+            snapshot={snapshot}
+            lang={lang}
+            settings={settingsApi.settings}
+          />
         ) : docsStore.loading || !activePlugin ? (
           <div className="trk-loading">{t("loading")}</div>
         ) : docsStore.activeDoc ? (

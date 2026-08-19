@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld("images", {
 contextBridge.exposeInMainWorld("plugins", {
   list: () => ipcRenderer.invoke("plugins:list"),
   saveFile: (payload) => ipcRenderer.invoke("plugins:saveFile", payload),
+  watch: (id, dir) => ipcRenderer.invoke("plugins:watch", { id, dir }),
+  onReload: (callback) => ipcRenderer.on("host:reload", (_e, payload) => callback(payload)),
 });
 
 contextBridge.exposeInMainWorld("windowControls", {

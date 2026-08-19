@@ -164,13 +164,30 @@ manifeste v2 est validé dans `lib/plugins/manifest2.ts` (structure, grammaire
 d'`id`, `engines`, permissions, et analyse statique de chaque expression `trkx`
 déclarée : `commands.when`, `taskColumns.value`/`tone`). `normalizeV2Manifest`
 (`services/plugins.ts`) reporte `commands`, `taskColumns`, `taskPanels` et
-`settings` sur le `PluginManifest` consommé par l'UI. Implémenté : les
-**commandes** contribuées apparaissent dans une barre d'outils propre à la vue
-du plugin (`PluginsSection`), et un clic poste `host:command` au plugin via le
-pont ; le SDK (`trk.commands.on`/`enable`, dans les deux variantes) reçoit
-`host:command` et déclenche le gestionnaire abonné. `taskColumns`,
-`taskPanels` et `settings` sont remontés sur le manifeste mais leur rendu UI
-reste à faire (phases suivantes).
+`settings` sur le `PluginManifest` consommé par l'UI.
+
+- **commandes** : barre d'outils propre à la vue du plugin (`PluginsSection`),
+  un clic poste `host:command` via le pont ; le SDK (`trk.commands.on`/`enable`,
+  les deux variantes) reçoit `host:command` et déclenche le gestionnaire abonné.
+- **taskColumns** : `collectTaskColumns`/`evalColumnValue` (`lib/plugins/contrib.ts`)
+  récoltent et évaluent (contre la projection en lecture seule de chaque tâche)
+  les colonnes contribuées ; `App.jsx` découvre une fois les plugins au montage
+  et passe `taskColumns` à `TaskList` → `TaskRow`, qui rend chaque valeur comme
+  pastille (`as: "badge"`/`"gauge"`) ou texte inline dans la rangée de méta.
+- **taskPanels** : `collectTaskPanels` (`lib/plugins/contrib.ts`) résout chaque
+  panneau avec sa spec déclarative embarquée (lue à la découverte, `PluginSource.
+  panelSpecs`). `TaskModal` rend chaque panneau (`kind: "declarative"` →
+  `DeclarativeView` alimentée par une ligne = la tâche courante ; `kind: "app"` →
+  iframe `app-plugin://<id>/<entry>`) dans une colonne latérale. `DeclarativeView`
+  accepte désormais `rows` (lignes explicites) et `settings`.
+- **settings** : `contributes.settings` (record `id → { type, default, … }`).
+  `lib/plugins/settings.ts` fusionne défauts + stockage (`plugin-settings:<id>`).
+  `PluginsSection` expose un éditeur et pousse les réglages au plugin via
+  `host:init.settings` puis `host:settings` (à chaque modification) ; le SDK
+  (`trk.settings.get`/`set`, les deux variantes) les lit et peut les écrire
+  (`plugin:settings:set` → capacité `settings` → `host:settings` de retour).
+  Les expressions `trkx` consomment `settings` (vue déclarative de la vue
+  active, panneaux de tâche).
 
 Les deux formes sont déposées dans `plugins/` (livrées avec l'app) ou à côté de
 l'exécutable (déposées par l'utilisateur) — pas de recompilation, pas de plugin

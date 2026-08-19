@@ -1,0 +1,10 @@
+{
+  "layout": {
+    "type": "table",
+    "columns": [
+      { "label": { "fr": "Titre", "en": "Title" }, "value": "task.titre" },
+      { "label": { "fr": "Pointé (min)", "en": "Logged (min)" }, "value": "task.minutes", "as": "badge" }
+    ]
+  },
+  "empty": { "fr": "—", "en": "—" }
+}
