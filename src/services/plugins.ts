@@ -80,7 +80,7 @@ export function buildFromCandidates(
     // seule source de vérité (cf. spec § 4).
     let format: 1 | 2 = 1;
     try {
-      const raw = JSON.parse(entry.manifestJson) as { format?: string };
+      const raw = JSON.parse(entry.manifestJson.replace(/^\uFEFF/, "")) as { format?: string };
       if (raw && raw.format === "trk.extension/2") format = 2;
     } catch {
       // manifeste v1 non-JSON (ou HTML encapsulé) : on garde v1.

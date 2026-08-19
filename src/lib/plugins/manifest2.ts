@@ -203,9 +203,11 @@ export function satisfiesRange(range: string, version: string): boolean {
 // ── Validation ──────────────────────────────────────────────────────────────
 
 export function parseManifestV2(json: string, opts?: { appVersion?: string }): ManifestV2Result {
+  // Tolère un BOM éventuel en tête de fichier (éditeurs Windows).
+  const text = json.charCodeAt(0) === 0xfeff ? json.slice(1) : json;
   let raw: unknown;
   try {
-    raw = JSON.parse(json);
+    raw = JSON.parse(text);
   } catch {
     return { ok: false, reason: "invalid-json", detail: "JSON illisible" };
   }

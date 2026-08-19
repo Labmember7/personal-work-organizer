@@ -373,6 +373,28 @@ Notes :
 | `npm run format` | Prettier |
 | `npm run dist:win` / `dist:linux` | Portable Windows / AppImage |
 | `npm run dist:docker` | Les deux cibles dans un conteneur (image `electronuserland/builder:wine`, sortie dans `release/`) |
+| `npm run plugin:init <dir> [id]` | Génère un squelette de plugin v2 (`manifest.json` + `views/main.trkv`) |
+| `npm run plugin:validate <dir>` | Valide un dossier de plugin (manifeste, ressources, locales, trkx) |
+
+### Outiling des plugins (Phase 6)
+
+- **Schémas JSON publiés** : `schema/trk-manifest-2.json` (manifeste v2) et
+  `schema/trk-view-1.json` (vue déclarative `.trkv`). Référencés par `$schema`
+  dans les manifestes pour l'autocomplétion éditeur ; le validateur ne les
+  consomme pas directement (il réutilise `parseManifestV2` / `validateViewSpec`).
+- **`src/lib/plugins/validate.ts`** : `validatePluginFolder(dir, read, exists)`
+  (lecteur de fichiers injecté, testable sans Node) — diagnostique manifeste
+  illisible/trkx invalide, ressources manquantes ou sortant du paquet, locales
+  par défaut (fr/en) manquantes, et expressions trkx des commandes, colonnes et
+  specs de vues/panneaux.
+- **CLI `scripts/trk-plugin.mjs`** : charge le validateur TS via l'API SSR de
+  Vite (`ssrLoadModule`) puis l'exécute sous Node — pas de dépendance `tsx`/
+  `ts-node` requise. Sous-commandes `init` et `validate`.
+- **Rechargement à chaud (dev)** : `main.js` expose `plugins:watch(id, dir)`
+  (non packagé) qui surveille le dossier et notifie le renderer via l'IPC
+  `host:reload` ; `PluginsSection` redécouvre les plugins et remonte la vue
+  active (`reloadKey`). La console de débogage (`DebugConsole`) relaie déjà les
+  `plugin:log` de l'iframe sandboxée.
 
 CI (`.github/workflows/build.yml`) : lint + typecheck + tests sur chaque
 push/PR ; build + release sur tag `v*`.
