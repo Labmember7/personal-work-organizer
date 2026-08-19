@@ -66,16 +66,20 @@ export interface PluginManifest {
 /** Un plugin découvert : son manifeste, où le charger, d'où il vient. */
 export interface PluginSource {
   manifest: PluginManifest;
-  /** URL à donner à l'iframe. */
+  /** URL à donner à l'iframe (v1) ; vide pour un plugin v2 déclaratif. */
   url: string;
   /** `builtin` = livré avec l'app ; `user` = déposé dans `plugins/` par l'utilisateur. */
   origin: "builtin" | "user";
   /** Nom de fichier, pour les diagnostics. */
   file: string;
+  /** `1` = fichier HTML autonome (apiVersion v1) ; `2` = dossier `trk.extension/2`. */
+  format: 1 | 2;
+  /** Racine du dossier du plugin sur disque (v2) ; absente pour v1. */
+  root?: string;
   /**
-   * PoC du format `trk.extension/2` : spécification `trk.view/1` d'une vue
-   * déclarative, rendue par l'hôte au lieu d'être chargée dans une iframe.
-   * Absente pour un plugin v1 (un fichier .html), qui garde `url`.
+   * Format `trk.extension/2` : spécification `trk.view/1` d'une vue déclarative,
+   * rendue par l'hôte au lieu d'être chargée dans une iframe. Absente pour un
+   * plugin v1 (un fichier .html), qui garde `url`.
    */
   declarative?: Record<string, unknown>;
 }
@@ -84,7 +88,14 @@ export interface PluginSource {
 export interface PluginLoadError {
   file: string;
   origin: "builtin" | "user";
-  reason: "no-manifest" | "invalid-manifest" | "api-too-new" | "unreadable";
+  reason:
+    | "no-manifest"
+    | "invalid-json"
+    | "invalid-manifest"
+    | "api-too-new"
+    | "engine-mismatch"
+    | "not-v2"
+    | "unreadable";
   detail?: string;
 }
 

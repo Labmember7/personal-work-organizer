@@ -7,7 +7,10 @@
 // rassembler les fichiers bruts et construire les URL d'iframe.
 
 import { extractManifestBlock, parseManifest } from "../lib/plugins/manifest";
-import type { PluginLoadError, PluginSource } from "../lib/plugins/types";
+import { parseManifestV2 } from "../lib/plugins/manifest2";
+import { parseViewSpecText } from "../lib/plugins/viewSpec";
+import type { PluginCapability, PluginManifest, PluginScopeKind, PluginSource } from "../lib/plugins/types";
+import type { PluginLoadError } from "../lib/plugins/types";
 import type { RawPluginEntry } from "./storage";
 
 // `tsconfig.json` désactive les types automatiques (`types: []`) : on
@@ -25,10 +28,44 @@ function reasonFromRawError(error: string | undefined): PluginLoadError["reason"
   return error === "unreadable" ? "unreadable" : "no-manifest";
 }
 
+/** Normalise un manifeste v2 (`trk.extension/2`) en `PluginManifest` v1. */
+function normalizeV2Manifest(m: {
+  id: string;
+  version: string;
+  name: PluginManifest["name"];
+  description?: PluginManifest["description"];
+  icon?: string;
+  permissions?: string[];
+  engines?: { api?: number };
+  contributes?: { views?: Array<{ scopes?: PluginScopeKind[]; singleton?: boolean }> };
+}): PluginManifest {
+  const caps = (m.permissions ?? []) as PluginCapability[];
+  const firstView = Array.isArray(m.contributes?.views) ? m.contributes!.views![0] : undefined;
+  return {
+    id: m.id,
+    version: m.version,
+    apiVersion: typeof m.engines?.api === "number" ? m.engines.api : 2,
+    name: m.name,
+    ...(m.description !== undefined ? { description: m.description } : {}),
+    ...(typeof m.icon === "string" ? { icon: m.icon } : {}),
+    capabilities: caps,
+    ...(Array.isArray(firstView?.scopes) ? { scopes: firstView!.scopes! } : {}),
+    ...(firstView?.singleton === true ? { singleton: true } : {}),
+  };
+}
+
+/** Parse la spec déclarative embarquée (JSON ou YAML `.trkv`). */
+function parseDeclarativeSpec(raw?: string): Record<string, unknown> | undefined {
+  if (!raw) return undefined;
+  const parsed = parseViewSpecText(raw);
+  return parsed.ok ? (parsed.data as Record<string, unknown>) : undefined;
+}
+
 /**
- * Construit la liste des plugins utilisables à partir des fichiers bruts.
- * Un plugin `user` écrase un `builtin` du même id : `candidates` doit être
- * ordonné builtin -> user, la dernière affectation dans la Map gagne.
+ * Construit la liste des plugins utilisables à partir des fichiers bruts,
+ * unifiée v1 (`.html`) + v2 (`manifest.json`). Un plugin `user` écrase un
+ * `builtin` du même id : `candidates` doit être ordonné builtin -> user, la
+ * dernière affectation dans la Map gagne.
  */
 function buildFromCandidates(
   candidates: RawPluginEntry[],
@@ -42,6 +79,35 @@ function buildFromCandidates(
       errors.push({ file: entry.file, origin: entry.origin, reason: reasonFromRawError(entry.error) });
       continue;
     }
+
+    // Discrimination v1 / v2 sans heuristique : le champ `format` est la
+    // seule source de vérité (cf. spec § 4).
+    let format: 1 | 2 = 1;
+    try {
+      const raw = JSON.parse(entry.manifestJson) as { format?: string };
+      if (raw && raw.format === "trk.extension/2") format = 2;
+    } catch {
+      // manifeste v1 non-JSON (ou HTML encapsulé) : on garde v1.
+    }
+
+    if (format === 2) {
+      const result = parseManifestV2(entry.manifestJson);
+      if (!result.ok) {
+        errors.push({ file: entry.file, origin: entry.origin, reason: result.reason, detail: result.detail });
+        continue;
+      }
+      byId.set(result.manifest.id, {
+        manifest: normalizeV2Manifest(result.manifest),
+        url: `app-plugin://${result.manifest.id}/`,
+        origin: entry.origin,
+        file: entry.file,
+        format: 2,
+        ...(entry.root ? { root: entry.root } : {}),
+        ...(entry.specJson ? { declarative: parseDeclarativeSpec(entry.specJson) } : {}),
+      });
+      continue;
+    }
+
     const result = parseManifest(entry.manifestJson);
     if (!result.ok) {
       errors.push({ file: entry.file, origin: entry.origin, reason: result.reason, detail: result.detail });
@@ -52,6 +118,7 @@ function buildFromCandidates(
       url: urlFor(entry.file),
       origin: entry.origin,
       file: entry.file,
+      format: 1,
     });
   }
 
@@ -74,42 +141,27 @@ function discoverDeclarative(): PluginSource[] {
   const specs = import.meta.glob("/plugins/*/views/*.trkv", { query: "?raw", import: "default", eager: true });
 
   const out: PluginSource[] = [];
-  for (const [path, json] of Object.entries(manifests)) {
-    let manifest: Record<string, unknown>;
-    try {
-      manifest = JSON.parse(json) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-    if (manifest.format !== "trk.extension/2" || typeof manifest.id !== "string") continue;
+  for (const [modulePath, json] of Object.entries(manifests)) {
+    const v2 = parseManifestV2(json as string);
+    if (!v2.ok) continue;
 
-    const contributes = manifest.contributes as { views?: Record<string, unknown>[] } | undefined;
+    const contributes = v2.manifest.contributes;
     const view = contributes?.views?.find((v) => v.kind === "declarative");
     if (!view || typeof view.spec !== "string") continue;
 
-    const dir = path.slice(0, path.lastIndexOf("/"));
+    const dir = modulePath.slice(0, modulePath.lastIndexOf("/"));
     const raw = specs[`${dir}/${view.spec}`];
-    if (!raw) continue;
-    let spec: Record<string, unknown>;
-    try {
-      spec = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
+    if (typeof raw !== "string") continue;
+    const spec = parseDeclarativeSpec(raw);
 
     out.push({
-      manifest: {
-        id: manifest.id,
-        version: typeof manifest.version === "string" ? manifest.version : "0.0.0",
-        apiVersion: 1,
-        name: (manifest.name ?? manifest.id) as PluginSource["manifest"]["name"],
-        capabilities: ["tasks:read"],
-        ...(typeof manifest.icon === "string" ? { icon: manifest.icon } : {}),
-      },
+      manifest: normalizeV2Manifest(v2.manifest),
       url: "",
       origin: "builtin",
-      file: `${manifest.id}/manifest.json`,
-      declarative: spec,
+      file: `${v2.manifest.id}/manifest.json`,
+      format: 2,
+      root: dir,
+      ...(spec ? { declarative: spec } : {}),
     });
   }
   return out;
@@ -121,7 +173,13 @@ export async function discoverPlugins(): Promise<{ plugins: PluginSource[]; erro
   if (hasIpc()) {
     const raw = await window.plugins!.list();
     const found = buildFromCandidates(raw, (file) => `app-plugin://local/${file}`);
-    return { plugins: [...found.plugins, ...declarative], errors: found.errors };
+    // Déduplication : en dev, l'IPC (dossiers v2) et le repli `import.meta.glob`
+    // découvrent le même plugin. L'IPC prime (racine réelle, CSP par hôte).
+    const byId = new Map(found.plugins.map((p) => [p.manifest.id, p]));
+    for (const d of declarative) {
+      if (!byId.has(d.manifest.id)) byId.set(d.manifest.id, d);
+    }
+    return { plugins: [...byId.values()], errors: found.errors };
   }
 
   // Hors Electron : Vite sert la racine du projet, `plugins/*.html` y est

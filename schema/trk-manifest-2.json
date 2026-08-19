@@ -1,0 +1,155 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/bacem/suivi-travaux/main/schema/trk-manifest-2.json",
+  "title": "Manifeste de plugin trk.extension/2",
+  "type": "object",
+  "required": ["format", "id", "version", "engines", "name"],
+  "additionalProperties": true,
+  "properties": {
+    "format": { "const": "trk.extension/2" },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$" },
+    "version": { "type": "string", "minLength": 1 },
+    "publisher": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$" },
+    "license": { "type": "string" },
+    "homepage": { "type": "string", "format": "uri" },
+    "engines": {
+      "type": "object",
+      "required": ["api"],
+      "properties": {
+        "api": { "type": "integer", "minimum": 1, "maximum": 2 },
+        "app": { "type": "string" }
+      }
+    },
+    "name": { "type": ["string", "object"] },
+    "description": { "type": ["string", "object"] },
+    "icon": { "type": "string" },
+    "categories": { "type": "array", "items": { "type": "string" } },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "doc", "tasks:read", "task:reveal", "file:save", "toast",
+          "fullscreen", "debug", "commands", "settings", "columns",
+          "panels", "state"
+        ]
+      }
+    },
+    "locales": {
+      "type": "object",
+      "properties": {
+        "dir": { "type": "string" },
+        "default": { "type": "string" }
+      }
+    },
+    "contributes": { "$ref": "#/definitions/contributes" }
+  },
+  "definitions": {
+    "localized": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "object", "additionalProperties": { "type": "string" } }
+      ]
+    },
+    "contributes": {
+      "type": "object",
+      "properties": {
+        "docTypes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "dataVersion"],
+            "properties": {
+              "id": { "type": "string" },
+              "dataVersion": { "type": "integer" },
+              "migrations": { "type": "string" }
+            }
+          }
+        },
+        "views": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "kind"],
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "$ref": "#/definitions/localized" },
+              "icon": { "type": "string" },
+              "kind": { "enum": ["declarative", "app"] },
+              "spec": { "type": "string" },
+              "entry": { "type": "string" },
+              "docType": { "type": "string" },
+              "scopes": { "type": "array", "items": { "enum": ["global", "project"] } },
+              "singleton": { "type": "boolean" }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "kind": { "const": "declarative" } } },
+                "then": { "required": ["spec"] },
+                "else": { "required": ["entry"] }
+              }
+            ]
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "$ref": "#/definitions/localized" },
+              "icon": { "type": "string" },
+              "when": { "type": "string" }
+            }
+          }
+        },
+        "taskColumns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "value"],
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "$ref": "#/definitions/localized" },
+              "value": { "type": "string" },
+              "as": { "type": "string" },
+              "width": { "type": "string" },
+              "tone": { "type": "string" }
+            }
+          }
+        },
+        "taskPanels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "kind"],
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "$ref": "#/definitions/localized" },
+              "kind": { "enum": ["declarative", "app"] },
+              "spec": { "type": "string" },
+              "entry": { "type": "string" }
+            }
+          }
+        },
+        "settings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": { "enum": ["enum", "number", "boolean", "string"] },
+              "values": { "type": "array", "items": { "type": "string" } },
+              "default": {},
+              "min": { "type": "number" },
+              "max": { "type": "number" },
+              "label": { "$ref": "#/definitions/localized" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

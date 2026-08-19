@@ -4,7 +4,7 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { createStore } = require("./electron/store");
 const { createLogger } = require("./electron/logger");
-const { resolvePluginDirs, listPlugins, readPluginHtml, wrapPluginHtml, PLUGIN_CSP } = require("./electron/plugins");
+const { resolvePluginDirs, listPlugins, discoverFolders, pluginRoots, readPluginHtml, readPluginResource, wrapPluginHtml, buildPluginCsp, mimeForPath, PLUGIN_CSP } = require("./electron/plugins");
 
 const logger = createLogger();
 
@@ -242,8 +242,10 @@ function getPluginSdk() {
 }
 
 // Découverte brute, non validée : la validation du manifeste (schéma,
-// apiVersion, capacités) vit côté renderer dans `lib/plugins/manifest.ts`.
-ipcMain.handle("plugins:list", () => listPlugins(getPluginDirs()));
+// apiVersion, capacités) vit côté renderer dans `lib/plugins/manifest.ts`
+// (v1) et `lib/plugins/manifest2.ts` (v2). Les entrées v2 portent `root` et
+// éventuellement `specJson` (vue déclarative embarquée).
+ipcMain.handle("plugins:list", () => [...listPlugins(getPluginDirs()), ...discoverFolders(getPluginDirs())]);
 
 // Export d'un fichier de plugin (JSON, PNG…) via le dialogue natif : une
 // iframe sandboxée ne peut pas déclencher de téléchargement elle-même.
@@ -367,15 +369,39 @@ app.whenReady().then(() => {
     }
   });
 
-  // Sert le HTML d'un plugin avec le SDK injecté en ligne et sa CSP dédiée.
-  // Jamais `bypassCSP` : PLUGIN_CSP doit s'appliquer à ce que reçoit l'iframe.
+  // Sert les plugins. Deux régimes, selon l'hôte de l'URL :
+  //  - `app-plugin://local/<fichier>.html` : plugin v1 (fichier autonome),
+  //    SDK injecté en ligne, CSP `unsafe-inline` (mono-fichier, cf. v1).
+  //  - `app-plugin://<id>/<chemin>` : plugin v2 (dossier `trk.extension/2`),
+  //    ressources servies séparément, CSP `'self'` sans `unsafe-inline`.
+  // Jamais `bypassCSP` : la CSP dédiée doit s'appliquer à ce qui est servi.
   protocol.handle("app-plugin", (request) => {
-    const fileName = decodeURIComponent(new URL(request.url).pathname.replace(/^\/+/, ""));
-    const found = readPluginHtml(getPluginDirs(), fileName);
-    if (!found) return new Response("Not found", { status: 404 });
-    const wrapped = wrapPluginHtml(found.html, getPluginSdk());
-    return new Response(wrapped, {
-      headers: { "content-type": "text/html; charset=utf-8", "Content-Security-Policy": PLUGIN_CSP },
+    let url;
+    try {
+      url = new URL(request.url);
+    } catch {
+      return new Response("Bad request", { status: 400 });
+    }
+    const host = url.host;
+    const relPath = decodeURIComponent(url.pathname.replace(/^\/+/, ""));
+
+    if (host === "local") {
+      const found = readPluginHtml(getPluginDirs(), relPath);
+      if (!found) return new Response("Not found", { status: 404 });
+      const wrapped = wrapPluginHtml(found.html, getPluginSdk());
+      return new Response(wrapped, {
+        headers: { "content-type": "text/html; charset=utf-8", "Content-Security-Policy": PLUGIN_CSP },
+      });
+    }
+
+    // v2 : `app-plugin://<id>/<chemin relatif au dossier du plugin>`.
+    const roots = pluginRoots(getPluginDirs());
+    const root = roots[host];
+    if (!root) return new Response("Not found", { status: 404 });
+    const res = readPluginResource(root, relPath);
+    if (!res) return new Response("Not found", { status: 404 });
+    return new Response(res.data, {
+      headers: { "content-type": mimeForPath(res.full), "Content-Security-Policy": buildPluginCsp(2) },
     });
   });
 

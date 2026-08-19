@@ -14,10 +14,12 @@ electron/
                      #   (tmp + rename), copie .bak, relecture de secours
   logger.js          # Journal data/debug.log (tronqué au lancement), tampon
                      #   mémoire borné tant qu'aucun dossier n'est écrivable
-  plugins.js         # Découverte brute des plugins (builtin + user), lecture
-                     #   d'un fichier par nom (garde anti-traversée), injection
-                     #   du SDK + CSP dédiée (wrapPluginHtml). Ne valide aucun
-                     #   manifeste : cf. src/lib/plugins/manifest.ts
+  plugins.js         # Découverte brute des plugins : (v1) .html autonome par
+                      #   nom, (v2) dossiers `format: "trk.extension/2"`. Lecture
+                      #   de ressource par chemin avec garde anti-traversée
+                      #   (realpath) ; CSP par format (v1 unsafe-inline, v2
+                      #   'self' sans unsafe-inline). Ne valide aucun manifeste
+                      #   : cf. src/lib/plugins/{manifest,manifest2}.ts
 main.js              # Processus principal : fenêtre (frame:false, sandbox),
                      #   handlers IPC (storage/config/images/plugins/dialogues/
                      #   fenêtre), protocoles app-image: et app-plugin:,
@@ -26,9 +28,11 @@ preload.js           # contextBridge : window.storage / config / dataIO /
                      #   images / plugins / windowControls (surface minimale,
                      #   pas de Node côté renderer)
 
-plugins/             # Un plugin = un fichier .html autonome (manifeste
-                     #   embarqué). Livrés avec l'app (ici) ou déposés par
-                     #   l'utilisateur à côté de l'exécutable.
+plugins/             # Plugins (v1 = fichier .html autonome à manifeste
+                      #   embarqué ; v2 = dossier `trk.extension/2` :
+                      #   manifest.json + assets servis par app-plugin:). Livrés
+                      #   avec l'app (ici) ou déposés par l'utilisateur à côté de
+                      #   l'exécutable.
   mindmap.html       # Carte mentale / feuille de route, liens en lecture
                      #   seule vers les tâches. Moteur de rendu SVG maison.
   sdk/trk-plugin-sdk.js # SDK injecté en ligne dans chaque plugin (jamais en
@@ -131,10 +135,24 @@ src/
 
 ## Système de plugins
 
-Un plugin est **un fichier HTML autonome** déposé dans `plugins/` (livré avec
-l'app) ou à côté de l'exécutable (déposé par l'utilisateur) — pas de
-recompilation, pas de plugin dans le bundle. Il est chargé dans une iframe
-`sandbox="allow-scripts"` et ne communique avec l'hôte que par `postMessage`.
+Un plugin est **hébergé à l'exécution, jamais compilé**, sous l'une des deux
+formes (cf. `PLUGIN_FORMAT_V2.md`) :
+- **v1** — un fichier `.html` autonome (manifeste embarqué), servi en ligne par
+  le protocole `app-plugin:` (hôte `local`).
+- **v2** — un dossier `trk.extension/2` (`manifest.json` + assets sous
+  `app-plugin:<pluginId>/…`) : page d'accueil déclarative et/ou scripts isolés.
+
+Les vues **déclaratives** (`contributes.views[].kind === "declarative"`) ne
+passent par aucune iframe : leur spec `trk.view/1` (`lib/plugins/viewSpec.ts`)
+est lue par l'hôte et rendue par `features/plugins/DeclarativeView.jsx` (moteur
+d'expressions `trkx`, `lib/plugins/trkx.ts`). Une vue déclarative n'a ni JS, ni
+origine, ni CSP à négocier. Les vues **app** (scripts isolés) se chargent dans
+une iframe `app-plugin://<pluginId>/` avec une CSP par origine.
+
+Les deux formes sont déposées dans `plugins/` (livrées avec l'app) ou à côté de
+l'exécutable (déposées par l'utilisateur) — pas de recompilation, pas de plugin
+dans le bundle. Un plugin est chargé dans une iframe `sandbox="allow-scripts"`
+et ne communique avec l'hôte que par `postMessage`.
 
 **Deux décisions non négociables** (cf. `PLUGIN_PLAN.md`) :
 1. Hébergement HTML chargé à l'exécution, jamais compilé.

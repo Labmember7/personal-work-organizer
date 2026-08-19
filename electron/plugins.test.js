@@ -8,7 +8,7 @@ import { extractManifestBlock as extractManifestBlockTs } from "../src/lib/plugi
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const { extractManifestBlock, resolvePluginDirs, listPlugins, readPluginHtml, wrapPluginHtml, PLUGIN_CSP } = require("./plugins.js");
+const { extractManifestBlock, resolvePluginDirs, listPlugins, discoverFolders, readPluginResource, buildPluginCsp, readPluginHtml, wrapPluginHtml, PLUGIN_CSP } = require("./plugins.js");
 
 const MANIFEST_HTML = `<!doctype html>
 <html><head>
@@ -117,6 +117,89 @@ describe("PLUGIN_CSP", () => {
   it("interdit le réseau et n'autorise pas bypassCSP", () => {
     expect(PLUGIN_CSP).toContain("connect-src 'none'");
     expect(PLUGIN_CSP).toContain("default-src 'none'");
+  });
+
+  it("la CSP v2 n'a pas de unsafe-inline sur script-src (origine par plugin)", () => {
+    const csp = buildPluginCsp(2);
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toContain("script-src 'unsafe-inline'");
+    expect(csp).toContain("connect-src 'self'");
+  });
+
+  it("la CSP v1 garde unsafe-inline (mono-fichier)", () => {
+    expect(buildPluginCsp(1)).toContain("script-src 'unsafe-inline'");
+  });
+});
+
+describe("discoverFolders", () => {
+  it("découvre un dossier avec manifest.json et ignore un dossier sans", () => {
+    const dirs = resolvePluginDirs(baseDir, appDir);
+    fs.mkdirSync(dirs[0].dir, { recursive: true });
+    fs.mkdirSync(path.join(dirs[0].dir, "myplugin"), { recursive: true });
+    fs.writeFileSync(path.join(dirs[0].dir, "myplugin", "manifest.json"), JSON.stringify({ format: "trk.extension/2", id: "myplugin", version: "1.0.0", engines: { api: 2 } }), "utf-8");
+    fs.mkdirSync(path.join(dirs[0].dir, "vide"), { recursive: true });
+
+    const folders = discoverFolders(dirs);
+    const found = folders.find((f) => f.id === "myplugin");
+    expect(found).toBeDefined();
+    expect(found.root).toBe(path.join(dirs[0].dir, "myplugin"));
+    expect(found.manifestJson).toContain("myplugin");
+    expect(found.specJson).toBeUndefined();
+    expect(folders.some((f) => f.id === "vide")).toBe(false);
+  });
+
+  it("attaque la spec déclarative d'un dossier v2 sur l'entrée IPC", () => {
+    const dirs = resolvePluginDirs(baseDir, appDir);
+    fs.mkdirSync(dirs[0].dir, { recursive: true });
+    const root = path.join(dirs[0].dir, "decl");
+    fs.mkdirSync(path.join(root, "views"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "manifest.json"),
+      JSON.stringify({
+        format: "trk.extension/2",
+        id: "decl",
+        version: "1.0.0",
+        engines: { api: 2 },
+        contributes: { views: [{ kind: "declarative", spec: "views/charge.trkv" }] },
+      }),
+      "utf-8",
+    );
+    fs.writeFileSync(path.join(root, "views", "charge.trkv"), JSON.stringify({ spec: "trk.view/1", source: "tasks" }), "utf-8");
+
+    const folders = discoverFolders(dirs);
+    const found = folders.find((f) => f.id === "decl");
+    expect(found).toBeDefined();
+    expect(found.specJson).toContain("trk.view/1");
+  });
+});
+
+describe("readPluginResource", () => {
+  let root;
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "trk-res-"));
+    fs.mkdirSync(path.join(root, "sub"), { recursive: true });
+    fs.writeFileSync(path.join(root, "sub", "hi.txt"), "bonjour", "utf-8");
+  });
+  afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  it("sert un fichier dans la racine", () => {
+    const res = readPluginResource(root, "sub/hi.txt");
+    expect(res).not.toBeNull();
+    expect(res.data.toString("utf-8")).toBe("bonjour");
+  });
+
+  it("refuse une traversée de répertoire (..)", () => {
+    expect(readPluginResource(root, "../escape.txt")).toBeNull();
+    expect(readPluginResource(root, "sub/../../etc/passwd")).toBeNull();
+  });
+
+  it("refuse un chemin absolu", () => {
+    expect(readPluginResource(root, "/etc/passwd")).toBeNull();
+    expect(readPluginResource(root, "C:\\\\windows\\system32\\x")).toBeNull();
+  });
+
+  it("refuse un chemin vide", () => {
+    expect(readPluginResource(root, "")).toBeNull();
   });
 });
 

@@ -99,11 +99,135 @@ function wrapPluginHtml(html, sdkSource) {
   return inject + html;
 }
 
+// ── Format `trk.extension/2` : un dossier `plugins/<id>/` avec manifest.json ──
+//
+// Découverte des dossiers, lecture de la spec déclarative (si le plugin n'a
+// qu'une vue déclarative, aucune iframe, aucune origine : l'hôte la rend). La
+// validation du manifeste reste côté renderer (`lib/plugins/manifest2.ts`).
+
+// Lit un dossier de plugin v2 : manifest.json obligatoire, et la spec de la
+// première vue déclarative (embeddee dans l'entrée pour que l'IPC soit
+// autonome, sans aller relire le disque côté renderer).
+function readFolderPlugin(dir, origin) {
+  let manifestJson;
+  try {
+    manifestJson = fs.readFileSync(path.join(dir, "manifest.json"), "utf-8");
+  } catch {
+    return null;
+  }
+  let id = null;
+  let specJson = undefined;
+  try {
+    const m = JSON.parse(manifestJson);
+    id = typeof m.id === "string" ? m.id : null;
+    const views = Array.isArray(m.contributes?.views) ? m.contributes.views : [];
+    const decl = views.find((v) => v && v.kind === "declarative" && typeof v.spec === "string");
+    if (decl) {
+      try {
+        specJson = fs.readFileSync(path.join(dir, decl.spec), "utf-8");
+      } catch {
+        specJson = null;
+      }
+    }
+  } catch {
+    // manifeste illisible : on garde l'id du nom de dossier ci-dessous
+  }
+  if (!id) id = path.basename(dir);
+  return { id, file: `${id}/manifest.json`, origin, root: dir, manifestJson, specJson };
+}
+
+// Liste brute des dossiers plugins (v2) présents dans les racines. Un dossier
+// sans manifest.json n'est pas un plugin : ignoré. Idem v1, un dossier absent
+// n'est pas une erreur.
+function discoverFolders(dirs) {
+  const out = [];
+  for (const { dir, origin } of dirs) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const plugin = readFolderPlugin(path.join(dir, e.name), origin);
+      if (plugin) out.push(plugin);
+    }
+  }
+  return out;
+}
+
+// `id -> root` pour le protocole `app-plugin://<id>/…` (main.js).
+function pluginRoots(dirs) {
+  const map = {};
+  for (const f of discoverFolders(dirs)) map[f.id] = f.root;
+  return map;
+}
+
+// Lit une ressource livrée par un plugin v2, relativement à sa racine, en
+// refusant toute traversée de répertoire et tout ce qui sort du dossier
+// (lien symbolique inclus, via `realpath`). Renvoie le buffer ou `null`.
+function readPluginResource(root, relPath) {
+  if (typeof relPath !== "string" || relPath.length === 0) return null;
+  if (path.isAbsolute(relPath)) return null;
+  if (relPath.split(/[\\/]/).some((seg) => seg === "..")) return null;
+  const full = path.resolve(root, relPath);
+  try {
+    const realRoot = fs.realpathSync(root);
+    const realFull = fs.realpathSync(full);
+    if (realFull !== realRoot && !realFull.startsWith(realRoot + path.sep)) return null;
+    if (!fs.statSync(realFull).isFile()) return null;
+    return { data: fs.readFileSync(realFull), full: realFull };
+  } catch {
+    return null;
+  }
+}
+
+// CSP par plugin. v1 : mono-fichier sans sous-ressource → `unsafe-inline`
+// assumé (cf. ARCHITECTURE.md). v2 : origine par plugin, `'self'` utilisable →
+// aucun `unsafe-inline` sur `script-src` (§ 7 de la spec).
+const PLUGIN_CSP_V2 =
+  "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+  "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; " +
+  "form-action 'none'; base-uri 'none'; frame-ancestors 'self'";
+
+function buildPluginCsp(format) {
+  return format === 2 ? PLUGIN_CSP_V2 : PLUGIN_CSP;
+}
+
+const MIME_BY_EXT = {
+  ".html": "text/html; charset=utf-8",
+  ".htm": "text/html; charset=utf-8",
+  ".js": "text/javascript",
+  ".mjs": "text/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".ttf": "font/ttf",
+  ".map": "application/json",
+};
+
+function mimeForPath(p) {
+  return MIME_BY_EXT[path.extname(p).toLowerCase()] || "application/octet-stream";
+}
+
 module.exports = {
   extractManifestBlock,
   resolvePluginDirs,
   listPlugins,
+  discoverFolders,
+  pluginRoots,
   readPluginHtml,
+  readPluginResource,
   wrapPluginHtml,
+  buildPluginCsp,
+  mimeForPath,
   PLUGIN_CSP,
 };
