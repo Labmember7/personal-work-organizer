@@ -152,12 +152,25 @@ une iframe `app-plugin://<pluginId>/` avec une CSP par origine.
 Les vues **app** (`kind: "app"`, `entry` = page HTML du dossier) tournent dans
 une iframe `sandbox="allow-scripts allow-same-origin"`, origine
 `app-plugin://<id>`. Leur CSP v2 (`buildPluginCsp(2)`,
-`electron/plugins.js`) coupe le réseau et n'autorise **pas** `unsafe-inline` :
+`electron/plugins.js`) coupe le réseau et n'autor'ise **pas** `unsafe-inline` :
 le SDK est servi par l'hôte à `app-plugin://<id>/@trk/sdk.js` (`plugins/sdk/
 trk-plugin-sdk.mjs`, variante module ES de `trk-plugin-sdk.js`), importable via
 `import trk from "trk:sdk"` grâce à une carte d'imports posée par la page. La
 page déclare son identité via `<meta name="trk-plugin-id" content="…">`
 (préalable à `host:init`, cf. `usePluginHost.ts`).
+
+**Points de contribution** (`contributes`, cf. `PLUGIN_FORMAT_V2.md` § 4). Le
+manifeste v2 est validé dans `lib/plugins/manifest2.ts` (structure, grammaire
+d'`id`, `engines`, permissions, et analyse statique de chaque expression `trkx`
+déclarée : `commands.when`, `taskColumns.value`/`tone`). `normalizeV2Manifest`
+(`services/plugins.ts`) reporte `commands`, `taskColumns`, `taskPanels` et
+`settings` sur le `PluginManifest` consommé par l'UI. Implémenté : les
+**commandes** contribuées apparaissent dans une barre d'outils propre à la vue
+du plugin (`PluginsSection`), et un clic poste `host:command` au plugin via le
+pont ; le SDK (`trk.commands.on`/`enable`, dans les deux variantes) reçoit
+`host:command` et déclenche le gestionnaire abonné. `taskColumns`,
+`taskPanels` et `settings` sont remontés sur le manifeste mais leur rendu UI
+reste à faire (phases suivantes).
 
 Les deux formes sont déposées dans `plugins/` (livrées avec l'app) ou à côté de
 l'exécutable (déposées par l'utilisateur) — pas de recompilation, pas de plugin

@@ -196,6 +196,25 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
           </div>
         )}
 
+        {activePlugin?.manifest.commands?.length ? (
+          <div className="trk-plugin-commands">
+            {activePlugin.manifest.commands.map((cmd) => {
+              const Icon = iconFor(cmd.icon);
+              return (
+                <button
+                  key={cmd.id}
+                  type="button"
+                  className="trk-btn-secondary trk-plugin-cmd"
+                  title={localized(cmd.title, lang)}
+                  onClick={() => host.post({ type: "host:command", id: cmd.id })}
+                >
+                  {Icon ? <Icon size={14} /> : null} <span>{localized(cmd.title, lang)}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         {!activePlugin?.manifest.singleton && !activePlugin?.declarative && (
           <PluginDocBar
             docs={docsStore.docs}

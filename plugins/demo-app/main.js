@@ -14,4 +14,5 @@ function render() {
   render();
   trk.on("snapshot", render);
   document.getElementById("refresh").addEventListener("click", () => trk.refreshTasks());
+  trk.commands.on("demo.hello", () => trk.toast("Bonjour depuis la commande contribuée !"));
 })();

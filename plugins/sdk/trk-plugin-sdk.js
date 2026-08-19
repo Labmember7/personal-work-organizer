@@ -27,6 +27,10 @@
   };
 
   var listeners = { doc: [], snapshot: [], theme: [], lang: [], saved: [], error: [], fullscreen: [] };
+  // Commandes contribuées : l'hôte envoie `host:command` quand l'utilisateur
+  // clique le bouton de la barre d'outils de la vue ; le plugin s'est abonné
+  // via `trk.commands.on(id, cb)`.
+  var commandListeners = {};
   var readyResolvers = [];
   var readyPromise = null;
 
@@ -180,13 +184,24 @@
       case "host:error":
         emit("error", { code: message.code, message: message.message });
         break;
-      case "host:fullscreen":
-        // L'hôte a coupé (ou forcé) le plein écran de son côté : on aligne
-        // notre propre affichage sans renvoyer de `requestFullscreen`, sous
-        // peine de boucle. Un plugin qui n'écoute pas cet événement garde
-        // simplement un bouton désynchronisé, rien de plus grave.
-        emit("fullscreen", !!message.on);
-        break;
+        case "host:fullscreen":
+          // L'hôte a coupé (ou forcé) le plein écran de son côté : on aligne
+          // notre propre affichage sans renvoyer de `requestFullscreen`, sous
+          // peine de boucle. Un plugin qui n'écoute pas cet événement garde
+          // simplement un bouton désynchronisé, rien de plus grave.
+          emit("fullscreen", !!message.on);
+          break;
+        case "host:command":
+          if (message.id && commandListeners[message.id]) {
+            commandListeners[message.id].forEach(function (cb) {
+              try {
+                cb(message.args);
+              } catch (e) {
+                console.error("[TrkPlugin] erreur dans un gestionnaire de commande '" + message.id + "'", e);
+              }
+            });
+          }
+          break;
       default:
         break;
     }
@@ -272,6 +287,25 @@
     },
     /** Pose les jetons de l'hôte en variables CSS sur `:root`. Appelé automatiquement à chaque thème reçu. */
     applyTheme: applyTheme,
+    /** Commandes contribuées (`contributes.commands`). `on(id, cb)` abonne un
+     * gestionnaire déclenché quand l'utilisateur clique le bouton de la barre
+     * d'outils ; renvoie une fonction de désabonnement. `enable(id, on)` signale
+     * à l'hôte l'activation de la commande (désactive le bouton sinon). */
+    commands: {
+      on: function (id, cb) {
+        if (!commandListeners[id]) commandListeners[id] = [];
+        commandListeners[id].push(cb);
+        return function () {
+          var arr = commandListeners[id];
+          if (!arr) return;
+          var idx = arr.indexOf(cb);
+          if (idx !== -1) arr.splice(idx, 1);
+        };
+      },
+      enable: function (id, on) {
+        guarded("commands", { type: "plugin:command:enable", id: id, enabled: !!on });
+      },
+    },
   };
 
   window.TrkPlugin = TrkPlugin;

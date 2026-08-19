@@ -15,7 +15,7 @@
   },
   "icon": "FlaskConical",
 
-  "permissions": ["tasks:read"],
+  "permissions": ["tasks:read", "commands", "toast"],
 
   "contributes": {
     "views": [
@@ -27,6 +27,13 @@
         "entry": "index.html",
         "scopes": ["global"],
         "singleton": true
+      }
+    ],
+    "commands": [
+      {
+        "id": "demo.hello",
+        "title": { "fr": "Dire bonjour", "en": "Say hello" },
+        "icon": "Sparkles"
       }
     ]
   }
