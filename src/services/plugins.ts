@@ -67,7 +67,7 @@ function parseDeclarativeSpec(raw?: string): Record<string, unknown> | undefined
  * `builtin` du même id : `candidates` doit être ordonné builtin -> user, la
  * dernière affectation dans la Map gagne.
  */
-function buildFromCandidates(
+export function buildFromCandidates(
   candidates: RawPluginEntry[],
   urlFor: (file: string) => string,
 ): { plugins: PluginSource[]; errors: PluginLoadError[] } {
@@ -96,9 +96,17 @@ function buildFromCandidates(
         errors.push({ file: entry.file, origin: entry.origin, reason: result.reason, detail: result.detail });
         continue;
       }
+      // Vue `app` (scripts isolés) → iframe à l'entry ; vue déclarative → rendu
+      // inline par l'hôte (url inutilisée). Déclarative prime si les deux
+      // coexistent.
+      const views = result.manifest.contributes?.views ?? [];
+      const appView = views.find((v) => v.kind === "app" && typeof v.entry === "string");
+      const url = appView
+        ? `app-plugin://${result.manifest.id}/${appView.entry}`
+        : `app-plugin://${result.manifest.id}/`;
       byId.set(result.manifest.id, {
         manifest: normalizeV2Manifest(result.manifest),
-        url: `app-plugin://${result.manifest.id}/`,
+        url,
         origin: entry.origin,
         file: entry.file,
         format: 2,
