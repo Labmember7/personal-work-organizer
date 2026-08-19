@@ -115,6 +115,7 @@ function readFolderPlugin(dir, origin) {
   } catch {
     return null;
   }
+  manifestJson = manifestJson.replace(/^\uFEFF/, "");
   let id = null;
   let specJson = undefined;
   let panelSpecs = undefined;

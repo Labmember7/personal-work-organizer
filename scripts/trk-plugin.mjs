@@ -87,7 +87,7 @@ async function cmdInit(argv) {
   const view = {
     $schema: "schema/trk-view-1.json",
     spec: "trk.view/1",
-    layout: { type: "table", columns: [{ value: "title" }, { value: "count(refs)", as: "badge" }] },
+    layout: { type: "table", columns: [{ value: "titre" }, { value: "minutes", as: "badge" }] },
   };
   writeFileSync(join(abs, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n", "utf-8");
   writeFileSync(join(abs, "views/main.trkv"), JSON.stringify(view, null, 2) + "\n", "utf-8");

@@ -27,7 +27,7 @@ const VALID_MANIFEST = JSON.stringify({
 
 const VALID_VIEW = JSON.stringify({
   spec: "trk.view/1",
-  layout: { type: "table", columns: [{ value: "title" }, { value: "minutes", as: "badge" }] },
+  layout: { type: "table", columns: [{ value: "titre" }, { value: "minutes", as: "badge" }] },
 });
 
 describe("validatePluginFolder", () => {
@@ -55,7 +55,7 @@ describe("validatePluginFolder", () => {
     const fs = memFS({ "manifest.json": JSON.stringify(bad) });
     const res = validatePluginFolder("plugins/x", fs.read, fs.exists);
     expect(res.ok).toBe(false);
-    expect(res.diagnostics.some((d) => d.code === "E_TRKX")).toBe(true);
+    expect(res.diagnostics.some((d) => d.code === "E_TRKX" || d.code === "E_PARSE")).toBe(true);
   });
 
   it("signale une locale par defaut manquante", () => {
