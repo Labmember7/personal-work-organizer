@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/bacem/suivi-travaux/main/schema/trk-view-1.json",
+  "title": "Specification de vue declarative trk.view/1",
+  "type": "object",
+  "required": ["spec"],
+  "additionalProperties": true,
+  "properties": {
+    "spec": { "const": "trk.view/1" },
+    "source": { "enum": ["tasks", "projects", "doc"] },
+    "where": { "type": "string" },
+    "group": { "type": "string" },
+    "sort": { "type": "string" },
+    "empty": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "object", "additionalProperties": { "type": "string" } }
+      ]
+    },
+    "layout": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["table", "cards", "board", "timeline", "chart", "stats"] },
+        "columns": { "type": "array", "items": { "$ref": "#/definitions/column" } },
+        "footer": { "type": "array", "items": { "$ref": "#/definitions/column" } }
+      }
+    }
+  },
+  "definitions": {
+    "column": {
+      "type": "object",
+      "required": ["label", "value"],
+      "properties": {
+        "label": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object", "additionalProperties": { "type": "string" } }
+          ]
+        },
+        "value": { "type": "string" },
+        "as": { "enum": ["text", "badge", "gauge", "date", "duration", "taskLink"] },
+        "align": { "enum": ["left", "right"] },
+        "width": { "type": "string" },
+        "tone": { "type": "string" }
+      }
+    }
+  }
+}
