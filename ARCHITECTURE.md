@@ -149,6 +149,16 @@ d'expressions `trkx`, `lib/plugins/trkx.ts`). Une vue déclarative n'a ni JS, ni
 origine, ni CSP à négocier. Les vues **app** (scripts isolés) se chargent dans
 une iframe `app-plugin://<pluginId>/` avec une CSP par origine.
 
+Les vues **app** (`kind: "app"`, `entry` = page HTML du dossier) tournent dans
+une iframe `sandbox="allow-scripts allow-same-origin"`, origine
+`app-plugin://<id>`. Leur CSP v2 (`buildPluginCsp(2)`,
+`electron/plugins.js`) coupe le réseau et n'autorise **pas** `unsafe-inline` :
+le SDK est servi par l'hôte à `app-plugin://<id>/@trk/sdk.js` (`plugins/sdk/
+trk-plugin-sdk.mjs`, variante module ES de `trk-plugin-sdk.js`), importable via
+`import trk from "trk:sdk"` grâce à une carte d'imports posée par la page. La
+page déclare son identité via `<meta name="trk-plugin-id" content="…">`
+(préalable à `host:init`, cf. `usePluginHost.ts`).
+
 Les deux formes sont déposées dans `plugins/` (livrées avec l'app) ou à côté de
 l'exécutable (déposées par l'utilisateur) — pas de recompilation, pas de plugin
 dans le bundle. Un plugin est chargé dans une iframe `sandbox="allow-scripts"`

@@ -398,6 +398,21 @@ app.whenReady().then(() => {
     const roots = pluginRoots(getPluginDirs());
     const root = roots[host];
     if (!root) return new Response("Not found", { status: 404 });
+
+    // Module SDK servi par l'hôte (`script-src 'self'` l'autorise, même
+    // origine que le plugin). Le plugin y accède via `import trk from "trk:sdk"`
+    // grâce à une carte d'imports qu'il pose (cf. PLUGIN_FORMAT_V2.md, § "app").
+    if (relPath === "@trk/sdk.js" || relPath.startsWith("@trk/")) {
+      try {
+        const sdk = fs.readFileSync(path.join(__dirname, "plugins", "sdk", "trk-plugin-sdk.mjs"), "utf-8");
+        return new Response(sdk, {
+          headers: { "content-type": "text/javascript; charset=utf-8", "Content-Security-Policy": buildPluginCsp(2) },
+        });
+      } catch {
+        return new Response("Not found", { status: 404 });
+      }
+    }
+
     const res = readPluginResource(root, relPath);
     if (!res) return new Response("Not found", { status: 404 });
     return new Response(res.data, {

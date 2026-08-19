@@ -222,6 +222,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
             reloadKey={reloadKey}
             onReload={() => setReloadKey((k) => k + 1)}
             fullscreen={fullscreen}
+            sandbox={activePlugin.format === 2 ? "allow-scripts allow-same-origin" : "allow-scripts"}
           />
         ) : (
           <div className="trk-empty trk-empty-rich trk-plugins-empty">

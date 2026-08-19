@@ -126,6 +126,12 @@ describe("PLUGIN_CSP", () => {
     expect(csp).toContain("connect-src 'self'");
   });
 
+  it("la CSP v2 n'interdit pas l'encadrement par l'hôte (pas de frame-ancestors)", () => {
+    // Sinon l'iframe (encadrée par localhost/file://) ne se chargerait pas :
+    // l'origine de l'hôte n'est pas `app-plugin://<id>`.
+    expect(buildPluginCsp(2)).not.toContain("frame-ancestors");
+  });
+
   it("la CSP v1 garde unsafe-inline (mono-fichier)", () => {
     expect(buildPluginCsp(1)).toContain("script-src 'unsafe-inline'");
   });
@@ -170,6 +176,31 @@ describe("discoverFolders", () => {
     const found = folders.find((f) => f.id === "decl");
     expect(found).toBeDefined();
     expect(found.specJson).toContain("trk.view/1");
+  });
+
+  it("découvre une vue `app` (entry) sans spec déclarative", () => {
+    const dirs = resolvePluginDirs(baseDir, appDir);
+    fs.mkdirSync(dirs[0].dir, { recursive: true });
+    const root = path.join(dirs[0].dir, "board");
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "manifest.json"),
+      JSON.stringify({
+        format: "trk.extension/2",
+        id: "board",
+        version: "1.0.0",
+        engines: { api: 2 },
+        contributes: { views: [{ kind: "app", entry: "index.html" }] },
+      }),
+      "utf-8",
+    );
+
+    const folders = discoverFolders(dirs);
+    const found = folders.find((f) => f.id === "board");
+    expect(found).toBeDefined();
+    expect(found.specJson).toBeUndefined();
+    const parsed = JSON.parse(found.manifestJson);
+    expect(parsed.contributes.views[0].entry).toBe("index.html");
   });
 });
 

@@ -10,7 +10,7 @@ const READY_TIMEOUT_MS = 5000;
 // (caméra, géoloc, referrer vers le fichier hôte…) sans que le plugin en ait
 // besoin. `reloadKey` force un remontage complet (nouvel iframe, nouvelle
 // tentative de `plugin:ready`) sans dupliquer la logique de chargement.
-export function PluginFrame({ iframeRef, ready, src, title, reloadKey, onReload, fullscreen }) {
+export function PluginFrame({ iframeRef, ready, src, title, reloadKey, onReload, fullscreen, sandbox = "allow-scripts" }) {
   const { t } = useLang();
   const [timedOut, setTimedOut] = useState(false);
 
@@ -29,7 +29,7 @@ export function PluginFrame({ iframeRef, ready, src, title, reloadKey, onReload,
         src={src}
         title={title}
         className="trk-plugin-iframe"
-        sandbox="allow-scripts"
+        sandbox={sandbox}
         allow=""
         referrerPolicy="no-referrer"
       />

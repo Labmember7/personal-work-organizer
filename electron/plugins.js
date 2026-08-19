@@ -186,10 +186,16 @@ function readPluginResource(root, relPath) {
 // CSP par plugin. v1 : mono-fichier sans sous-ressource → `unsafe-inline`
 // assumé (cf. ARCHITECTURE.md). v2 : origine par plugin, `'self'` utilisable →
 // aucun `unsafe-inline` sur `script-src` (§ 7 de la spec).
+//
+// Pas de `frame-ancestors` : l'iframe est encadrée par l'hôte (localhost /
+// file://), qui n'est pas de la même origine que `app-plugin://<id>`. Le
+// confinement vient du sandbox (`allow-scripts allow-same-origin`) et de
+// l'origine opaque par plugin, pas d'une restriction d'encadrement qui
+// bloquerait le chargement.
 const PLUGIN_CSP_V2 =
   "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; " +
-  "form-action 'none'; base-uri 'none'; frame-ancestors 'self'";
+  "form-action 'none'; base-uri 'none'";
 
 function buildPluginCsp(format) {
   return format === 2 ? PLUGIN_CSP_V2 : PLUGIN_CSP;

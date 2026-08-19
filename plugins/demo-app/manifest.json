@@ -1,0 +1,33 @@
+{
+  "format": "trk.extension/2",
+
+  "id": "demo-app",
+  "version": "1.0.0",
+  "publisher": "demo",
+  "license": "MIT",
+
+  "engines": { "api": 2 },
+
+  "name": { "fr": "Démo (app)", "en": "Demo (app)" },
+  "description": {
+    "fr": "Plugin d'exemple du tier `app` : module ES servi par l'hôte, pont postMessage.",
+    "en": "Example app-tier plugin: host-served ES module, postMessage bridge."
+  },
+  "icon": "FlaskConical",
+
+  "permissions": ["tasks:read"],
+
+  "contributes": {
+    "views": [
+      {
+        "id": "demo",
+        "title": { "fr": "Démo", "en": "Demo" },
+        "icon": "FlaskConical",
+        "kind": "app",
+        "entry": "index.html",
+        "scopes": ["global"],
+        "singleton": true
+      }
+    ]
+  }
+}
