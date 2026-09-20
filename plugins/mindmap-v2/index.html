@@ -1,0 +1,1502 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="trk-plugin-id" content="mindmap-v2" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carte mentale V2</title>
+  <style>
+    /* ============================================================
+     JETONS
+     Les couleurs viennent de l'hôte (host:init / host:theme, cf.
+     applyHostTheme) : ce bloc ne fait que poser un repli utilisable
+     hors application. Ce que le plugin possède en propre : la palette
+     des phases, les deux familles typographiques et le rythme.
+
+     RÈGLE TYPOGRAPHIQUE — sans = ce que l'utilisateur a écrit
+     (intitulés, notes, titres de tâches) ; mono = ce que l'outil dit
+     (rubriques, touches, compteurs, codes de phase). Aucune exception :
+     c'est ce qui permet de distinguer d'un coup d'œil son contenu de
+     l'interface, jusque dans le menu contextuel.
+     ============================================================ */
+    :root {
+      --bg: #10141A;
+      --panel: #181E26;
+      --panel-2: #1D2430;
+      --line: #2A323D;
+      --line-2: #3A4553;
+      --ink: #E8EBEE;
+      --muted: #8B95A1;
+      --accent: #35A7A0;
+      --accent-ink: #0E1216;
+      --inset: #0E1216;
+      --danger: #D64545;
+      --warn: #E08A3C;
+      --ok: #4CAF6D;
+      --decision: #B563C9;
+      --shadow: 0 18px 44px rgba(0, 0, 0, .42), 0 2px 8px rgba(0, 0, 0, .28);
+      --mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+      --sans: Inter, "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+      --r-sm: 6px;
+      --r-md: 8px;
+      --r-lg: 12px;
+      --bar-h: 48px;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      font-size: 13px
+    }
+
+    .sprite {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden
+    }
+
+    .eyebrow {
+      font: 600 9px/1.6 var(--mono);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted)
+    }
+
+    .key {
+      font: 500 10px/1 var(--mono);
+      letter-spacing: .4px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 3px 5px;
+      white-space: nowrap
+    }
+
+    /* ---------- barre d'outils : trois grappes, séparées par des filets ---------- */
+    .bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--bar-h);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line)
+    }
+
+    .bar>* {
+      flex: 0 0 auto
+    }
+
+    .spacer {
+      flex: 1 1 auto;
+      min-width: 4px
+    }
+
+    .rule {
+      width: 1px;
+      height: 20px;
+      background: var(--line);
+      margin: 0 2px
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+      min-width: 0;
+      max-width: 210px;
+      margin-right: 2px
+    }
+
+    .brand b {
+      font-size: 12.5px;
+      font-weight: 650;
+      letter-spacing: -.1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .brand span {
+      font: 600 8.5px/1.4 var(--mono);
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--muted)
+    }
+
+    .tb {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 30px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      font: 500 12px var(--sans);
+      padding: 0 10px;
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      white-space: nowrap
+    }
+
+    .tb:hover:not(:disabled) {
+      border-color: var(--line-2);
+      background: var(--panel-2)
+    }
+
+    .tb:disabled {
+      opacity: .38;
+      cursor: default
+    }
+
+    .tb.on {
+      border-color: var(--accent);
+      color: var(--accent)
+    }
+
+    .tb.accent {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 650
+    }
+
+    .tb.accent:hover {
+      filter: brightness(1.08);
+      background: var(--accent)
+    }
+
+    .tb.icon {
+      padding: 0;
+      width: 30px;
+      justify-content: center
+    }
+
+    .tb svg {
+      width: 15px;
+      height: 15px;
+      flex: 0 0 auto
+    }
+
+    .tb.danger {
+      color: var(--danger);
+      border-color: color-mix(in srgb, var(--danger) 40%, var(--line))
+    }
+
+    .tb.danger:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--danger) 14%, transparent);
+      border-color: var(--danger)
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 3px
+    }
+
+    /* Le menu contextuel prend le focus pour être pilotable au clavier, mais
+     c'est la ligne survolée qui montre où l'on est — un liseré autour de la
+     surface entière masquerait l'arête colorée qui la relie à sa cible. */
+    .ctx:focus,
+    .ctx:focus-visible {
+      outline: none
+    }
+
+    /* bascule de vue : deux options, un interrupteur — pas une liste déroulante */
+    .seg {
+      display: flex;
+      background: var(--inset);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 2px;
+      gap: 2px
+    }
+
+    .seg button {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 24px;
+      padding: 0 9px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: 500 11.5px var(--sans);
+      border-radius: 4px;
+      cursor: pointer
+    }
+
+    .seg button svg {
+      width: 14px;
+      height: 14px
+    }
+
+    .seg button:hover {
+      color: var(--ink)
+    }
+
+    .seg button.on {
+      background: var(--panel-2);
+      color: var(--ink);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .22)
+    }
+
+    .find {
+      position: relative;
+      display: flex;
+      align-items: center
+    }
+
+    .find svg {
+      position: absolute;
+      left: 9px;
+      width: 14px;
+      height: 14px;
+      color: var(--muted);
+      pointer-events: none
+    }
+
+    .find input {
+      height: 30px;
+      width: 172px;
+      background: var(--inset);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      color: var(--ink);
+      font: 400 12px var(--sans);
+      padding: 0 52px 0 28px
+    }
+
+    .find input::placeholder {
+      color: var(--muted)
+    }
+
+    .find .count {
+      position: absolute;
+      right: 9px;
+      font: 500 10px var(--mono);
+      color: var(--muted);
+      pointer-events: none
+    }
+
+    .find.miss input {
+      border-color: color-mix(in srgb, var(--danger) 55%, var(--line))
+    }
+
+    /* ---------- surfaces flottantes (popovers, menu contextuel) ---------- */
+    .pop-host {
+      position: relative
+    }
+
+    .pop {
+      position: absolute;
+      top: 36px;
+      right: 0;
+      min-width: 236px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      padding: 8px;
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 30;
+      box-shadow: var(--shadow)
+    }
+
+    .pop.open {
+      display: flex
+    }
+
+    .pop .eyebrow {
+      padding: 7px 8px 4px
+    }
+
+    .pop-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      font: 400 12.5px var(--sans);
+      color: var(--ink);
+      user-select: none
+    }
+
+    .pop-row:hover {
+      background: var(--panel-2)
+    }
+
+    .pop-row input[type=checkbox] {
+      accent-color: var(--accent);
+      width: 14px;
+      height: 14px;
+      margin: 0
+    }
+
+    .pop-row .key {
+      margin-left: auto
+    }
+
+    /* Une action n'a pas de case à cocher : on décale son libellé de la même
+     largeur pour que toute la colonne de texte reste alignée. */
+    .pop-row.act {
+      padding-left: 30px
+    }
+
+    .pop select {
+      width: 100%;
+      height: 30px;
+      background: var(--inset);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 0 8px;
+      font: 400 12.5px var(--sans);
+      margin: 2px 0 6px
+    }
+
+    .pop-sep {
+      height: 1px;
+      background: var(--line);
+      margin: 6px 2px
+    }
+
+    .pop button.pop-row {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      width: 100%;
+      text-align: left
+    }
+
+    /* ---------- LE MENU CONTEXTUEL — la pièce maîtresse ----------
+     Une seule surface pour toutes les cibles (point, phase, lien, fond).
+     L'arête gauche prend la couleur de la phase visée : le menu appartient
+     visuellement à ce qu'on a cliqué. Libellé en sans, touche en mono,
+     mêmes mots que la feuille de raccourcis et que la barre d'outils. */
+    .ctx {
+      position: fixed;
+      z-index: 60;
+      min-width: 238px;
+      max-width: 300px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--r-md);
+      padding: 5px;
+      display: none;
+      flex-direction: column;
+      box-shadow: var(--shadow);
+      transform-origin: top left;
+      animation: ctxIn .09s cubic-bezier(.2, .9, .3, 1)
+    }
+
+    .ctx.open {
+      display: flex
+    }
+
+    @keyframes ctxIn {
+      from {
+        opacity: 0;
+        transform: scale(.96)
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1)
+      }
+    }
+
+    .ctx-head {
+      padding: 7px 8px 8px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 4px
+    }
+
+    /* La rubrique reprend la couleur de la phase visée, comme l'arête gauche :
+     le menu appartient visuellement à ce qui a été cliqué. */
+    .ctx-kind {
+      font: 600 8.5px/1.5 var(--mono);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--ctx-accent, var(--muted))
+    }
+
+    .ctx-name {
+      font: 600 12.5px/1.35 var(--sans);
+      color: var(--ink);
+      margin-top: 2px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden
+    }
+
+    .ctx-item {
+      appearance: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      font: 400 12.5px var(--sans);
+      text-align: left;
+      padding: 7px 8px;
+      border-radius: var(--r-sm);
+      cursor: pointer
+    }
+
+    .ctx-item .key {
+      margin-left: auto
+    }
+
+    .ctx-item:hover:not(:disabled),
+    .ctx-item.cur {
+      background: var(--panel-2)
+    }
+
+    .ctx-item:disabled {
+      opacity: .35;
+      cursor: default
+    }
+
+    .ctx-item.danger {
+      color: var(--danger)
+    }
+
+    .ctx-item.danger:hover {
+      background: color-mix(in srgb, var(--danger) 15%, transparent)
+    }
+
+    .ctx-sep {
+      height: 1px;
+      background: var(--line);
+      margin: 4px 2px
+    }
+
+    /* bandes de réglage : régler l'état ou la priorité en un clic, sans sous-menu */
+    .ctx-strip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 8px 7px
+    }
+
+    .ctx-strip .eyebrow {
+      flex: 0 0 auto;
+      width: 46px
+    }
+
+    .swatch {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: var(--inset);
+      cursor: pointer;
+      padding: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .swatch i {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: block
+    }
+
+    .swatch:hover {
+      border-color: var(--line-2)
+    }
+
+    .swatch.on {
+      border-color: var(--ink);
+      box-shadow: 0 0 0 1px var(--ink) inset
+    }
+
+    .pchip {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: var(--inset);
+      color: var(--muted);
+      cursor: pointer;
+      height: 22px;
+      min-width: 28px;
+      padding: 0 6px;
+      border-radius: 5px;
+      font: 600 10px var(--mono)
+    }
+
+    .pchip:hover {
+      border-color: var(--line-2);
+      color: var(--ink)
+    }
+
+    .pchip.on {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 14%, transparent)
+    }
+
+    .cswatch {
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      border: 1px solid var(--line);
+      cursor: pointer;
+      padding: 0
+    }
+
+    .cswatch.on {
+      box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px var(--ink)
+    }
+
+    /* ---------- canevas ---------- */
+    #canvas {
+      position: fixed;
+      inset: var(--bar-h) 0 0 0;
+      cursor: grab
+    }
+
+    #canvas.drag {
+      cursor: grabbing
+    }
+
+    #canvas.wiring {
+      cursor: crosshair
+    }
+
+    svg#svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none
+    }
+
+    .nd {
+      cursor: grab
+    }
+
+    .nd:active {
+      cursor: grabbing
+    }
+
+    .nd:hover .box {
+      filter: brightness(1.12)
+    }
+
+    #canvas.wiring .nd {
+      cursor: crosshair
+    }
+
+    /* ---------- pastille d'état : ce qui vient de se passer, et comment le défaire ---------- */
+    .pill {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translate(-50%, 14px);
+      z-index: 45;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line-2);
+      border-radius: 999px;
+      padding: 8px 10px 8px 16px;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transition: opacity .14s ease, transform .14s ease
+    }
+
+    .pill.show {
+      display: flex;
+      opacity: 1;
+      transform: translate(-50%, 0)
+    }
+
+    .pill span {
+      font: 500 12px var(--sans);
+      color: var(--ink);
+      white-space: nowrap;
+      max-width: 46vw;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .pill button {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      background: var(--inset);
+      color: var(--ink);
+      font: 500 11.5px var(--sans);
+      padding: 4px 9px;
+      border-radius: 999px;
+      cursor: pointer
+    }
+
+    .pill button:hover {
+      border-color: var(--accent);
+      color: var(--accent)
+    }
+
+    /* ---------- inspecteur ---------- */
+    .insp {
+      position: fixed;
+      top: var(--bar-h);
+      right: 0;
+      bottom: 0;
+      width: 346px;
+      z-index: 18;
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+      transform: translateX(100%);
+      transition: transform .2s cubic-bezier(.2, .8, .3, 1);
+      display: flex;
+      flex-direction: column
+    }
+
+    .insp.open {
+      transform: none
+    }
+
+    .insp header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .insp header .spine {
+      width: 3px;
+      align-self: stretch;
+      border-radius: 2px;
+      background: var(--accent);
+      flex: 0 0 auto
+    }
+
+    .insp header .who {
+      flex: 1;
+      min-width: 0
+    }
+
+    .insp header .who b {
+      display: block;
+      font: 600 12.5px/1.3 var(--sans);
+      margin-top: 3px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden
+    }
+
+    .insp .body {
+      padding: 4px 14px 14px;
+      overflow: auto;
+      flex: 1
+    }
+
+    .sec {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0 10px
+    }
+
+    .sec .eyebrow {
+      flex: 0 0 auto
+    }
+
+    .sec i {
+      flex: 1;
+      height: 1px;
+      background: var(--line)
+    }
+
+    .fld {
+      margin-bottom: 11px
+    }
+
+    .fld>label {
+      display: block;
+      font: 600 9px/1.6 var(--mono);
+      letter-spacing: 1.3px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px
+    }
+
+    .fld input,
+    .fld textarea,
+    .fld select {
+      width: 100%;
+      background: var(--inset);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 7px 9px;
+      font: 400 12.5px var(--sans);
+      resize: vertical
+    }
+
+    .fld textarea {
+      line-height: 1.45
+    }
+
+    .fld input:focus,
+    .fld textarea:focus,
+    .fld select:focus {
+      border-color: var(--accent)
+    }
+
+    .row {
+      display: flex;
+      gap: 8px
+    }
+
+    .row>* {
+      flex: 1;
+      min-width: 0
+    }
+
+    .hint {
+      font: 400 11px/1.5 var(--sans);
+      color: var(--muted)
+    }
+
+    .list {
+      max-height: 184px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      background: var(--inset);
+      padding: 5px
+    }
+
+    .list label {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 5px 6px;
+      border-radius: 5px;
+      cursor: pointer;
+      font: 400 12px var(--sans);
+      color: var(--ink)
+    }
+
+    .list label:hover {
+      background: var(--panel-2)
+    }
+
+    .list input[type=checkbox] {
+      width: auto;
+      margin: 0;
+      accent-color: var(--accent);
+      flex: 0 0 auto
+    }
+
+    .list .grow {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .chip {
+      font: 600 9px var(--mono);
+      border: 1px solid var(--line-2);
+      border-radius: 4px;
+      padding: 2px 5px;
+      color: var(--ink);
+      flex: 0 0 auto
+    }
+
+    .acts {
+      display: flex;
+      gap: 6px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--line)
+    }
+
+    .acts .spacer {
+      min-width: 0
+    }
+
+    .tasklink {
+      background: var(--inset);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 9px 10px;
+      font-size: 12px
+    }
+
+    .tasklink b {
+      display: block;
+      margin-bottom: 2px;
+      font-weight: 650
+    }
+
+    .tasklink .warn {
+      color: var(--danger)
+    }
+
+    .x {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto
+    }
+
+    .x:hover {
+      color: var(--danger);
+      border-color: color-mix(in srgb, var(--danger) 40%, var(--line))
+    }
+
+    .x svg {
+      width: 12px;
+      height: 12px
+    }
+
+    body.pres .insp,
+    body.pres .lnk {
+      display: none !important
+    }
+
+    body.pres .nd {
+      cursor: default
+    }
+
+    /* ---------- réglage d'un trait ---------- */
+    .lnk {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 19;
+      width: 290px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--r-lg);
+      padding: 14px;
+      display: none;
+      box-shadow: var(--shadow)
+    }
+
+    .lnk.open {
+      display: block
+    }
+
+    .lnk .head {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 12px
+    }
+
+    .lnk .head .who {
+      flex: 1;
+      min-width: 0
+    }
+
+    .lnk .head b {
+      display: block;
+      font: 600 12px var(--sans);
+      margin-top: 2px
+    }
+
+    .lnk input[type=range] {
+      width: 100%;
+      accent-color: var(--accent);
+      padding: 0
+    }
+
+    /* ---------- feuilles modales (synthèse, raccourcis) ---------- */
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: color-mix(in srgb, var(--bg) 72%, transparent);
+      backdrop-filter: blur(3px);
+      display: none;
+      padding: 40px 20px;
+      overflow: auto
+    }
+
+    .modal.open {
+      display: block
+    }
+
+    .sheet {
+      position: relative;
+      max-width: 880px;
+      margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 26px 30px;
+      box-shadow: var(--shadow)
+    }
+
+    .sheet h2 {
+      margin: 0 0 3px;
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: -.2px
+    }
+
+    .sheet .sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 20px
+    }
+
+    .sheet .close {
+      position: absolute;
+      top: 14px;
+      right: 16px
+    }
+
+    .ph {
+      margin: 20px 0 8px;
+      font: 600 9.5px var(--mono);
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 6px
+    }
+
+    .sheet table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px
+    }
+
+    .sheet td {
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top
+    }
+
+    .sheet td.p {
+      width: 34px;
+      font: 600 10px var(--mono)
+    }
+
+    .sheet td.b {
+      width: 150px;
+      color: var(--muted);
+      font-size: 11px
+    }
+
+    .sheet td.s {
+      width: 96px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right
+    }
+
+    .dep-note {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px
+    }
+
+    /* feuille de raccourcis : deux colonnes de paires action / touche */
+    .kgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+      gap: 0 34px
+    }
+
+    .kgroup {
+      break-inside: avoid;
+      margin-bottom: 18px
+    }
+
+    .kgroup .eyebrow {
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 4px
+    }
+
+    .krow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 5px 0;
+      font-size: 12.5px
+    }
+
+    .krow span {
+      flex: 1;
+      min-width: 0
+    }
+
+    .krow .keys {
+      display: flex;
+      gap: 5px;
+      flex: 0 0 auto
+    }
+
+    .kread {
+      display: flex;
+      gap: 26px;
+      flex-wrap: wrap;
+      margin-top: 6px
+    }
+
+    .kread i {
+      font-style: normal;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin: 5px 0;
+      font-size: 12px;
+      color: var(--muted)
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex: 0 0 auto
+    }
+
+    @media (max-width:1240px) {
+      .tb .lbl {
+        display: none
+      }
+
+      .tb {
+        padding: 0 9px
+      }
+
+      .tb.wlbl .lbl {
+        display: inline
+      }
+    }
+
+    @media (max-width:1080px) {
+      .find input {
+        width: 120px
+      }
+    }
+
+    @media (max-width:960px) {
+      .brand {
+        display: none
+      }
+
+      .seg button .lbl {
+        display: none
+      }
+    }
+
+    @media (max-width:760px) {
+      .insp {
+        width: 100%
+      }
+
+      .lnk {
+        right: 8px;
+        left: 8px;
+        width: auto
+      }
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      .insp {
+        transition: none
+      }
+
+      .pill {
+        transition: none
+      }
+
+      .ctx {
+        animation: none
+      }
+    }
+  </style>
+  <script type="importmap">
+    { "imports": { "trk:sdk": "/@trk/sdk.js" } }
+  </script>
+</head>
+
+<body>
+  <!-- Jeu d'icônes en <symbol> : chacun porte son propre viewBox, si bien que
+     les <svg> qui les appellent n'ont qu'à être dimensionnés en CSS. -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-undo" viewBox="0 0 24 24">
+      <path d="M8 6 3 11l5 5" />
+      <path d="M3 11h9.5a5.5 5.5 0 0 1 0 11H9" />
+    </symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24">
+      <path d="M16 6l5 5-5 5" />
+      <path d="M21 11h-9.5a5.5 5.5 0 0 0 0 11H15" />
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24">
+      <path d="M12 5.5v13M5.5 12h13" />
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="6.2" />
+      <path d="M15.6 15.6 20 20" />
+    </symbol>
+    <symbol id="i-x" viewBox="0 0 24 24">
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    </symbol>
+    <symbol id="i-map" viewBox="0 0 24 24">
+      <rect x="2.2" y="9" width="6.6" height="6" rx="1.6" />
+      <rect x="15.2" y="3.2" width="6.6" height="5.4" rx="1.6" />
+      <rect x="15.2" y="15.4" width="6.6" height="5.4" rx="1.6" />
+      <path d="M8.8 12h3.4M12.2 5.9v12.2M12.2 5.9h3M12.2 18.1h3" />
+    </symbol>
+    <symbol id="i-flow" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="6.4" height="16" rx="1.6" />
+      <rect x="14.6" y="4" width="6.4" height="10.4" rx="1.6" />
+    </symbol>
+    <symbol id="i-help" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8.6" />
+      <path d="M9.6 9.6a2.5 2.5 0 1 1 3.2 2.6c-.6.2-.9.7-.9 1.3v.4" />
+      <path d="M12 17.3h.01" />
+    </symbol>
+    <symbol id="i-more" viewBox="0 0 24 24">
+      <circle cx="5.5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    </symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24">
+      <path d="M3.5 5.5h17l-6.6 7.8v5.6l-3.8 2.1v-7.7z" />
+    </symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24">
+      <path d="M2.2 12S6 5.6 12 5.6 21.8 12 21.8 12 18 18.4 12 18.4 2.2 12 2.2 12Z" />
+      <circle cx="12" cy="12" r="2.7" />
+    </symbol>
+  </svg>
+
+  <header class="bar">
+    <div class="brand"><b id="brandTitle">—</b><span id="brandSubtitle" data-i18n="plugin_mindmap_brand_subtitle">Carte
+        mentale</span></div>
+
+    <div class="seg" role="group" data-i18n-aria-label="plugin_mindmap_mode_title" aria-label="Mode d'affichage">
+      <button id="segMap" class="on" data-view="map" data-i18n-title="plugin_mindmap_mode_map" title="Carte mentale">
+        <svg fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <use href="#i-map" />
+        </svg>
+        <span class="lbl" data-i18n="plugin_mindmap_seg_map">Carte</span></button>
+      <button id="segFlow" data-view="flow" data-i18n-title="plugin_mindmap_mode_flow" title="Flux · phases">
+        <svg fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <use href="#i-flow" />
+        </svg>
+        <span class="lbl" data-i18n="plugin_mindmap_seg_flow">Flux</span></button>
+    </div>
+
+    <div class="rule"></div>
+    <button class="tb icon" id="bUndo" disabled data-i18n-title="plugin_mindmap_undo" title="Annuler">
+      <svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <use href="#i-undo" />
+      </svg></button>
+    <button class="tb icon" id="bRedo" disabled data-i18n-title="plugin_mindmap_redo" title="Rétablir">
+      <svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <use href="#i-redo" />
+      </svg></button>
+
+    <div class="rule"></div>
+    <button class="tb accent wlbl" id="bAdd" data-i18n-title="plugin_mindmap_add_phase_title"
+      title="Créer une nouvelle phase">
+      <svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+        <use href="#i-plus" />
+      </svg>
+      <span class="lbl" data-i18n="plugin_mindmap_phase_word">Phase</span></button>
+    <div class="find" id="findWrap">
+      <svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+        <use href="#i-search" />
+      </svg>
+      <input id="qFind" data-i18n-placeholder="plugin_mindmap_search_placeholder" placeholder="Rechercher…"
+        data-i18n-aria-label="plugin_mindmap_search_placeholder" aria-label="Rechercher…">
+      <span class="count" id="qCount"></span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="pop-host">
+      <button class="tb" id="bFilters" aria-haspopup="true" aria-expanded="false">
+        <svg fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <use href="#i-filter" />
+        </svg>
+        <span class="lbl" data-i18n="plugin_mindmap_filters">Filtres</span></button>
+      <div class="pop" id="popFilters">
+        <div class="eyebrow" data-i18n="plugin_mindmap_legend_priority">Priorité</div>
+        <select id="fPrio">
+          <option value="" data-i18n="plugin_mindmap_prio_all">Toutes priorités</option>
+          <option value="P0" data-i18n="plugin_mindmap_prio_p0">P0 seulement</option>
+          <option value="P0,P1" data-i18n="plugin_mindmap_prio_p0p1">P0 + P1</option>
+          <option value="P2" data-i18n="plugin_mindmap_prio_p2">P2 seulement</option>
+        </select>
+        <div class="eyebrow" data-i18n="plugin_mindmap_phase_word">Phase</div>
+        <select id="fPhase">
+          <option value="" data-i18n="plugin_mindmap_phase_all">Toutes phases</option>
+        </select>
+        <div class="pop-sep"></div>
+        <button class="pop-row act" id="fClear" data-i18n="plugin_mindmap_filters_clear">Tout afficher</button>
+      </div>
+    </div>
+
+    <div class="pop-host">
+      <button class="tb" id="bDisplay" aria-haspopup="true" aria-expanded="false">
+        <svg fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+          <use href="#i-eye" />
+        </svg>
+        <span class="lbl" data-i18n="plugin_mindmap_display">Affichage</span></button>
+      <div class="pop" id="popDisplay">
+        <label class="pop-row"><input type="checkbox" id="cDeps" checked>
+          <span data-i18n="plugin_mindmap_disp_deps">Flèches de dépendance</span><span class="key">D</span></label>
+        <label class="pop-row"><input type="checkbox" id="cFold">
+          <span data-i18n="plugin_mindmap_disp_fold">Branches repliées</span><span class="key">E</span></label>
+        <div class="pop-sep"></div>
+        <label class="pop-row"><input type="checkbox" id="cPres">
+          <span data-i18n="plugin_mindmap_disp_present">Mode présentation</span><span class="key">P</span></label>
+        <label class="pop-row"><input type="checkbox" id="cFull">
+          <span data-i18n="plugin_mindmap_fullscreen">Plein écran</span></label>
+        <div class="pop-sep"></div>
+        <button class="pop-row act" id="bFit"><span data-i18n="plugin_mindmap_recenter">Recentrer</span><span
+            class="key">0</span></button>
+        <button class="pop-row act" id="bReset" data-i18n="plugin_mindmap_auto_layout">Disposition automatique</button>
+        <button class="pop-row act" id="bSort" data-i18n-title="plugin_mindmap_sort_title"
+          title="Réordonner par dépendance puis priorité" data-i18n="plugin_mindmap_sort">Trier les branches</button>
+      </div>
+    </div>
+
+    <div class="pop-host">
+      <button class="tb icon" id="bMore" aria-haspopup="true" aria-expanded="false"
+        data-i18n-title="plugin_mindmap_more_title" title="Plus d'actions">
+        <svg fill="none" stroke="currentColor">
+          <use href="#i-more" />
+        </svg></button>
+      <div class="pop" id="popMore">
+        <button class="pop-row act" id="bSynth"><span data-i18n="plugin_mindmap_summary">Synthèse</span><span
+            class="key">S</span></button>
+        <div class="pop-sep"></div>
+        <button class="pop-row act" id="bExport" data-i18n="plugin_mindmap_export_json">Exporter en JSON</button>
+        <button class="pop-row act" id="bPng" data-i18n="plugin_mindmap_export_png">Exporter en PNG</button>
+        <button class="pop-row act" id="bImport" data-i18n="plugin_mindmap_import_json"
+          data-i18n-title="plugin_mindmap_import_json_title"
+          title="Remplacer cette carte par un fichier JSON exporté précédemment">Importer un JSON…</button>
+      </div>
+    </div>
+
+    <button class="tb icon" id="bHelp" data-i18n-title="plugin_mindmap_help_title" title="Raccourcis et repères">
+      <svg fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <use href="#i-help" />
+      </svg></button>
+  </header>
+  <input type="file" id="fImport" accept="application/json,.json" style="display:none">
+
+  <main id="canvas"><svg id="svg">
+      <g id="scene"></g>
+    </svg></main>
+
+  <div class="ctx" id="ctx" role="menu" tabindex="-1"></div>
+
+  <div class="pill" id="pill" role="status" aria-live="polite">
+    <span id="pillText"></span>
+    <button id="pillAct" type="button"><span data-i18n="plugin_mindmap_undo">Annuler</span><span class="key">Ctrl
+        Z</span></button>
+  </div>
+
+  <aside class="insp" id="insp" aria-label="Inspecteur">
+    <header>
+      <div class="spine" id="iSpine"></div>
+      <div class="who">
+        <div class="eyebrow" id="iPath">—</div><b id="iName">—</b>
+      </div>
+      <button class="x" id="iClose" data-i18n-title="plugin_mindmap_insp_close" title="Fermer l'inspecteur">
+        <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <use href="#i-x" />
+        </svg></button>
+    </header>
+    <div class="body">
+      <div class="fld"><label for="iLabel" data-i18n="plugin_mindmap_field_label">Intitulé</label><textarea id="iLabel"
+          rows="2"></textarea></div>
+
+      <div class="fld" id="iColorRow" style="display:none">
+        <label data-i18n="plugin_mindmap_field_color">Couleur</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="iColorSwatches"></div>
+      </div>
+
+      <div class="row" id="iMetaRow">
+        <div class="fld"><label for="iPrio" data-i18n="plugin_mindmap_legend_priority">Priorité</label><select
+            id="iPrio">
+            <option value="">—</option>
+            <option>P0</option>
+            <option>P1</option>
+            <option>P2</option>
+          </select></div>
+        <div class="fld"><label for="iStat" data-i18n="plugin_mindmap_legend_state">État</label><select id="iStat">
+            <option value="todo" data-i18n="plugin_mindmap_stat_todo">À faire</option>
+            <option value="doing" data-i18n="plugin_mindmap_stat_doing">En cours</option>
+            <option value="done" data-i18n="plugin_mindmap_stat_done">Terminé</option>
+            <option value="decision" data-i18n="plugin_mindmap_stat_decision">À décider</option>
+          </select></div>
+        <div class="fld"><label for="iOwner" data-i18n="plugin_mindmap_field_owner">Porteur</label>
+          <input id="iOwner" data-i18n-placeholder="plugin_mindmap_owner_placeholder" placeholder="ex. Thibault">
+        </div>
+      </div>
+
+      <div class="sec" id="secLinks"><span class="eyebrow" data-i18n="plugin_mindmap_insp_sec_links">Liens</span><i></i>
+      </div>
+
+      <div class="fld" id="iDepsBlock">
+        <label data-i18n="plugin_mindmap_field_deps">Dépend de</label>
+        <div class="list" id="iDeps"></div>
+        <div class="hint" style="margin-top:5px" data-i18n="plugin_mindmap_connect_hint">Alt + glisser d'un point vers
+          un autre crée la même dépendance sur la carte.</div>
+      </div>
+
+      <div class="fld" id="iTaskLinkBlock">
+        <label data-i18n="plugin_mindmap_field_task">Tâche liée</label>
+        <div class="tasklink" id="iTaskLinked" style="display:none">
+          <div id="iTaskLinkedInfo"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">
+            <button class="tb" id="iTaskOpen" data-i18n="plugin_mindmap_task_open">Ouvrir la tâche</button>
+            <button class="tb danger" id="iTaskUnlink" data-i18n="plugin_mindmap_task_unlink">Délier</button>
+          </div>
+        </div>
+        <div id="iTaskSearchWrap">
+          <input id="iTaskSearch" data-i18n-placeholder="plugin_mindmap_task_search_placeholder"
+            placeholder="Rechercher une tâche…" style="margin-bottom:6px">
+          <div class="list" id="iTaskList"></div>
+        </div>
+      </div>
+
+      <div class="fld" id="iPhaseTasks" style="display:none">
+        <label data-i18n="plugin_mindmap_field_phase_tasks">Tâches de cette phase</label>
+        <div class="list" id="iPhaseTaskList" style="margin-bottom:8px"></div>
+        <input id="iPhaseTaskSearch" data-i18n-placeholder="plugin_mindmap_phase_task_search_placeholder"
+          placeholder="Ajouter une tâche du backlog…" style="margin-bottom:6px">
+        <div class="list" id="iPhaseTaskPicker"></div>
+      </div>
+
+      <div class="sec"><span class="eyebrow" data-i18n="plugin_mindmap_insp_sec_note">Note</span><i></i></div>
+      <div class="fld"><textarea id="iNote" rows="4" data-i18n-placeholder="plugin_mindmap_note_placeholder"
+          placeholder="Ce qui rend ce point terminé, contraintes, liens…"></textarea></div>
+    </div>
+    <div class="acts">
+      <button class="tb icon" id="aUp" data-i18n-title="plugin_mindmap_move_up" title="Monter">↑</button>
+      <button class="tb icon" id="aDown" data-i18n-title="plugin_mindmap_move_down" title="Descendre">↓</button>
+      <button class="tb" id="aSize" data-i18n="plugin_mindmap_auto_size">Taille auto</button>
+      <div class="spacer"></div>
+      <button class="tb danger" id="aDel" data-i18n="plugin_mindmap_delete">Supprimer</button>
+    </div>
+  </aside>
+
+  <div class="lnk" id="lnk">
+    <div class="head">
+      <div class="who">
+        <div class="eyebrow" id="lKind">—</div><b id="lTitle">—</b>
+      </div>
+      <button class="x" id="lClose" data-i18n-title="plugin_mindmap_close" title="Fermer">
+        <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <use href="#i-x" />
+        </svg></button>
+    </div>
+    <div class="row">
+      <div class="fld"><label for="lFrom" data-i18n="plugin_mindmap_anchor_from">Accroche départ</label><select
+          id="lFrom">
+          <option value="" data-i18n="plugin_mindmap_anchor_auto">Auto</option>
+          <option value="t" data-i18n="plugin_mindmap_anchor_top">Haut</option>
+          <option value="b" data-i18n="plugin_mindmap_anchor_bottom">Bas</option>
+          <option value="l" data-i18n="plugin_mindmap_anchor_left">Gauche</option>
+          <option value="r" data-i18n="plugin_mindmap_anchor_right">Droite</option>
+        </select></div>
+      <div class="fld"><label for="lTo" data-i18n="plugin_mindmap_anchor_to">Accroche arrivée</label><select id="lTo">
+          <option value="" data-i18n="plugin_mindmap_anchor_auto">Auto</option>
+          <option value="t" data-i18n="plugin_mindmap_anchor_top">Haut</option>
+          <option value="b" data-i18n="plugin_mindmap_anchor_bottom">Bas</option>
+          <option value="l" data-i18n="plugin_mindmap_anchor_left">Gauche</option>
+          <option value="r" data-i18n="plugin_mindmap_anchor_right">Droite</option>
+        </select></div>
+    </div>
+    <div class="fld"><label for="lBow"><span data-i18n="plugin_mindmap_curvature">Courbure</span> — <span
+          id="lBowV">1.0</span></label>
+      <input type="range" id="lBow" min="0" max="2.5" step="0.1" value="1">
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="tb" id="lAuto" data-i18n="plugin_mindmap_act_auto_anchor">Accroches auto</button>
+      <div class="spacer"></div>
+      <button class="tb danger" id="lDel" data-i18n="plugin_mindmap_delete">Supprimer</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="sheet">
+      <button class="tb icon close" id="mClose" data-i18n-title="plugin_mindmap_close" title="Fermer">
+        <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <use href="#i-x" />
+        </svg></button>
+      <h2 data-i18n="plugin_mindmap_plan_title">Plan de marche par phase</h2>
+      <div class="sub" id="mSub"></div>
+      <div id="mBody"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="help">
+    <div class="sheet">
+      <button class="tb icon close" id="hClose" data-i18n-title="plugin_mindmap_close" title="Fermer">
+        <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <use href="#i-x" />
+        </svg></button>
+      <h2 data-i18n="plugin_mindmap_help_title">Raccourcis et repères</h2>
+      <div class="sub" data-i18n="plugin_mindmap_help_sub">Tout ce que fait la barre d'outils se fait aussi au clavier,
+        ou au clic droit sur la carte.</div>
+      <div id="hBody"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+
+</html>

@@ -28,8 +28,13 @@ interface EditorExtensionsOptions {
 }
 
 export function createEditorExtensions({ placeholder, resizeHint }: EditorExtensionsOptions): Extensions {
+  const HeadingWithoutShortcuts = Heading.extend({
+    addKeyboardShortcuts: () => ({}),
+  });
+
   return [
     StarterKit.configure({
+      heading: false,
       // Un lien cliquable ouvrirait la cible dans la fenêtre Electron
       // elle-même : en édition, un clic doit seulement placer le curseur.
       link: { openOnClick: false },
@@ -37,9 +42,10 @@ export function createEditorExtensions({ placeholder, resizeHint }: EditorExtens
       // interfèrent avec AltGr sur certains claviers (ex: AltGr+3 pour #)
       heading: false,
     }),
+    HeadingWithoutShortcuts.configure({ levels: [1, 2, 3, 4, 5, 6] }),
     CustomHeading,
     TaskList,
-    TaskItem.configure({ nested: true }),
+    TaskItem.configure({ nested: true, HTMLAttributes: { "data-type": "taskItem" } }),
     // Colonnes non redimensionnables : le Markdown ne sait pas mémoriser une
     // largeur de colonne, elle serait perdue à la prochaine ouverture.
     Table.configure({ resizable: false }),
