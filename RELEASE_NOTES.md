@@ -140,7 +140,7 @@
 
 - Interface bilingue FR/EN avec sélecteur de langue
 
-### 1.0.0 — 2026-07-11
+### 1.0.0-beta — 2026-07-11
 
 **Version initiale**
 - Suivi de tâches par projet : priorités, échéances, statut, temps passé
@@ -282,7 +282,7 @@
 
 - Bilingual FR/EN interface with language switcher
 
-### 1.0.0 — 2026-07-11
+### 1.0.0-beta — 2026-07-11
 
 **Initial release**
 - Task tracking per project: priorities, due dates, status, time spent
