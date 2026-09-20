@@ -1,0 +1,35 @@
+{
+  "$schema": "schema/trk-manifest-2.json",
+
+  "format": "trk.extension/2",
+
+  "id": "mindmap-v2",
+  "version": "2.0.0",
+  "publisher": "suivi-travaux",
+  "license": "MIT",
+
+  "engines": { "api": 2 },
+
+  "name": { "fr": "Carte mentale V2", "en": "Mind map V2" },
+  "description": {
+    "fr": "Feuille de route et arborescence de projet, avec liens en lecture seule vers les tâches. Portage fidèle du plugin v1 « Carte mentale » au format v2 (tier app).",
+    "en": "Project roadmap and tree, with read-only links to tasks. Faithful port of the v1 « Mind map » plugin to the v2 format (app tier)."
+  },
+  "icon": "Network",
+
+  "permissions": ["doc", "tasks:read", "task:reveal", "file:save", "toast", "fullscreen", "debug"],
+
+  "contributes": {
+    "views": [
+      {
+        "id": "mindmap-v2",
+        "title": { "fr": "Carte mentale V2", "en": "Mind map V2" },
+        "icon": "Network",
+        "kind": "app",
+        "entry": "index.html",
+        "scopes": ["global", "project"],
+        "singleton": true
+      }
+    ]
+  }
+}
