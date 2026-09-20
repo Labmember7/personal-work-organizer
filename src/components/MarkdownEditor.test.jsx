@@ -41,7 +41,7 @@ describe("MarkdownEditor mode Formaté", () => {
     renderRichEditor("# Titre\n\n- [ ] a faire");
     const area = richArea();
     expect(area.querySelector("h1").textContent).toBe("Titre");
-    expect(area.querySelector('li[data-type="taskItem"] input[type="checkbox"]')).toBeTruthy();
+    expect(area.querySelector('li[data-checked] input[type="checkbox"]')).toBeTruthy();
   });
 
   it("applique une mise en forme depuis la barre d'outils et met à jour la source", () => {

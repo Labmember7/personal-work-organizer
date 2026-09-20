@@ -51,7 +51,7 @@ function toTaskLists(host: HTMLElement): void {
 // structure que la règle Turndown des cases à cocher (qui attend l'<input>
 // comme enfant direct du <li>) ne reconnaît pas.
 function fromTaskLists(host: HTMLElement): void {
-  host.querySelectorAll('li[data-type="taskItem"]').forEach((li) => {
+  host.querySelectorAll('li[data-checked]').forEach((li) => {
     const checkbox = document.createElement("input");
     checkbox.setAttribute("type", "checkbox");
     if (li.getAttribute("data-checked") === "true") checkbox.setAttribute("checked", "");

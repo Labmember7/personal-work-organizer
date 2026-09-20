@@ -1,5 +1,12 @@
 import type { Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import { Heading } from "@tiptap/extension-heading";
+
+const CustomHeading = Heading.extend({
+  addKeyboardShortcuts() {
+    return {};
+  }
+});
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
@@ -26,7 +33,11 @@ export function createEditorExtensions({ placeholder, resizeHint }: EditorExtens
       // Un lien cliquable ouvrirait la cible dans la fenêtre Electron
       // elle-même : en édition, un clic doit seulement placer le curseur.
       link: { openOnClick: false },
+      // On désactive les raccourcis de titres natifs (Mod-Alt-1..6) qui
+      // interfèrent avec AltGr sur certains claviers (ex: AltGr+3 pour #)
+      heading: false,
     }),
+    CustomHeading,
     TaskList,
     TaskItem.configure({ nested: true }),
     // Colonnes non redimensionnables : le Markdown ne sait pas mémoriser une
