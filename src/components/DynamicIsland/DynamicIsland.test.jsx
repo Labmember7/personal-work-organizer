@@ -106,6 +106,65 @@ describe("DynamicIsland", () => {
     expect(container.querySelector(".trk-dynamic-island.is-dual-live")).toBeTruthy();
   });
 
+  it("preserves spatial layout and play/pause controls on hover without teleporting timer to left", () => {
+    const focusTask = {
+      id: "t1",
+      titre: "Architecture Review",
+      projet: "Core",
+      priorite: "haute",
+      timeLogs: [],
+    };
+    const { container } = renderIsland({
+      focusSession: {
+        focusTask,
+        focusStartedAt: Date.now() - 65000,
+      },
+    });
+
+    // Start pomodoro
+    const focusPill = container.querySelector(".trk-island-focus-pill");
+    fireEvent.click(focusPill);
+    const timerTab = screen.getByRole("tab", { name: /Timer/i });
+    fireEvent.click(timerTab);
+    fireEvent.click(screen.getByText("Focus & Rest"));
+    fireEvent.click(screen.getByText("Start Focus"));
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    fireEvent.click(screen.getByLabelText("Collapse Island"));
+
+    // Check pre-hover state
+    const island = container.querySelector(".trk-dynamic-island");
+    expect(island.querySelector(".trk-island-triad-right .trk-island-pomo-pill")).toBeTruthy();
+    expect(island.querySelector(".trk-island-triad-left .trk-clean-flip-clock")).toBeTruthy();
+
+    // Trigger hover on island
+    fireEvent.mouseEnter(island);
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    // Verify hovered class is applied
+    expect(island.classList.contains("hovered")).toBe(true);
+
+    // Verify Pomodoro pill remains strictly on the right (NOT in triad-left)
+    const rightPomoPill = island.querySelector(".trk-island-triad-right .trk-island-pomo-pill");
+    expect(rightPomoPill).toBeTruthy();
+    expect(island.querySelector(".trk-island-triad-left .trk-island-pomo-pill")).toBeNull();
+
+    // Verify play/pause mini toggle is still present on hover
+    const pauseBtn = rightPomoPill.querySelector(".trk-island-pomo-mini-toggle");
+    expect(pauseBtn).toBeTruthy();
+
+    // Verify clicking pause works directly while hovered
+    fireEvent.click(pauseBtn);
+    const updatedPomoPill = island.querySelector(".trk-island-triad-right .trk-island-pomo-pill");
+    expect(updatedPomoPill.classList.contains("paused")).toBe(true);
+
+    // Verify task title is visible on hover
+    expect(island.querySelector(".trk-island-compact-title").textContent).toBe("Architecture Review");
+  });
+
   it("renders uniquely generated pet with custom DNA and supports DNA re-rolling", () => {
     localStorage.clear();
     const { container } = renderIsland();

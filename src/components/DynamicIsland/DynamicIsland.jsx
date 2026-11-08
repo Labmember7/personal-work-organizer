@@ -67,16 +67,14 @@ export function DynamicIsland({ focusSession, onEditTask }) {
 
   const handleMouseEnter = () => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = setTimeout(() => {
-      setHovered(true);
-    }, 60);
+    setHovered(true);
   };
 
   const handleMouseLeave = () => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => {
       setHovered(false);
-    }, 180);
+    }, 140);
   };
 
   // Debug state
@@ -305,12 +303,14 @@ export function DynamicIsland({ focusSession, onEditTask }) {
     >
       <div className={"trk-island-container" + (pulse ? " pulse" : "")}>
         {/* ═══════════════════════════════════════════════════════
-           1. ÉTAT COMPACT AU REPOS (!open && !hovered)
-           - Horloge TOUJOURS à gauche
-           - Nova TOUJOURS au centre exact (50% absolu)
-           - Droite : Live Activities (Pomodoro en cours / Tâche Focus) OU Debug
+           ÉTAT FERMÉ UNIFIÉ (!open) : COMPACT ET SURVOL PROGRESSIF
+           - Spatialement stable : zéro saut ni téléportation d'éléments au survol
+           - Horloge TOUJOURS à gauche (clic -> flipclock & timer)
+           - Nova TOUJOURS au centre exact (clic -> pet deck)
+           - Droite : Activités en direct (Pomodoro / Tâche Focus) + Debug
+           - Au survol : élargissement fluide avec maintien des contrôles (Play/Pause intact)
            ═══════════════════════════════════════════════════════ */}
-        {!open && !hovered && (
+        {!open && (
           <div className="trk-island-compact-view">
             <div className="trk-island-compact-triad">
               {/* GAUCHE : Horloge mécanique flip */}
@@ -343,8 +343,30 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                 />
               </div>
 
-              {/* DROITE : Live Activities (Timer / Focus) OU Debug */}
+              {/* DROITE : Live Activities (Timer / Focus) + Contrôles & Diagnostics */}
               <div className="trk-island-triad-right">
+                {/* Raccourci Quick Timer si aucun timer n'est actif, uniquement au survol */}
+                {!isPomoActive && !isCooking && (
+                  <button
+                    type="button"
+                    className={
+                      "trk-island-compact-action" +
+                      (!hovered ? " collapsed" : "")
+                    }
+                    onClick={() => {
+                      setMode("timer");
+                      setTimerSubTab("pomodoro");
+                      setOpen(true);
+                    }}
+                    title="Start Pomodoro Timer"
+                    tabIndex={hovered ? 0 : -1}
+                  >
+                    <Clock size={11} />
+                    <span>Timer</span>
+                  </button>
+                )}
+
+                {/* Pilule Pomodoro en direct : Reste STRICTEMENT à droite, avec play/pause toujours accessible */}
                 {isPomoActive && (
                   <div
                     className={
@@ -374,6 +396,7 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                   </div>
                 )}
 
+                {/* Pilule Focus Task : Reste à droite, titre animé continûment en CSS */}
                 {isCooking && (
                   <div
                     className="trk-island-focus-pill"
@@ -388,147 +411,32 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                     <span className="trk-island-flame-wrap">
                       <Flame size={11} className="trk-island-flame-icon" />
                     </span>
-                    {!isPomoActive && (
-                      <span className="trk-island-compact-title">{focusTask.titre}</span>
-                    )}
+                    <span className="trk-island-compact-title">{focusTask.titre}</span>
                     <span className="trk-island-compact-timer trk-mono">{elapsedTimer}</span>
                   </div>
                 )}
 
-                {!hasLiveRight && (
-                  <div
-                    className="trk-island-compact-debug"
-                    onClick={() => {
-                      setMode("debug");
-                      setOpen(true);
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    title="Open Debug Console"
-                  >
-                    <span className={"trk-island-mini-dot " + debugLevel} />
-                    <Bug size={11} className="trk-bug-mini" />
-                    {entries.length > 0 && (
-                      <span className="trk-island-mini-count">{entries.length}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════
-           2. ÉTAT ÉLARGI AU SURVOL (hovered && !open)
-           - Encoche fluide qui s'élargit horizontalement
-           - Affiche l'horloge + raccourcis rapides vers les menus
-           - Nova reste STRICTEMENT AU CENTRE
-           ═══════════════════════════════════════════════════════ */}
-        {!open && hovered && (
-          <div className="trk-island-hover-shortcuts">
-            {/* GAUCHE : Horloge + Raccourci Timer */}
-            <div className="trk-island-hover-left">
-              <div
-                className="trk-island-hover-clock"
-                onClick={() => {
-                  setMode("timer");
-                  setTimerSubTab("flipclock");
-                  setOpen(true);
-                }}
-                role="button"
-                tabIndex={0}
-                title="Open Flip Clock"
-              >
-                <DigitalClock className="trk-island-clock-mini" />
-              </div>
-
-              <button
-                type="button"
-                className={
-                  "trk-island-hover-pill timer-pill" +
-                  (isPomoActive ? ` active-${pomoPhase}` : "")
-                }
-                onClick={() => {
-                  setMode("timer");
-                  setTimerSubTab("pomodoro");
-                  setOpen(true);
-                }}
-                title="Pomodoro Timer"
-              >
-                {isPomoActive ? (
-                  <>
-                    {pomoPhase === "focus" ? <Flame size={11} /> : <Coffee size={11} />}
-                    <span className="trk-mono">{pomoFormatted}</span>
-                  </>
-                ) : (
-                  <>
-                    <Clock size={11} />
-                    <span>Timer</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* CENTRE : Bot Companion TOUJOURS AU CENTRE */}
-            <div className="trk-island-center-bot">
-              <PixelHelper
-                size={34}
-                bubbleOut
-                mood={petMood}
-                dna={petDna}
-                onClick={() => {
-                  setMode("pet");
-                  setOpen(true);
-                }}
-              />
-            </div>
-
-            {/* DROITE : Raccourcis Focus Live (si cooking) + Pet + Debug */}
-            <div className="trk-island-hover-right">
-              {isCooking ? (
-                <button
-                  type="button"
-                  className="trk-island-hover-pill focus-pill"
+                {/* Console Debug : toujours présente dans le DOM pour transition CSS sans à-coup */}
+                <div
+                  className={
+                    "trk-island-compact-debug" +
+                    (hasLiveRight && !hovered ? " collapsed" : "")
+                  }
                   onClick={() => {
-                    setMode("focus");
+                    setMode("debug");
                     setOpen(true);
                   }}
-                  title="Focus Live Activity"
+                  role="button"
+                  tabIndex={hasLiveRight && !hovered ? -1 : 0}
+                  title="Open Debug Console"
                 >
-                  <Flame size={11} className="trk-island-flame-icon" />
-                  <span className="trk-island-pill-title">{focusTask.titre}</span>
-                  <span className="trk-island-pill-timer trk-mono">{elapsedTimer}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="trk-island-hover-pill pet-pill"
-                  onClick={() => {
-                    setMode("pet");
-                    setOpen(true);
-                  }}
-                  title={`${petDna.name} · ${petDna.archetype}`}
-                >
-                  <Sparkles size={11} />
-                  <span>{petDna.name}</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                className="trk-island-hover-pill debug-pill"
-                onClick={() => {
-                  setMode("debug");
-                  setOpen(true);
-                }}
-                title="Debug Console"
-              >
-                <span className={"trk-island-mini-dot " + debugLevel} />
-                <Bug size={11} />
-                {entries.length > 0 && (
-                  <span className="trk-island-mini-count">{entries.length}</span>
-                )}
-              </button>
+                  <span className={"trk-island-mini-dot " + debugLevel} />
+                  <Bug size={11} className="trk-bug-mini" />
+                  {entries.length > 0 && (
+                    <span className="trk-island-mini-count">{entries.length}</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
