@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { localized } from "../../lib/plugins/manifest";
 import { parse, evaluate } from "../../lib/plugins/trkx";
 
@@ -28,7 +29,7 @@ function Cell({ col, ctx }) {
       <td style={style}>
         <div className="trk-dv-gauge" title={`${pct} %`}>
           <div className="trk-dv-gauge-fill" style={{ width: `${pct}%` }} />
-          <span>{pct} %</span>
+          <span><AnimatedNumber value={`${pct} %`} /></span>
         </div>
       </td>
     );

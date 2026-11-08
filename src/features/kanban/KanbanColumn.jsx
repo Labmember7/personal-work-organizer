@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from "react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
+import { Select } from "../../components/Select.jsx";
 import { Search, X } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { PRIORITIES, taskMatchesQuery } from "../../utils";
@@ -47,7 +49,7 @@ export function KanbanColumn({ status, tasks, dragCtx, cardProps }) {
         <span className="trk-kanban-col-dot" style={{ background: status.color }} />
         <span className="trk-kanban-col-title">{t(`status_${status.id}`)}</span>
         <span className="trk-kanban-col-count">
-          {visible.length === tasks.length ? tasks.length : `${visible.length}/${tasks.length}`}
+          <AnimatedNumber value={visible.length === tasks.length ? tasks.length : `${visible.length}/${tasks.length}`} />
         </span>
       </div>
       <div className="trk-kanban-col-tools">
@@ -64,14 +66,14 @@ export function KanbanColumn({ status, tasks, dragCtx, cardProps }) {
             </button>
           )}
         </div>
-        <select
+        <Select
           className={"trk-kanban-col-prio" + (prio ? " active" : "")}
           value={prio}
           onChange={(e) => setPrio(e.target.value)}
         >
           <option value="">{t("prio_all")}</option>
           {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{t(`prio_${p.id}`)}</option>)}
-        </select>
+        </Select>
       </div>
       <div className="trk-kanban-col-body">
         {pageItems.length === 0 && (

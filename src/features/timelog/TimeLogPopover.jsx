@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
+import { AlertTriangle, Plus } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { formatDuration, parseDurationInput } from "../../utils";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
@@ -39,11 +40,11 @@ export function TimeLogPopover({ task, onAdd, onEdit, onDelete, onClose }) {
     <div className="trk-timelog-panel" ref={ref} onClick={(e) => e.stopPropagation()}>
       <div className="trk-timelog-total">
         <span>{t("time_spent")}</span>
-        <span>{formatDuration(total)}</span>
+        <span><AnimatedNumber value={formatDuration(total)} /></span>
       </div>
-      <form className="trk-timelog-add" onSubmit={submit}>
+      <form noValidate className="trk-timelog-add" onSubmit={submit}>
         <input
-          className="trk-timelog-duration-input"
+          className={"trk-timelog-duration-input" + (error ? " trk-input-error" : "")}
           placeholder={t("duration_placeholder")}
           value={duration}
           onChange={(e) => { setDuration(e.target.value); setError(false); }}
@@ -59,7 +60,13 @@ export function TimeLogPopover({ task, onAdd, onEdit, onDelete, onClose }) {
           <Plus size={14} />
         </button>
       </form>
-      {error && <div className="trk-timelog-error">{t("duration_format_error")}</div>}
+      {error && (
+        <div className="trk-error-bubble trk-timelog-error" role="alert">
+          <span className="trk-error-bubble-tip" />
+          <span className="trk-error-bubble-icon"><AlertTriangle size={12} /></span>
+          <span>{t("duration_format_error")}</span>
+        </div>
+      )}
       <div className="trk-timelog-list">
         {logs.length === 0 && <div className="trk-timelog-empty">{t("no_entry")}</div>}
         {[...logs].sort((a, b) => b.date.localeCompare(a.date)).map((l) => (

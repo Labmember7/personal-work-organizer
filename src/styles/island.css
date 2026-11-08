@@ -1,0 +1,1706 @@
+/* ── Dynamic Island & Cyber-Companion (Deep Obsidian & 2.5D Apple Polish) ──
+   Inspiré des standards Apple & Linear avec intégration matérielle raffinée :
+   - Coque sombre initiale OLED pitch black (#000000 / deep obsidian).
+   - Compagnon Nova AU CENTRE en permanence (position absolue à 50% garantie).
+   - Horloge digitale Flip TOUJOURS à gauche (zéro chevauchement, chiffres nets).
+   - Raccourci Debug, Pomodoro en arrière-plan et tâche en focus à droite.
+   - Au survol : élargissement horizontal fluide révélant les raccourcis vers les menus.
+   - Au clic : feuille modale élégante épousant parfaitement le contenu.
+   - Pomodoro persistant en arrière-plan avec sons iPhone et néomorphisme. */
+
+.trk-dynamic-island {
+  -webkit-app-region: no-drag;
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 250;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════
+   1. COQUE PRINCIPALE SOMBRE INITIALE (SPRING PHYSICS)
+   ═══════════════════════════════════════════════════════ */
+.trk-island-container {
+  pointer-events: auto;
+  position: relative;
+  background: #050608;
+  color: #F8FAFC;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.72),
+    0 2px 8px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.22);
+  width: 244px;
+  height: 36px;
+  border-radius: 18px;
+  box-sizing: border-box;
+  transform-origin: top center;
+  transition:
+    width 0.38s cubic-bezier(0.32, 1.25, 0.32, 1),
+    height 0.38s cubic-bezier(0.32, 1.25, 0.32, 1),
+    border-radius 0.34s cubic-bezier(0.32, 1.25, 0.32, 1),
+    box-shadow 0.3s ease;
+}
+
+/* Mode compact au repos (sans activité en cours) */
+.trk-dynamic-island:not(.open):not(.hovered) .trk-island-container {
+  width: 244px;
+  height: 36px;
+  border-radius: 18px;
+  overflow: visible;
+}
+
+/* Mode compact avec activité en cours (Pomodoro ou Tâche Focus) */
+.trk-dynamic-island.is-cooking:not(.open):not(.hovered) .trk-island-container {
+  width: 410px;
+  height: 36px;
+  border-radius: 18px;
+  overflow: visible;
+}
+
+/* Mode compact avec les deux activités simultanées (Pomodoro + Tâche Focus) */
+.trk-dynamic-island.is-dual-live:not(.open):not(.hovered) .trk-island-container {
+  width: 460px;
+  height: 36px;
+  border-radius: 18px;
+  overflow: visible;
+}
+
+/* Mode survol (élargissement fluide de l'encoche avec raccourcis) */
+.trk-dynamic-island.hovered:not(.open) .trk-island-container {
+  width: 468px;
+  height: 38px;
+  border-radius: 19px;
+  overflow: visible;
+  box-shadow:
+    0 16px 42px rgba(0, 0, 0, 0.82),
+    0 2px 10px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.3);
+}
+
+.trk-dynamic-island.is-cooking.hovered:not(.open) .trk-island-container {
+  width: 520px;
+  height: 38px;
+  border-radius: 19px;
+  overflow: visible;
+}
+
+/* Mode ouvert : feuille modale complète épousant le contenu */
+.trk-dynamic-island.open .trk-island-container {
+  width: min(94vw, 560px);
+  border-radius: 24px;
+  overflow: hidden;
+  background: #07090D;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.88),
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.22);
+}
+
+.trk-dynamic-island.open.mode-timer.subtab-pomodoro .trk-island-container {
+  height: 358px;
+}
+
+.trk-dynamic-island.open.mode-timer.subtab-flipclock .trk-island-container {
+  height: 256px;
+}
+
+.trk-dynamic-island.open.mode-pet .trk-island-container {
+  height: 320px;
+}
+
+.trk-dynamic-island.open.mode-focus .trk-island-container {
+  height: 278px;
+}
+
+.trk-dynamic-island.open.mode-debug .trk-island-container {
+  height: 360px;
+}
+
+/* Rebond jelly dynamique lors des pulses */
+@keyframes trk-island-jelly {
+  0% { transform: scale(1); }
+  22% { transform: scale(1.04, 0.96); }
+  45% { transform: scale(0.98, 1.02); }
+  70% { transform: scale(1.01, 0.99); }
+  100% { transform: scale(1); }
+}
+
+.trk-island-container.pulse {
+  animation: trk-island-jelly 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ═══════════════════════════════════════════════════════
+   2. LE BOT NOVA STRICTEMENT AU CENTRE DE L'ENCOCHE
+   ═══════════════════════════════════════════════════════ */
+.trk-island-center-bot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Pod circulaire avec flottaison 2.5D (bubble out) */
+.trk-pixel-helper-pod.trk-bubble-out {
+  position: relative;
+  margin-top: -2px;
+  background: #020305;
+  border: 1.5px solid rgba(0, 245, 212, 0.55);
+  border-radius: 50%;
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.8),
+    0 0 14px rgba(0, 245, 212, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  animation: trk-bot-bubble-float 3s ease-in-out infinite;
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+/* Ombre de contact 2.5D sous le bot */
+.trk-pixel-helper-pod.trk-bubble-out::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.65) 0%, transparent 75%);
+  pointer-events: none;
+  animation: trk-bot-shadow-breathe 3s ease-in-out infinite;
+}
+
+@keyframes trk-bot-bubble-float {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-2.5px) scale(1.03);
+  }
+}
+
+@keyframes trk-bot-shadow-breathe {
+  0%, 100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateX(-50%) scale(0.85);
+    opacity: 0.35;
+  }
+}
+
+.trk-pixel-helper-pod.trk-bubble-out:hover {
+  transform: translateY(-4px) scale(1.1);
+  border-color: rgba(0, 245, 212, 0.9);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.85),
+    0 0 18px rgba(0, 245, 212, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.trk-pixel-helper-pod.trk-bubble-out:active {
+  transform: translateY(1px) scale(0.95);
+}
+
+.trk-pixel-helper-pod canvas {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* ═══════════════════════════════════════════════════════
+   3. HORLOGE FLIP DIGITALE ÉPURÉE (ZÉRO DISLOCATION)
+   ═══════════════════════════════════════════════════════ */
+.trk-clean-flip-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 2.5px;
+  line-height: 1;
+  user-select: none;
+}
+
+.trk-flip-colon {
+  font-family: 'Space Grotesk', monospace;
+  font-weight: 700;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0 0.5px;
+  animation: trk-colon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes trk-colon-pulse {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.35; }
+}
+
+/* Tuile Flip mécanique : box-sizing content-box pour correspondance exacte des moitiés */
+.trk-flip-tile {
+  position: relative;
+  background: linear-gradient(180deg, #1A1D24 0%, #12141A 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-sizing: border-box;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Tuile format compact pour l'encoche */
+.trk-flip-tile.compact {
+  width: 24px;
+  height: 22px;
+  border-radius: 5px;
+  perspective: 180px;
+}
+
+/* Tuile format grand pour la vue Flip Clock détaillée */
+.trk-flip-tile.large {
+  width: 112px;
+  height: 110px;
+  border-radius: 14px;
+  perspective: 420px;
+  background: linear-gradient(180deg, #181B22 0%, #101217 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+/* Ligne médiane de pliage : ultra fine en mode compact pour ne pas manger le chiffre */
+.trk-flip-tile-divider {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  transform: translateY(-50%);
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+}
+
+.trk-flip-tile.compact .trk-flip-tile-divider {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.trk-flip-tile.large .trk-flip-tile-divider {
+  height: 1.5px;
+  background: #07080A;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* Demi-tuiles supérieure et inférieure :
+   Le span .trk-flip-num occupe 200% de la hauteur de sa demi-tuile (= 100% de la tuile)
+   pour un raccord géométrique parfait au pixel près sans décalage. */
+.trk-flip-tile-half,
+.trk-flip-tile-flap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.trk-flip-tile-half.top,
+.trk-flip-tile-flap.flap-top {
+  top: 0;
+  background: linear-gradient(180deg, #1E222B 0%, #15181F 100%);
+}
+
+.trk-flip-tile-half.bottom,
+.trk-flip-tile-flap.flap-bottom {
+  top: 50%;
+  background: linear-gradient(180deg, #14171E 0%, #0F1117 100%);
+}
+
+.trk-flip-num {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 200%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Grotesk', 'Inter', monospace;
+  font-variant-numeric: tabular-nums;
+  color: #F8FAFC;
+  line-height: 1;
+  letter-spacing: -0.3px;
+}
+
+.trk-flip-tile-half.top .trk-flip-num,
+.trk-flip-tile-flap.flap-top .trk-flip-num {
+  top: 0;
+}
+
+.trk-flip-tile-half.bottom .trk-flip-num,
+.trk-flip-tile-flap.flap-bottom .trk-flip-num {
+  top: -100%;
+}
+
+.trk-flip-tile.compact .trk-flip-num {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.trk-flip-tile.large .trk-flip-num {
+  font-size: 56px;
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  color: #FFFFFF;
+}
+
+/* Volets 3D animés */
+.trk-flip-tile-flap {
+  backface-visibility: hidden;
+  z-index: 15;
+}
+
+.trk-flip-tile-flap.flap-top {
+  transform-origin: bottom center;
+  animation: trk-flip-fold-top 0.22s ease-in forwards;
+}
+
+.trk-flip-tile-flap.flap-bottom {
+  transform-origin: top center;
+  transform: perspective(300px) rotateX(90deg);
+  animation: trk-flip-fold-bottom 0.23s 0.21s ease-out forwards;
+}
+
+@keyframes trk-flip-fold-top {
+  0% { transform: perspective(300px) rotateX(0deg); }
+  100% { transform: perspective(300px) rotateX(-90deg); }
+}
+
+@keyframes trk-flip-fold-bottom {
+  0% { transform: perspective(300px) rotateX(90deg); }
+  100% { transform: perspective(300px) rotateX(0deg); }
+}
+
+/* Micro-secondes dans l'encoche compacte */
+.trk-flip-sec-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2px 4.5px;
+  border-radius: 5px;
+  margin-left: 2px;
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════════
+   4. ÉTAT COMPACT AU REPOS (!open && !hovered)
+   ═══════════════════════════════════════════════════════ */
+.trk-island-compact-view {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.trk-island-compact-triad {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* GAUCHE : Horloge toujours visible */
+.trk-island-triad-left {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  max-width: calc(50% - 28px);
+  z-index: 10;
+  cursor: pointer;
+}
+
+/* DROITE : Live Activities (Pomodoro / Focus) OU Debug */
+.trk-island-triad-right {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  width: calc(50% - 28px);
+  z-index: 10;
+}
+
+/* Pilule Pomodoro en arrière-plan dans l'encoche */
+.trk-island-pomo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  border-radius: 11px;
+  padding: 0 7px 0 4px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+}
+
+.trk-island-pomo-pill.focus {
+  background: rgba(255, 149, 0, 0.15);
+  border: 1px solid rgba(255, 149, 0, 0.35);
+  color: #FFB340;
+}
+
+.trk-island-pomo-pill.rest {
+  background: rgba(0, 245, 212, 0.14);
+  border: 1px solid rgba(0, 245, 212, 0.35);
+  color: #00F5D4;
+}
+
+.trk-island-pomo-pill.paused {
+  opacity: 0.82;
+  border-style: dashed;
+}
+
+.trk-island-pomo-pill:hover {
+  filter: brightness(1.15);
+}
+
+.trk-island-pomo-mini-toggle {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.trk-island-pomo-mini-toggle:hover {
+  background: rgba(255, 255, 255, 0.28);
+  transform: scale(1.1);
+}
+
+/* Pilule de focus unifiée : Titre ET Temps groupés à droite */
+.trk-island-focus-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  background: rgba(255, 149, 0, 0.14);
+  border: 1px solid rgba(255, 149, 0, 0.32);
+  border-radius: 11px;
+  padding: 0 7px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.trk-island-focus-pill:hover {
+  background: rgba(255, 149, 0, 0.22);
+  border-color: rgba(255, 149, 0, 0.45);
+}
+
+.trk-island-flame-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.trk-island-flame-icon {
+  color: #FF9500;
+  flex-shrink: 0;
+  animation: trk-flame-flicker-mini 1.8s ease-in-out infinite;
+}
+
+@keyframes trk-flame-flicker-mini {
+  0%, 100% {
+    transform: scale(1) rotate(-3deg);
+    filter: drop-shadow(0 0 3px rgba(255, 149, 0, 0.8));
+  }
+  50% {
+    transform: scale(1.14) rotate(3deg);
+    filter: drop-shadow(0 0 6px rgba(255, 59, 48, 0.95));
+  }
+}
+
+.trk-island-compact-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #F8FAFC;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trk-island-compact-timer {
+  font-family: 'Space Grotesk', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.trk-island-focus-pill .trk-island-compact-timer {
+  color: #FFB340;
+}
+
+/* Raccourci compact Debug */
+.trk-island-compact-debug {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 11px;
+  padding: 0 7px;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.trk-island-compact-debug:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+}
+
+.trk-island-mini-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34C759;
+  box-shadow: 0 0 6px rgba(52, 199, 89, 0.8);
+  flex-shrink: 0;
+}
+
+.trk-island-mini-dot.warn {
+  background: #FF9500;
+  box-shadow: 0 0 7px rgba(255, 149, 0, 0.85);
+}
+
+.trk-island-mini-dot.error {
+  background: #FF3B30;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.9);
+}
+
+.trk-island-mini-count {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 0 4.5px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #F8FAFC;
+  font-family: 'Space Grotesk', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════
+   5. ÉTAT SURVOL : ÉLARGISSEMENT ET RACCOURCIS VERS LES MENUS
+   ═══════════════════════════════════════════════════════ */
+.trk-island-hover-shortcuts {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  animation: trk-island-fade-in 0.2s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+.trk-island-hover-left {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(50% - 24px);
+  z-index: 10;
+}
+
+.trk-island-hover-clock {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.trk-island-hover-clock:hover {
+  opacity: 0.9;
+}
+
+.trk-island-hover-right {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  max-width: calc(50% - 24px);
+  z-index: 10;
+}
+
+.trk-island-hover-pill {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4.5px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.trk-island-hover-pill:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+.trk-island-hover-pill:active {
+  transform: scale(0.96);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.trk-island-hover-pill.timer-pill.active-focus {
+  color: #FFB340;
+  border-color: rgba(255, 149, 0, 0.35);
+  background: rgba(255, 149, 0, 0.15);
+}
+
+.trk-island-hover-pill.timer-pill.active-rest {
+  color: #00F5D4;
+  border-color: rgba(0, 245, 212, 0.35);
+  background: rgba(0, 245, 212, 0.14);
+}
+
+.trk-island-hover-pill.focus-pill {
+  color: #FFB340;
+  border-color: rgba(255, 149, 0, 0.35);
+  background: rgba(255, 149, 0, 0.14);
+}
+
+.trk-island-hover-pill.pet-pill {
+  color: #00F5D4;
+  border-color: rgba(0, 245, 212, 0.25);
+  background: rgba(0, 245, 212, 0.08);
+}
+
+.trk-island-pill-title {
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.trk-island-pill-timer {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #FFB340;
+}
+
+/* ═══════════════════════════════════════════════════════
+   6. ÉTAT PLEIN ÉCRAN / FEUILLE MODALE (open === true)
+   ═══════════════════════════════════════════════════════ */
+.trk-island-expanded-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  animation: trk-island-fade-in 0.26s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes trk-island-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Barre de navigation supérieure de l'encoche : 100% alignée sur une ligne */
+.trk-island-nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.trk-island-nav-clock {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.18s ease;
+}
+
+.trk-island-nav-clock:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.trk-island-tabs {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2.5px;
+  border-radius: 13px;
+  min-width: 0;
+}
+
+.trk-island-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 25px;
+  padding: 0 8.5px;
+  border-radius: 9.5px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.trk-island-tab:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.trk-island-tab:active {
+  transform: scale(0.96);
+}
+
+.trk-island-tab.active {
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.trk-island-tab.timer-tab.active {
+  color: #38BDF8;
+}
+
+.trk-island-tab.focus-tab.active {
+  color: #FFB340;
+}
+
+.trk-island-tab.pet-tab.active {
+  color: #00F5D4;
+}
+
+.trk-island-sparkle-icon {
+  color: #00F5D4;
+  flex-shrink: 0;
+}
+
+.trk-island-badge {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 1px 5.5px;
+  font-size: 9.5px;
+  font-family: 'Space Grotesk', monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.trk-island-badge.pomo-badge.focus,
+.trk-island-badge.focus-badge {
+  background: rgba(255, 149, 0, 0.2);
+  color: #FFB340;
+}
+
+.trk-island-badge.pomo-badge.rest {
+  background: rgba(0, 245, 212, 0.2);
+  color: #00F5D4;
+}
+
+.trk-island-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.72);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.trk-island-close-btn:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.16);
+  transform: scale(1.06);
+}
+
+.trk-island-close-btn:active {
+  transform: scale(0.94);
+}
+
+.trk-island-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ═══════════════════════════════════════════════════════
+   7. ONGLET 1 : POMODORO FOCUS 25/5 MIN & FLIP CLOCK
+   ═══════════════════════════════════════════════════════ */
+.trk-pomodoro-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px 18px;
+  gap: 12px;
+}
+
+.trk-pomo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.trk-pomo-subtabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2.5px;
+  border-radius: 11px;
+}
+
+.trk-pomo-subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.trk-pomo-subtab:hover {
+  color: #FFFFFF;
+}
+
+.trk-pomo-subtab.active {
+  background: rgba(255, 255, 255, 0.13);
+  color: #FFFFFF;
+  font-weight: 600;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+.trk-pomo-sound-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.trk-pomo-sound-btn:hover {
+  background: rgba(255, 255, 255, 0.11);
+  color: #FFFFFF;
+}
+
+.trk-pomo-sound-btn.active {
+  color: #38BDF8;
+  border-color: rgba(56, 189, 248, 0.32);
+  background: rgba(56, 189, 248, 0.11);
+}
+
+.trk-pomo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trk-pomo-presets {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.trk-pomo-preset-btn {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.trk-pomo-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #FFFFFF;
+}
+
+.trk-pomo-preset-btn.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* Carte de timer principale */
+.trk-pomo-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 14px 18px 16px;
+  gap: 10px;
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.trk-pomo-card.running.focus {
+  border-color: rgba(255, 149, 0, 0.25);
+  background: radial-gradient(circle at 50% 0%, rgba(255, 149, 0, 0.08), rgba(255, 255, 255, 0.02) 70%);
+}
+
+.trk-pomo-card.running.rest {
+  border-color: rgba(0, 245, 212, 0.25);
+  background: radial-gradient(circle at 50% 0%, rgba(0, 245, 212, 0.08), rgba(255, 255, 255, 0.02) 70%);
+}
+
+.trk-pomo-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.trk-pomo-phase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 8px;
+}
+
+.trk-pomo-phase-badge.focus {
+  background: rgba(255, 149, 0, 0.15);
+  border: 1px solid rgba(255, 149, 0, 0.3);
+  color: #FF9500;
+}
+
+.trk-pomo-phase-badge.rest {
+  background: rgba(0, 245, 212, 0.15);
+  border: 1px solid rgba(0, 245, 212, 0.3);
+  color: #00F5D4;
+}
+
+.trk-pomo-cycle-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.trk-pomo-digits-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.trk-pomo-digits {
+  font-size: 48px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1.5px;
+  line-height: 1;
+  color: #FFFFFF;
+}
+
+.trk-pomo-card.focus .trk-pomo-digits {
+  color: #FFA51E;
+  text-shadow: 0 0 22px rgba(255, 149, 0, 0.3);
+}
+
+.trk-pomo-card.rest .trk-pomo-digits {
+  color: #00F5D4;
+  text-shadow: 0 0 22px rgba(0, 245, 212, 0.3);
+}
+
+.trk-pomo-progress-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.trk-pomo-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.trk-pomo-progress-bar.focus {
+  background: linear-gradient(90deg, #FF9500, #FF3B30);
+  box-shadow: 0 0 8px rgba(255, 149, 0, 0.8);
+}
+
+.trk-pomo-progress-bar.rest {
+  background: linear-gradient(90deg, #00F5D4, #38BDF8);
+  box-shadow: 0 0 8px rgba(0, 245, 212, 0.8);
+}
+
+/* Commandes tactiles */
+.trk-pomo-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.trk-pomo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.trk-pomo-btn.play-btn {
+  padding: 0 18px;
+  background: rgba(255, 255, 255, 0.11);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.trk-pomo-btn.play-btn:hover {
+  background: rgba(255, 255, 255, 0.17);
+  transform: translateY(-1px);
+}
+
+.trk-pomo-btn.play-btn.running.focus {
+  background: rgba(255, 149, 0, 0.18);
+  border-color: rgba(255, 149, 0, 0.4);
+  color: #FFA51E;
+}
+
+.trk-pomo-btn.play-btn.running.rest {
+  background: rgba(0, 245, 212, 0.16);
+  border-color: rgba(0, 245, 212, 0.4);
+  color: #00F5D4;
+}
+
+.trk-pomo-btn.action-btn {
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.trk-pomo-btn.action-btn:hover {
+  background: rgba(255, 255, 255, 0.11);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.trk-pomo-btn:active {
+  transform: scale(0.96);
+}
+
+/* Grande horloge mécanique complète */
+.trk-pomo-flip-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 0 10px;
+}
+
+.trk-large-flip-clock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.trk-large-flip-sep {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 2px;
+}
+
+.trk-large-flip-sep span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.trk-large-flip-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.trk-large-card-label {
+  position: absolute;
+  z-index: 25;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.trk-large-card-label.top-left {
+  top: 9px;
+  left: 11px;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.52);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.trk-large-card-label.bottom-left {
+  bottom: 9px;
+  left: 11px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.trk-large-card-label.top-right {
+  top: 9px;
+  right: 11px;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.52);
+  text-transform: capitalize;
+}
+
+.trk-large-card-label.bottom-right {
+  bottom: 9px;
+  right: 11px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #38BDF8;
+}
+
+/* ═══════════════════════════════════════════════════════
+   8. ONGLET 2 : CYBER COMPANION NOVA DECK
+   ═══════════════════════════════════════════════════════ */
+.trk-island-pet-deck {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px 18px;
+  gap: 12px;
+}
+
+.trk-island-pet-stage-box {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.trk-island-pet-hero-avatar {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: #020305;
+  border: 1.5px solid rgba(0, 245, 212, 0.45);
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.75),
+    0 0 16px rgba(0, 245, 212, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.trk-island-pet-hero-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.trk-island-pet-hero-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trk-island-pet-hero-title h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #F8FAFC;
+}
+
+.trk-island-pet-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(52, 199, 89, 0.14);
+  border: 1px solid rgba(52, 199, 89, 0.3);
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #34C759;
+}
+
+.trk-island-pulse-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34C759;
+  box-shadow: 0 0 6px #34C759;
+}
+
+.trk-island-pet-subtitle {
+  margin: 3px 0 9px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.58);
+  line-height: 1.35;
+}
+
+.trk-island-pet-telemetry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.trk-island-telemetry-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trk-telemetry-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.52);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.trk-telemetry-bar {
+  width: 56px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.trk-telemetry-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00F5D4, #38BDF8);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.trk-telemetry-val {
+  font-size: 11px;
+  font-weight: 700;
+  color: #F8FAFC;
+}
+
+.trk-telemetry-val.synced {
+  color: #34C759;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trk-island-interaction-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trk-deck-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.trk-pet-command-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.trk-pet-command-btn {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  border-radius: 13px;
+  padding: 9px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.18s ease;
+}
+
+.trk-pet-command-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(0, 245, 212, 0.35);
+  transform: translateY(-1.5px);
+}
+
+.trk-pet-command-btn:active {
+  transform: scale(0.96);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.trk-pet-command-btn.active {
+  background: rgba(0, 245, 212, 0.12);
+  border-color: rgba(0, 245, 212, 0.4);
+}
+
+.trk-pet-command-btn.active .trk-command-title {
+  color: #00F5D4;
+}
+
+.trk-command-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #00F5D4;
+}
+
+.trk-command-icon-box.zap { color: #FFB340; }
+.trk-command-icon-box.visor { color: #38BDF8; }
+.trk-command-icon-box.radar { color: #A78BFA; }
+.trk-command-icon-box.moon { color: #94A3B8; }
+
+.trk-command-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.trk-command-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #F8FAFC;
+}
+
+.trk-command-sub {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.2;
+}
+
+/* ═══════════════════════════════════════════════════════
+   9. ONGLET 3 : FOCUS LIVE ACTIVITY PANEL
+   ═══════════════════════════════════════════════════════ */
+.trk-island-focus-panel {
+  padding: 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.trk-island-focus-card {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+
+.trk-island-focus-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.trk-island-focus-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trk-island-project-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--tag-color, #FFF) 18%, transparent);
+  color: var(--tag-color, #FFF);
+}
+
+.trk-island-dot-bullet {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.trk-island-prio-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.trk-island-focus-flame-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #FF9500;
+  background: rgba(255, 149, 0, 0.15);
+  border: 1px solid rgba(255, 149, 0, 0.3);
+  padding: 2.5px 8px;
+  border-radius: 9px;
+}
+
+.trk-island-focus-title {
+  margin: 0 0 12px;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #F8FAFC;
+  line-height: 1.35;
+}
+
+.trk-island-focus-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.trk-island-stat-box {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.trk-island-stat-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.trk-island-stat-val {
+  font-family: 'Space Grotesk', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 700;
+  color: #FFB340;
+}
+
+.trk-island-focus-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trk-island-action-btn {
+  flex: 1;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: #F8FAFC;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.trk-island-action-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.trk-island-action-btn:active {
+  transform: scale(0.96);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.trk-island-action-btn.primary {
+  color: #34C759;
+  border-color: rgba(52, 199, 89, 0.35);
+  background: rgba(52, 199, 89, 0.12);
+}
+
+.trk-island-action-btn.danger {
+  color: #FF453A;
+  border-color: rgba(255, 69, 58, 0.35);
+  background: rgba(255, 69, 58, 0.12);
+}
+
+/* ═══════════════════════════════════════════════════════
+   10. ONGLET 4 : DEBUG CONSOLE
+   ═══════════════════════════════════════════════════════ */
+.trk-island-debug-panel {
+  height: 310px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ═══════════════════════════════════════════════════════
+   11. ACCESSIBILITÉ PREFERS-REDUCED-MOTION
+   ═══════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .trk-island-container,
+  .trk-island-compact-view,
+  .trk-island-expanded-view,
+  .trk-island-hover-pill,
+  .trk-island-tab,
+  .trk-island-action-btn,
+  .trk-pixel-helper-pod.trk-bubble-out {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .trk-flip-tile-flap {
+    display: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   12. ÉLÉGANCE EN LIGHT THEME (CONSERVE LE NOIR OLED DE L'ENCÔCHE)
+   ═══════════════════════════════════════════════════════ */
+.trk-app.light .trk-dynamic-island .trk-island-container {
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.3);
+}
+
+.trk-app.light .trk-dynamic-island.open .trk-island-container {
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.5),
+    0 4px 16px rgba(0, 0, 0, 0.28);
+}

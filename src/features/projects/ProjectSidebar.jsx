@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { Check, FolderPlus, Pencil, Search, X } from "lucide-react";
 import { useLang, allProjectsLabel, selectedCountLabel } from "../../i18n.jsx";
 import { matchesQuery, projectColor } from "../../utils";
@@ -57,14 +58,14 @@ export function ProjectSidebar({
     <aside className="trk-sidebar">
       <div className="trk-sidebar-title">
         {t("projects")}
-        {filterProjects.length > 0 && <span className="trk-filter-count"> · {selectedCountLabel(lang, filterProjects.length)}</span>}
+        {filterProjects.length > 0 && <span className="trk-filter-count"> · <AnimatedNumber value={selectedCountLabel(lang, filterProjects.length)} /></span>}
         <HelpTip tipKey="projects" />
       </div>
       <button
         className={"trk-all-btn" + (filterProjects.length === 0 ? " active" : "")}
         onClick={onClearFilters}
       >
-        {allProjectsLabel(lang, totalTasks)}
+        <AnimatedNumber value={allProjectsLabel(lang, totalTasks)} />
       </button>
       <div className="trk-kanban-col-search trk-project-search">
         <Search size={11} color="var(--text-dim)" />
@@ -111,7 +112,7 @@ export function ProjectSidebar({
                     {p.name}
                   </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span className="trk-project-count">{p.count}</span>
+                    <span className="trk-project-count"><AnimatedNumber value={p.count} /></span>
                     <button
                       className="trk-project-remove"
                       onClick={(e) => { e.stopPropagation(); startRename(p.name); }}

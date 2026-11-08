@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { AlertTriangle, Archive, ArchiveRestore, Check, Clock, Flame, Pencil, Trash2, X, Zap } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import {
@@ -82,7 +83,7 @@ export function TaskRow({
               }}
               title={t("record_time")}
             >
-              <Clock size={11} /> {formatDuration(minutes)}
+              <Clock size={11} /> <AnimatedNumber value={formatDuration(minutes)} />
             </button>
             {logOpen && (
               <TimeLogPopover

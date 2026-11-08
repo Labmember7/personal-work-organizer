@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
-import { X, Columns3, Zap } from "lucide-react";
+import { Select } from "../../components/Select.jsx";
+import { X, Columns3, Zap, AlertTriangle } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { PRIORITIES, isSimpleTask, statusesForTask } from "../../utils";
 import { useEscapeKey } from "../../hooks/useEscapeKey";
@@ -19,6 +20,7 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
   const [draft, setDraft] = useState(initial);
   const [descMode, setDescMode] = useState("formatted");
   const [confirmClose, setConfirmClose] = useState(false);
+  const [titleError, setTitleError] = useState(false);
   const panelFrameRef = useRef(null);
   const initialRef = useRef(initial);
 
@@ -36,7 +38,11 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
 
   const submit = (e) => {
     e.preventDefault();
-    if (!draft.titre.trim() || !draft.projet.trim()) return;
+    if (!draft.titre.trim()) {
+      setTitleError(true);
+      return;
+    }
+    if (!draft.projet.trim()) return;
     onSubmit(draft);
     onClose();
   };
@@ -54,18 +60,30 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
           <span className="trk-modal-title">{draft.id ? t("edit_task") : t("new_task")}</span>
           <button className="trk-icon-btn" onClick={requestClose}><X size={16} /></button>
         </div>
-        <form onSubmit={submit}>
+        <form noValidate onSubmit={submit}>
           <div className="trk-modal-task-body">
             <div className="trk-modal-task-main">
               <div className="trk-field">
                 <label>{t("field_title")}</label>
-                <input
-                  autoFocus
-                  value={draft.titre}
-                  onChange={(e) => setDraft({ ...draft, titre: e.target.value })}
-                  placeholder={t("title_placeholder")}
-                  required
-                />
+                <div className="trk-field-input-wrap">
+                  <input
+                    autoFocus
+                    className={titleError ? "trk-input-error" : ""}
+                    value={draft.titre}
+                    onChange={(e) => {
+                      setDraft({ ...draft, titre: e.target.value });
+                      if (titleError) setTitleError(false);
+                    }}
+                    placeholder={t("title_placeholder")}
+                  />
+                  {titleError && (
+                    <div className="trk-error-bubble" role="alert">
+                      <span className="trk-error-bubble-tip" />
+                      <span className="trk-error-bubble-icon"><AlertTriangle size={13} /></span>
+                      <span>{t("field_required")}</span>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="trk-field trk-field-description">
                 <label htmlFor="task-description">{t("field_description")}</label>
@@ -110,30 +128,30 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
               </div>
               <div className="trk-field">
                 <label>{t("field_project")}</label>
-                <select
+                <Select
                   value={draft.projet}
                   onChange={(e) => setDraft({ ...draft, projet: e.target.value })}
                 >
                   {projects.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
+                </Select>
               </div>
               <div className="trk-field">
                 <label>{t("field_priority")}</label>
-                <select
+                <Select
                   value={draft.priorite}
                   onChange={(e) => setDraft({ ...draft, priorite: e.target.value })}
                 >
                   {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{t(`prio_${p.id}`)}</option>)}
-                </select>
+                </Select>
               </div>
               <div className="trk-field">
                 <label>{t("field_status")}</label>
-                <select
+                <Select
                   value={draft.statut}
                   onChange={(e) => setDraft({ ...draft, statut: e.target.value })}
                 >
                   {statusesForTask(draft).map((s) => <option key={s.id} value={s.id}>{t(`status_${s.id}`)}</option>)}
-                </select>
+                </Select>
               </div>
               <div className="trk-field">
                 <label>{t("field_start")}</label>

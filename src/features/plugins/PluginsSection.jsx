@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
+import { Select } from "../../components/Select.jsx";
 import * as LucideIcons from "lucide-react";
 import { AlertTriangle, Puzzle, X } from "lucide-react";
 import { useLang, pluginDict } from "../../i18n.jsx";
@@ -47,13 +49,13 @@ function PluginSettingsEditor({ defs, values, onChange, lang }) {
           <div className="trk-plugin-setting" key={id}>
             <label>{label}</label>
             {def.type === "enum" ? (
-              <select value={String(value ?? "")} onChange={(e) => onChange(id, e.target.value)}>
+              <Select value={String(value ?? "")} onChange={(e) => onChange(id, e.target.value)}>
                 {(def.values ?? []).map((v) => (
                   <option key={v} value={v}>
                     {v}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : def.type === "boolean" ? (
               <input type="checkbox" checked={!!value} onChange={(e) => onChange(id, e.target.checked)} />
             ) : def.type === "number" ? (
@@ -242,7 +244,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
           <HelpTip tipKey="plugins" />
           {loadErrors.length > 0 && (
             <span className="trk-plugin-errors-badge" title={loadErrors.map((e) => e.file).join(", ")}>
-              <AlertTriangle size={12} /> {loadErrors.length}
+              <AlertTriangle size={12} /> <AnimatedNumber value={loadErrors.length} />
             </span>
           )}
         </div>

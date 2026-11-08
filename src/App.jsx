@@ -11,7 +11,7 @@ import { useUndoRedoShortcut } from "./hooks/useUndoRedoShortcut";
 import { AppHeader } from "./components/AppHeader.jsx";
 import { TitleBar } from "./components/TitleBar.jsx";
 import { Toast } from "./components/Toast.jsx";
-import { DebugConsole } from "./components/DebugConsole.jsx";
+import { DynamicIsland } from "./components/DynamicIsland/DynamicIsland.jsx";
 import { useTasks } from "./features/tasks/useTasks";
 import { TaskList } from "./features/tasks/TaskList.jsx";
 import { TaskModal } from "./features/tasks/TaskModal.jsx";
@@ -46,7 +46,7 @@ export default function App() {
   const [filterStatuts, setFilterStatuts] = useState([]);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("priorite");
-  const [viewMode, setViewMode] = useState("list");
+  const [viewMode, setViewMode] = useState("kanban");
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null); // { id, action: "delete" | "archive" | "unarchive" }
   const [toast, setToast] = useState(null);
@@ -57,6 +57,11 @@ export default function App() {
   // rester disponible quelle que soit la vue active.
   const [taskColumns, setTaskColumns] = useState([]);
   const [taskPanels, setTaskPanels] = useState([]);
+  useEffect(() => {
+    const onInvalid = (e) => e.preventDefault();
+    document.addEventListener("invalid", onInvalid, true);
+    return () => document.removeEventListener("invalid", onInvalid, true);
+  }, []);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -341,7 +346,7 @@ export default function App() {
       data-pattern={theme === "random" ? randomThemePattern(randomSeed) : undefined}
     >
       <TitleBar maximized={maximized} />
-      <DebugConsole />
+      <DynamicIsland focusSession={focus} onEditTask={setEditing} />
 
       <div className="trk-content">
       {loading ? (

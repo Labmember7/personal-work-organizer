@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Check, Pencil, X } from "lucide-react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
+import { AlertTriangle, Check, Pencil, X } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { formatDuration, parseDurationInput } from "../../utils";
 
@@ -42,7 +43,7 @@ export function TimeLogEntryRow({ log, onEdit, onDelete }) {
     return (
       <div className="trk-timelog-entry trk-timelog-entry-edit">
         <input
-          className="trk-timelog-duration-input"
+          className={"trk-timelog-duration-input" + (error ? " trk-input-error" : "")}
           value={duration}
           onChange={(e) => { setDuration(e.target.value); setError(false); }}
           onKeyDown={onEnter}
@@ -60,7 +61,13 @@ export function TimeLogEntryRow({ log, onEdit, onDelete }) {
         <button type="button" className="trk-icon-btn" onClick={() => setEditing(false)} title={t("cancel")}>
           <X size={12} />
         </button>
-        {error && <div className="trk-timelog-error">{t("duration_format_error")}</div>}
+        {error && (
+          <div className="trk-error-bubble trk-timelog-error" role="alert">
+            <span className="trk-error-bubble-tip" />
+            <span className="trk-error-bubble-icon"><AlertTriangle size={12} /></span>
+            <span>{t("duration_format_error")}</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -68,7 +75,7 @@ export function TimeLogEntryRow({ log, onEdit, onDelete }) {
   return (
     <div className="trk-timelog-entry">
       <span className="trk-timelog-entry-info">
-        <strong>{formatDuration(log.minutes)}</strong> · {log.date}{log.note ? ` · ${log.note}` : ""}
+        <strong><AnimatedNumber value={formatDuration(log.minutes)} /></strong> · {log.date}{log.note ? ` · ${log.note}` : ""}
       </span>
       <button type="button" className="trk-icon-btn" onClick={startEdit} title={t("edit_entry")}>
         <Pencil size={12} />

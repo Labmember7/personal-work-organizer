@@ -1,4 +1,5 @@
 import React from "react";
+import { AnimatedNumber } from "./AnimatedNumber.jsx";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useLang, pageOfLabel } from "../i18n.jsx";
 
@@ -29,7 +30,7 @@ export function Pagination({ page, totalPages, onChange, compact = false }) {
         >
           <ChevronLeft size={13} />
         </button>
-        <span className="trk-page-info">{page}/{totalPages}</span>
+        <span className="trk-page-info"><AnimatedNumber value={`${page}/${totalPages}`} /></span>
         <button
           type="button"
           className="trk-page-btn trk-page-nav"
@@ -77,7 +78,7 @@ export function Pagination({ page, totalPages, onChange, compact = false }) {
       >
         <ChevronRight size={15} />
       </button>
-      <span className="trk-page-info">{pageOfLabel(lang, page, totalPages)}</span>
+      <span className="trk-page-info"><AnimatedNumber value={pageOfLabel(lang, page, totalPages)} /></span>
     </div>
   );
 }

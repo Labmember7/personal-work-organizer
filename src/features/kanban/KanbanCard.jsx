@@ -1,4 +1,5 @@
 import React from "react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { AlertTriangle, Archive, ArchiveRestore, Check, Clock, Flame, Pencil, Trash2, X, Zap } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { prioOf, projectColor, isSimpleTask, isTaskDone, formatDuration } from "../../utils";
@@ -53,7 +54,7 @@ export function KanbanCard({
           {task.echeance && <span className="trk-mono">{task.echeance}</span>}
           {minutes > 0 && (
             <span className="trk-mono trk-kanban-time">
-              <Clock size={10} /> {formatDuration(minutes)}
+              <Clock size={10} /> <AnimatedNumber value={formatDuration(minutes)} />
             </span>
           )}
         </span>

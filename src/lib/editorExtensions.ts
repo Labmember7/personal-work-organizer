@@ -1,12 +1,6 @@
 import type { Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Heading } from "@tiptap/extension-heading";
-
-const CustomHeading = Heading.extend({
-  addKeyboardShortcuts() {
-    return {};
-  }
-});
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
@@ -34,7 +28,6 @@ export function createEditorExtensions({ placeholder, resizeHint }: EditorExtens
 
   return [
     StarterKit.configure({
-      heading: false,
       // Un lien cliquable ouvrirait la cible dans la fenêtre Electron
       // elle-même : en édition, un clic doit seulement placer le curseur.
       link: { openOnClick: false },
@@ -43,7 +36,6 @@ export function createEditorExtensions({ placeholder, resizeHint }: EditorExtens
       heading: false,
     }),
     HeadingWithoutShortcuts.configure({ levels: [1, 2, 3, 4, 5, 6] }),
-    CustomHeading,
     TaskList,
     TaskItem.configure({ nested: true, HTMLAttributes: { "data-type": "taskItem" } }),
     // Colonnes non redimensionnables : le Markdown ne sait pas mémoriser une
