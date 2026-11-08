@@ -60,6 +60,7 @@ export default {
     time_tooltip: "Time",
 
     save_error: "Save failed, your latest changes may not have been recorded.",
+    field_required: "Please fill out this field.",
 
     edit_task: "Edit task",
     field_title: "Title",

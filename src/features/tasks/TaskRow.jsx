@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { AlertTriangle, Archive, ArchiveRestore, Check, Clock, Flame, Pencil, Trash2, X, Zap } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import {
@@ -6,15 +7,16 @@ import {
 } from "../../utils";
 import { useFocusInfo, useLiveMinutes } from "../focus/FocusContext.jsx";
 import { TimeLogPopover } from "../timelog/TimeLogPopover.jsx";
+import { evalColumnValue } from "../../lib/plugins/contrib";
 
 // Ligne de la vue liste : draggable vers la zone de focus, badge horloge
 // ouvrant le popover de pointage, suppression/archivage avec confirmation inline.
 export function TaskRow({
   task, onEdit, onDelete, onArchive, onUnarchive,
   confirmId, confirmAction, onAskDelete, onAskArchive, onAskUnarchive, onCancelConfirm,
-  timeLogOps,
+  timeLogOps, taskColumns,
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [logOpen, setLogOpen] = useState(false);
   const st = statusOf(task.statut);
   const pr = prioOf(task.priorite);
@@ -56,6 +58,21 @@ export function TaskRow({
           </span>
           {task.assigne && <span>{task.assigne}</span>}
           {task.echeance && <span className="trk-mono">{task.echeance}</span>}
+          {Array.isArray(taskColumns) && taskColumns.map((col) => {
+            const val = evalColumnValue(col, task, lang);
+            if (!val) return null;
+            const badge = col.as === "badge" || col.as === "gauge";
+            return (
+              <span
+                key={col.id}
+                className={"trk-plugin-col" + (badge ? " trk-tag trk-plugin-col-badge" : "")}
+                title={col.label}
+                style={col.tone ? { "--pill-color": col.tone } : undefined}
+              >
+                {val}
+              </span>
+            );
+          })}
           <div className="trk-timelog-wrap">
             <button
               type="button"
@@ -66,7 +83,7 @@ export function TaskRow({
               }}
               title={t("record_time")}
             >
-              <Clock size={11} /> {formatDuration(minutes)}
+              <Clock size={11} /> <AnimatedNumber value={formatDuration(minutes)} />
             </button>
             {logOpen && (
               <TimeLogPopover

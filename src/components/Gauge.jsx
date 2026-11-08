@@ -1,4 +1,5 @@
 import React from "react";
+import { AnimatedNumber } from "./AnimatedNumber.jsx";
 import { useLang } from "../i18n.jsx";
 
 // Jauge circulaire d'avancement global (0-100 %).
@@ -35,7 +36,7 @@ export function Gauge({ value }) {
       />
       <text x="60" y="57" textAnchor="middle" fontSize="22" fontWeight="700" fill="var(--text)"
         fontFamily="'Space Grotesk', sans-serif">
-        {Math.round(pct)}%
+        <AnimatedNumber as="tspan" value={`${Math.round(pct)}%`} />
       </text>
       <text x="60" y="74" textAnchor="middle" fontSize="8" fill="var(--text-dim)"
         fontFamily="'IBM Plex Mono', monospace" letterSpacing="0.5">

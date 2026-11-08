@@ -14,10 +14,12 @@ electron/
                      #   (tmp + rename), copie .bak, relecture de secours
   logger.js          # Journal data/debug.log (tronqué au lancement), tampon
                      #   mémoire borné tant qu'aucun dossier n'est écrivable
-  plugins.js         # Découverte brute des plugins (builtin + user), lecture
-                     #   d'un fichier par nom (garde anti-traversée), injection
-                     #   du SDK + CSP dédiée (wrapPluginHtml). Ne valide aucun
-                     #   manifeste : cf. src/lib/plugins/manifest.ts
+  plugins.js         # Découverte brute des plugins : (v1) .html autonome par
+                      #   nom, (v2) dossiers `format: "trk.extension/2"`. Lecture
+                      #   de ressource par chemin avec garde anti-traversée
+                      #   (realpath) ; CSP par format (v1 unsafe-inline, v2
+                      #   'self' sans unsafe-inline). Ne valide aucun manifeste
+                      #   : cf. src/lib/plugins/{manifest,manifest2}.ts
 main.js              # Processus principal : fenêtre (frame:false, sandbox),
                      #   handlers IPC (storage/config/images/plugins/dialogues/
                      #   fenêtre), protocoles app-image: et app-plugin:,
@@ -26,9 +28,11 @@ preload.js           # contextBridge : window.storage / config / dataIO /
                      #   images / plugins / windowControls (surface minimale,
                      #   pas de Node côté renderer)
 
-plugins/             # Un plugin = un fichier .html autonome (manifeste
-                     #   embarqué). Livrés avec l'app (ici) ou déposés par
-                     #   l'utilisateur à côté de l'exécutable.
+plugins/             # Plugins (v1 = fichier .html autonome à manifeste
+                      #   embarqué ; v2 = dossier `trk.extension/2` :
+                      #   manifest.json + assets servis par app-plugin:). Livrés
+                      #   avec l'app (ici) ou déposés par l'utilisateur à côté de
+                      #   l'exécutable.
   mindmap.html       # Carte mentale / feuille de route, liens en lecture
                      #   seule vers les tâches. Moteur de rendu SVG maison.
   sdk/trk-plugin-sdk.js # SDK injecté en ligne dans chaque plugin (jamais en
@@ -131,10 +135,64 @@ src/
 
 ## Système de plugins
 
-Un plugin est **un fichier HTML autonome** déposé dans `plugins/` (livré avec
-l'app) ou à côté de l'exécutable (déposé par l'utilisateur) — pas de
-recompilation, pas de plugin dans le bundle. Il est chargé dans une iframe
-`sandbox="allow-scripts"` et ne communique avec l'hôte que par `postMessage`.
+Un plugin est **hébergé à l'exécution, jamais compilé**, sous l'une des deux
+formes (cf. `PLUGIN_FORMAT_V2.md`) :
+- **v1** — un fichier `.html` autonome (manifeste embarqué), servi en ligne par
+  le protocole `app-plugin:` (hôte `local`).
+- **v2** — un dossier `trk.extension/2` (`manifest.json` + assets sous
+  `app-plugin:<pluginId>/…`) : page d'accueil déclarative et/ou scripts isolés.
+
+Les vues **déclaratives** (`contributes.views[].kind === "declarative"`) ne
+passent par aucune iframe : leur spec `trk.view/1` (`lib/plugins/viewSpec.ts`)
+est lue par l'hôte et rendue par `features/plugins/DeclarativeView.jsx` (moteur
+d'expressions `trkx`, `lib/plugins/trkx.ts`). Une vue déclarative n'a ni JS, ni
+origine, ni CSP à négocier. Les vues **app** (scripts isolés) se chargent dans
+une iframe `app-plugin://<pluginId>/` avec une CSP par origine.
+
+Les vues **app** (`kind: "app"`, `entry` = page HTML du dossier) tournent dans
+une iframe `sandbox="allow-scripts allow-same-origin"`, origine
+`app-plugin://<id>`. Leur CSP v2 (`buildPluginCsp(2)`,
+`electron/plugins.js`) coupe le réseau et n'autor'ise **pas** `unsafe-inline` :
+le SDK est servi par l'hôte à `app-plugin://<id>/@trk/sdk.js` (`plugins/sdk/
+trk-plugin-sdk.mjs`, variante module ES de `trk-plugin-sdk.js`), importable via
+`import trk from "trk:sdk"` grâce à une carte d'imports posée par la page. La
+page déclare son identité via `<meta name="trk-plugin-id" content="…">`
+(préalable à `host:init`, cf. `usePluginHost.ts`).
+
+**Points de contribution** (`contributes`, cf. `PLUGIN_FORMAT_V2.md` § 4). Le
+manifeste v2 est validé dans `lib/plugins/manifest2.ts` (structure, grammaire
+d'`id`, `engines`, permissions, et analyse statique de chaque expression `trkx`
+déclarée : `commands.when`, `taskColumns.value`/`tone`). `normalizeV2Manifest`
+(`services/plugins.ts`) reporte `commands`, `taskColumns`, `taskPanels` et
+`settings` sur le `PluginManifest` consommé par l'UI.
+
+- **commandes** : barre d'outils propre à la vue du plugin (`PluginsSection`),
+  un clic poste `host:command` via le pont ; le SDK (`trk.commands.on`/`enable`,
+  les deux variantes) reçoit `host:command` et déclenche le gestionnaire abonné.
+- **taskColumns** : `collectTaskColumns`/`evalColumnValue` (`lib/plugins/contrib.ts`)
+  récoltent et évaluent (contre la projection en lecture seule de chaque tâche)
+  les colonnes contribuées ; `App.jsx` découvre une fois les plugins au montage
+  et passe `taskColumns` à `TaskList` → `TaskRow`, qui rend chaque valeur comme
+  pastille (`as: "badge"`/`"gauge"`) ou texte inline dans la rangée de méta.
+- **taskPanels** : `collectTaskPanels` (`lib/plugins/contrib.ts`) résout chaque
+  panneau avec sa spec déclarative embarquée (lue à la découverte, `PluginSource.
+  panelSpecs`). `TaskModal` rend chaque panneau (`kind: "declarative"` →
+  `DeclarativeView` alimentée par une ligne = la tâche courante ; `kind: "app"` →
+  iframe `app-plugin://<id>/<entry>`) dans une colonne latérale. `DeclarativeView`
+  accepte désormais `rows` (lignes explicites) et `settings`.
+- **settings** : `contributes.settings` (record `id → { type, default, … }`).
+  `lib/plugins/settings.ts` fusionne défauts + stockage (`plugin-settings:<id>`).
+  `PluginsSection` expose un éditeur et pousse les réglages au plugin via
+  `host:init.settings` puis `host:settings` (à chaque modification) ; le SDK
+  (`trk.settings.get`/`set`, les deux variantes) les lit et peut les écrire
+  (`plugin:settings:set` → capacité `settings` → `host:settings` de retour).
+  Les expressions `trkx` consomment `settings` (vue déclarative de la vue
+  active, panneaux de tâche).
+
+Les deux formes sont déposées dans `plugins/` (livrées avec l'app) ou à côté de
+l'exécutable (déposées par l'utilisateur) — pas de recompilation, pas de plugin
+dans le bundle. Un plugin est chargé dans une iframe `sandbox="allow-scripts"`
+et ne communique avec l'hôte que par `postMessage`.
 
 **Deux décisions non négociables** (cf. `PLUGIN_PLAN.md`) :
 1. Hébergement HTML chargé à l'exécution, jamais compilé.
@@ -315,6 +373,28 @@ Notes :
 | `npm run format` | Prettier |
 | `npm run dist:win` / `dist:linux` | Portable Windows / AppImage |
 | `npm run dist:docker` | Les deux cibles dans un conteneur (image `electronuserland/builder:wine`, sortie dans `release/`) |
+| `npm run plugin:init <dir> [id]` | Génère un squelette de plugin v2 (`manifest.json` + `views/main.trkv`) |
+| `npm run plugin:validate <dir>` | Valide un dossier de plugin (manifeste, ressources, locales, trkx) |
+
+### Outiling des plugins (Phase 6)
+
+- **Schémas JSON publiés** : `schema/trk-manifest-2.json` (manifeste v2) et
+  `schema/trk-view-1.json` (vue déclarative `.trkv`). Référencés par `$schema`
+  dans les manifestes pour l'autocomplétion éditeur ; le validateur ne les
+  consomme pas directement (il réutilise `parseManifestV2` / `validateViewSpec`).
+- **`src/lib/plugins/validate.ts`** : `validatePluginFolder(dir, read, exists)`
+  (lecteur de fichiers injecté, testable sans Node) — diagnostique manifeste
+  illisible/trkx invalide, ressources manquantes ou sortant du paquet, locales
+  par défaut (fr/en) manquantes, et expressions trkx des commandes, colonnes et
+  specs de vues/panneaux.
+- **CLI `scripts/trk-plugin.mjs`** : charge le validateur TS via l'API SSR de
+  Vite (`ssrLoadModule`) puis l'exécute sous Node — pas de dépendance `tsx`/
+  `ts-node` requise. Sous-commandes `init` et `validate`.
+- **Rechargement à chaud (dev)** : `main.js` expose `plugins:watch(id, dir)`
+  (non packagé) qui surveille le dossier et notifie le renderer via l'IPC
+  `host:reload` ; `PluginsSection` redécouvre les plugins et remonte la vue
+  active (`reloadKey`). La console de débogage (`DebugConsole`) relaie déjà les
+  `plugin:log` de l'iframe sandboxée.
 
 CI (`.github/workflows/build.yml`) : lint + typecheck + tests sur chaque
 push/PR ; build + release sur tag `v*`.

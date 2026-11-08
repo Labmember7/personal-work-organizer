@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
+import { Select } from "../../components/Select.jsx";
 import * as LucideIcons from "lucide-react";
 import { AlertTriangle, Puzzle, X } from "lucide-react";
 import { useLang, pluginDict } from "../../i18n.jsx";
@@ -7,6 +9,8 @@ import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { pushLog } from "../../lib/debugLog";
 import { localized, scopesOf } from "../../lib/plugins/manifest";
 import { projectSnapshot, themeSnapshot } from "../../lib/plugins/projection";
+import { usePluginSettings } from "./usePluginSettings";
+import { savePluginSettings } from "../../lib/plugins/settings";
 import { discoverPlugins } from "../../services/plugins";
 import { DeclarativeView } from "./DeclarativeView.jsx";
 import { NodeGlyph } from "./NodeGlyph.jsx";
@@ -25,8 +29,55 @@ const LOAD_ERROR_KEYS = {
 // Icône du plugin : celle déclarée dans son manifeste (nom lucide-react),
 // repli sur Puzzle si absente ou inconnue — un plugin ne doit jamais rester
 // sans icône, même écrit avant l'ajout d'une icône à la bibliothèque.
+function PluginIcon({ name, size = 14 }) {
+  return React.createElement(iconFor(name), { size });
+}
+
 function iconFor(name) {
   return (name && LucideIcons[name]) || Puzzle;
+}
+
+// Éditeur des réglages déclarés par le plugin (`contributes.settings`) : chaque
+// réglage est rendu selon son `type`, et toute modification est propagée à
+// l'hôte (persistance + `host:settings` vers l'iframe via `usePluginHost`).
+function PluginSettingsEditor({ defs, values, onChange, lang }) {
+  const ids = Object.keys(defs);
+  return (
+    <div className="trk-plugin-settings">
+      <span className="trk-plugin-settings-title">Réglages</span>
+      {ids.map((id) => {
+        const def = defs[id];
+        const value = values[id];
+        const label = localized(def.label, lang) || id;
+        return (
+          <div className="trk-plugin-setting" key={id}>
+            <label>{label}</label>
+            {def.type === "enum" ? (
+              <Select value={String(value ?? "")} onChange={(e) => onChange(id, e.target.value)}>
+                {(def.values ?? []).map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </Select>
+            ) : def.type === "boolean" ? (
+              <input type="checkbox" checked={!!value} onChange={(e) => onChange(id, e.target.checked)} />
+            ) : def.type === "number" ? (
+              <input
+                type="number"
+                value={Number(value ?? 0)}
+                min={def.min}
+                max={def.max}
+                onChange={(e) => onChange(id, Number(e.target.value))}
+              />
+            ) : (
+              <input type="text" value={String(value ?? "")} onChange={(e) => onChange(id, e.target.value)} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // La vue « Plugins » : découverte des fichiers .html de `plugins/`, sélection
@@ -42,6 +93,16 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
   const [reloadKey, setReloadKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
 
+  const refreshPlugins = (bump) => {
+    setDiscovering(true);
+    return discoverPlugins().then((result) => {
+      if (bump) setReloadKey((k) => k + 1);
+      setPlugins(result.plugins);
+      setLoadErrors(result.errors);
+      setDiscovering(false);
+    });
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -54,6 +115,17 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Rechargement à chaud (mode dev) : le processus principal surveille le
+  // dossier du plugin et notifie via l'IPC `host:reload`. On redécouvre les
+  // plugins (relecture manifeste + specs) et on remonte la vue active.
+  useEffect(() => {
+    if (!window.plugins || typeof window.plugins.onReload !== "function") return;
+    const handler = () => {
+      void refreshPlugins(true);
+    };
+    window.plugins.onReload(handler);
   }, []);
 
   const activePlugin = plugins.find((p) => p.manifest.id === selectedId) ?? plugins[0] ?? null;
@@ -83,6 +155,8 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
 
   const dict = useMemo(() => pluginDict(lang), [lang]);
 
+  const settingsApi = usePluginSettings(activePlugin?.manifest.id ?? null, activePlugin?.manifest.settings);
+
   const host = usePluginHost({
     plugin: activePlugin,
     doc: docsStore.activeDoc,
@@ -90,10 +164,18 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
     theme: hostTheme,
     lang,
     dict,
+    settings: settingsApi.settings,
     onDocPatch: docsStore.saveActive,
     onRevealTask,
     onToast,
     onFullscreen: setFullscreen,
+    onSettingsSet: (id, value) => {
+      const next = { ...settingsApi.settings, [id]: value };
+      settingsApi.setSetting(id, value);
+      const pid = activePlugin?.manifest.id;
+      if (pid) void savePluginSettings(pid, next);
+      return next;
+    },
     onLog: (pid, level, args) => pushLog("plugin:" + pid, level, ...args),
   });
 
@@ -133,7 +215,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
     );
   }
 
-  const ActiveIcon = iconFor(activePlugin?.manifest.icon);
+
 
   return (
     <div className="trk-plugins">
@@ -142,7 +224,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
           {plugins.length > 1 ? (
             <div className="trk-view-switch trk-plugin-switch">
               {plugins.map((p) => {
-                const Icon = iconFor(p.manifest.icon);
+
                 return (
                   <button
                     key={p.manifest.id}
@@ -152,21 +234,21 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
                     title={localized(p.manifest.name, lang)}
                     aria-pressed={p.manifest.id === pluginId}
                   >
-                    <Icon size={14} /> <span className="trk-view-label">{localized(p.manifest.name, lang)}</span>
+                    <PluginIcon name={p.manifest.icon} size={14} /> <span className="trk-view-label">{localized(p.manifest.name, lang)}</span>
                   </button>
                 );
               })}
             </div>
           ) : (
             <div className="trk-plugins-title">
-              <ActiveIcon size={15} />
+              <PluginIcon name={activePlugin?.manifest.icon} size={15} />
               <span>{localized(activePlugin?.manifest.name, lang)}</span>
             </div>
           )}
           <HelpTip tipKey="plugins" />
           {loadErrors.length > 0 && (
             <span className="trk-plugin-errors-badge" title={loadErrors.map((e) => e.file).join(", ")}>
-              <AlertTriangle size={12} /> {loadErrors.length}
+              <AlertTriangle size={12} /> <AnimatedNumber value={loadErrors.length} />
             </span>
           )}
         </div>
@@ -181,7 +263,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
         {fullscreen && (
           <div className="trk-plugin-fullscreen-bar">
             <div className="trk-plugin-fullscreen-title">
-              <ActiveIcon size={14} />
+              <PluginIcon name={activePlugin?.manifest.icon} size={14} />
               <span>{localized(activePlugin?.manifest.name, lang)}</span>
             </div>
             <button
@@ -195,6 +277,38 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
             </button>
           </div>
         )}
+
+        {activePlugin?.manifest.commands?.length ? (
+          <div className="trk-plugin-commands">
+            {activePlugin.manifest.commands.map((cmd) => {
+              const Icon = iconFor(cmd.icon);
+              return (
+                <button
+                  key={cmd.id}
+                  type="button"
+                  className="trk-btn-secondary trk-plugin-cmd"
+                  title={localized(cmd.title, lang)}
+                  onClick={() => host.post({ type: "host:command", id: cmd.id })}
+                >
+                  {Icon ? <Icon size={14} /> : null} <span>{localized(cmd.title, lang)}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {activePlugin?.manifest.settings && Object.keys(activePlugin.manifest.settings).length > 0 ? (
+          <PluginSettingsEditor
+            defs={activePlugin.manifest.settings}
+            values={settingsApi.settings}
+            onChange={(id, value) => {
+              settingsApi.setSetting(id, value);
+              const pid = activePlugin.manifest.id;
+              void savePluginSettings(pid, { ...settingsApi.settings, [id]: value });
+            }}
+            lang={lang}
+          />
+        ) : null}
 
         {!activePlugin?.manifest.singleton && !activePlugin?.declarative && (
           <PluginDocBar
@@ -210,7 +324,13 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
         )}
 
         {activePlugin?.declarative ? (
-          <DeclarativeView spec={activePlugin.declarative} snapshot={snapshot} lang={lang} />
+          <DeclarativeView
+            key={reloadKey}
+            spec={activePlugin.declarative}
+            snapshot={snapshot}
+            lang={lang}
+            settings={settingsApi.settings}
+          />
         ) : docsStore.loading || !activePlugin ? (
           <div className="trk-loading">{t("loading")}</div>
         ) : docsStore.activeDoc ? (
@@ -222,6 +342,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
             reloadKey={reloadKey}
             onReload={() => setReloadKey((k) => k + 1)}
             fullscreen={fullscreen}
+            sandbox={activePlugin.format === 2 ? "allow-scripts allow-same-origin" : "allow-scripts"}
           />
         ) : (
           <div className="trk-empty trk-empty-rich trk-plugins-empty">

@@ -26,6 +26,14 @@ export interface RawPluginEntry {
   origin: "builtin" | "user";
   manifestJson: string | null;
   error?: string;
+  /** Racine du dossier sur disque (v2) ; absente pour v1. */
+  root?: string;
+  /** Spec déclarative embarquée (v2, vue déclarative) ; absente sinon. */
+  specJson?: string;
+  /** Specs des `taskPanels` déclaratifs (v2) ; clé = id du panneau, valeur = JSON brut. */
+  panelSpecs?: Record<string, string>;
+  /** Nature de l'entrée. */
+  kind?: "html" | "folder";
 }
 
 interface PluginsBridge {

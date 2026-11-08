@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/bacem/suivi-travaux/main/schema/trk-view-1.json",
+  "title": "Spécification de vue déclarative TrkPlugin (trk.view/1)",
+  "description": "Schéma éditeur pour les fichiers .trkv (views/<id>.trkv). Cf. PLUGIN_FORMAT_V2.md § 3.",
+  "type": "object",
+  "required": ["layout"],
+  "additionalProperties": false,
+  "properties": {
+    "where": { "type": "string" },
+    "group": { "type": "string" },
+    "sort": { "type": "string" },
+    "empty": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string" } }
+      ]
+    },
+    "layout": {
+      "type": "object",
+      "required": ["type", "columns"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["table", "cards", "board", "timeline", "chart"] },
+        "columns": { "type": "array", "items": { "$ref": "#/definitions/column" } },
+        "footer": { "type": "array", "items": { "$ref": "#/definitions/column" } }
+      }
+    }
+  },
+  "definitions": {
+    "column": {
+      "type": "object",
+      "required": ["value"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string" } }
+          ]
+        },
+        "value": { "type": "string" },
+        "align": { "enum": ["left", "right"] },
+        "as": { "enum": ["text", "badge", "gauge", "link"] },
+        "tone": { "type": "string" },
+        "width": { "type": "string" }
+      }
+    }
+  }
+}

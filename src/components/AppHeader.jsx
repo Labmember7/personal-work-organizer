@@ -1,4 +1,5 @@
 import React from "react";
+import { AnimatedNumber } from "./AnimatedNumber.jsx";
 import { Dices, Download, HelpCircle, Moon, PartyPopper, Pin, PinOff, Redo2, Sun, Undo2, Upload } from "lucide-react";
 import { useLang, doneOfTotal, tasksTotalLabel } from "../i18n.jsx";
 import { Gauge } from "./Gauge.jsx";
@@ -26,8 +27,8 @@ export function AppHeader({
       <div className="trk-gauge-block">
         <Gauge value={globalProgress} />
         <div className="trk-gauge-caption">
-          <strong>{doneOfTotal(lang, doneCount, totalTasks)}</strong>
-          <span>{tasksTotalLabel(lang, totalTasks)} <HelpTip tipKey="progress" /></span>
+          <strong><AnimatedNumber value={doneOfTotal(lang, doneCount, totalTasks)} /></strong>
+          <span><AnimatedNumber value={tasksTotalLabel(lang, totalTasks)} /> <HelpTip tipKey="progress" /></span>
         </div>
       </div>
       <div className="trk-header-actions">

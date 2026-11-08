@@ -10,9 +10,27 @@
    que tout le contenu existant, qui utilise déjà ces tokens, redevient
    lisible sans avoir à retoucher chaque règle de couleur une par une). */
 
-/* Une seule famille manuscrite partout, sauf le code/markdown (lisibilité). */
-.trk-app.sticky :not(pre):not(code):not(kbd) {
+/* Une seule famille manuscrite partout, sauf le code/markdown (lisibilité) et la Dynamic Island (matériel haute précision). */
+.trk-app.sticky :not(pre):not(code):not(kbd):not(.trk-dynamic-island):not(.trk-dynamic-island *) {
   font-family: "Patrick Hand", cursive !important;
+}
+
+/* Isolation stricte de la Dynamic Island et de ses composants contre la police manuscrite */
+.trk-app.sticky .trk-dynamic-island,
+.trk-app.sticky .trk-dynamic-island * {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+.trk-app.sticky .trk-dynamic-island .trk-mono,
+.trk-app.sticky .trk-dynamic-island .trk-clock-digits,
+.trk-app.sticky .trk-dynamic-island .trk-telemetry-val,
+.trk-app.sticky .trk-dynamic-island .trk-island-compact-timer,
+.trk-app.sticky .trk-dynamic-island .trk-island-stat-val,
+.trk-app.sticky .trk-dynamic-island .trk-flip-num,
+.trk-app.sticky .trk-dynamic-island .trk-flip-colon,
+.trk-app.sticky .trk-dynamic-island .trk-flip-sec-badge,
+.trk-app.sticky .trk-dynamic-island .trk-pomo-digits,
+.trk-app.sticky .trk-dynamic-island .trk-island-badge {
+  font-family: 'Space Grotesk', 'Inter', monospace !important;
 }
 
 /* Grain de bureau discret, dérivé du thème actif : reste visible aussi bien

@@ -15,7 +15,7 @@ export interface ChartData {
 // Jeux de données des graphiques, mémoïsés. Les libellés dépendent de la
 // langue courante : les memos se recalculent au changement de langue.
 export function useChartData(tasks: Task[], projects: Project[]): ChartData {
-  const { t, lang } = useLang();
+  const { t } = useLang();
 
   const statusDistribution = useMemo(
     () =>
@@ -24,7 +24,7 @@ export function useChartData(tasks: Task[], projects: Project[]): ChartData {
         value: tasks.filter((tk) => (s.id === "termine" ? isTaskDone(tk) : tk.statut === s.id)).length,
         color: s.color,
       })).filter((d) => d.value > 0),
-    [tasks, lang]
+    [tasks, t]
   );
 
   const perProjectStacked = useMemo(() => {
@@ -54,7 +54,7 @@ export function useChartData(tasks: Task[], projects: Project[]): ChartData {
         value: tasks.filter((tk) => tk.priorite === p.id).length,
         fill: p.color,
       })),
-    [tasks, lang]
+    [tasks, t]
   );
 
   const projectProgress = useMemo(() => {

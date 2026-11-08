@@ -60,6 +60,7 @@ export default {
     time_tooltip: "Temps",
 
     save_error: "La sauvegarde a échoué, tes dernières modifications ne sont peut-être pas enregistrées.",
+    field_required: "Veuillez renseigner ce champ.",
 
     edit_task: "Modifier la tâche",
     field_title: "Titre",

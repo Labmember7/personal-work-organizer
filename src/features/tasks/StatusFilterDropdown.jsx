@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { useLang, statusCountLabel } from "../../i18n.jsx";
 import { CHART_STATUSES } from "../../utils";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
@@ -20,14 +21,16 @@ export function StatusFilterDropdown({ selected, onToggle, onClear }) {
         type="button"
         className={"trk-select trk-multiselect-btn" + (selected.length ? " active" : "")}
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
       >
-        {label} <ChevronDown size={13} />
+        <AnimatedNumber value={label} /> <ChevronDown size={13} />
       </button>
       {open && (
         <div className="trk-multiselect-panel">
           {CHART_STATUSES.map((s) => (
             <label key={s.id} className="trk-multiselect-item">
               <input type="checkbox" checked={selected.includes(s.id)} onChange={() => onToggle(s.id)} />
+              <span className="trk-check-box" aria-hidden="true"><Check size={11} strokeWidth={3} /></span>
               <span className="trk-multiselect-dot" style={{ background: s.color }} />
               {t(`status_${s.id}`)}
             </label>

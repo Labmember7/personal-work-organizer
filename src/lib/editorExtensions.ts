@@ -1,12 +1,6 @@
 import type { Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Heading } from "@tiptap/extension-heading";
-
-const CustomHeading = Heading.extend({
-  addKeyboardShortcuts() {
-    return {};
-  }
-});
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { Color, FontFamily, TextStyle } from "@tiptap/extension-text-style";
@@ -28,6 +22,10 @@ interface EditorExtensionsOptions {
 }
 
 export function createEditorExtensions({ placeholder, resizeHint }: EditorExtensionsOptions): Extensions {
+  const HeadingWithoutShortcuts = Heading.extend({
+    addKeyboardShortcuts: () => ({}),
+  });
+
   return [
     StarterKit.configure({
       // Un lien cliquable ouvrirait la cible dans la fenêtre Electron
@@ -37,9 +35,9 @@ export function createEditorExtensions({ placeholder, resizeHint }: EditorExtens
       // interfèrent avec AltGr sur certains claviers (ex: AltGr+3 pour #)
       heading: false,
     }),
-    CustomHeading,
+    HeadingWithoutShortcuts.configure({ levels: [1, 2, 3, 4, 5, 6] }),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    TaskItem.configure({ nested: true, HTMLAttributes: { "data-type": "taskItem" } }),
     // Colonnes non redimensionnables : le Markdown ne sait pas mémoriser une
     // largeur de colonne, elle serait perdue à la prochaine ouverture.
     Table.configure({ resizable: false }),

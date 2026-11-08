@@ -100,6 +100,27 @@
   padding-left: 20px;
 }
 .trk-modal-task-side .trk-field { margin-bottom: 14px; }
+/* Panneaux de tâche contribués par un plugin (`contributes.taskPanels`). */
+.trk-modal-task-panels {
+  flex: none;
+  width: 300px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.trk-task-panel { display: flex; flex-direction: column; gap: 6px; }
+.trk-task-panel-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+.trk-task-panel-frame { width: 100%; height: 240px; border: 0; border-radius: var(--radius-lg); }
 @media (max-width: 760px) {
   .trk-modal-task {
     width: 96vw;

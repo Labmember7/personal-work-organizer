@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Select } from "../../components/Select.jsx";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 
@@ -64,7 +65,7 @@ export function PluginDocBar({ docs, activeId, onSelect, projects, scopes, onCre
           </button>
         </div>
       ) : (
-        <select
+        <Select
           className="trk-select trk-plugin-doc-select"
           value={activeId ?? ""}
           onChange={(e) => onSelect(e.target.value || null)}
@@ -78,7 +79,7 @@ export function PluginDocBar({ docs, activeId, onSelect, projects, scopes, onCre
               {d.scope.kind === "project" ? ` · ${d.scope.project}` : ""}
             </option>
           ))}
-        </select>
+        </Select>
       )}
 
       {active && !renaming && (
@@ -135,14 +136,14 @@ export function PluginDocBar({ docs, activeId, onSelect, projects, scopes, onCre
             }}
           />
           {showScopePicker && (
-            <select className="trk-select" value={newScope} onChange={(e) => setNewScope(e.target.value)}>
+            <Select className="trk-select" value={newScope} onChange={(e) => setNewScope(e.target.value)}>
               {scopes.includes("global") && <option value="global">{t("plugin_scope_global")}</option>}
               {projects.map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>
               ))}
-            </select>
+            </Select>
           )}
           <button className="trk-icon-btn" onClick={submitCreate} title={t("add")} aria-label={t("add")}>
             <Check size={15} />

@@ -1,4 +1,5 @@
 import React from "react";
+import { Select } from "../../components/Select.jsx";
 import { Archive, Columns3, List, Plus, Puzzle, Search } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { HelpTip } from "../../tips.jsx";
@@ -29,12 +30,12 @@ export function TaskToolbar({
         onToggle={onToggleStatut}
         onClear={onClearStatuts}
       />
-      <select className="trk-select" value={sortBy} onChange={(e) => onSortChange(e.target.value)}>
+      <Select className="trk-select" value={sortBy} onChange={(e) => onSortChange(e.target.value)}>
         <option value="priorite">{t("sort_priority")}</option>
         <option value="statut">{t("sort_status")}</option>
         <option value="projet">{t("sort_project")}</option>
         <option value="echeance">{t("sort_due")}</option>
-      </select>
+      </Select>
       <div className="trk-view-switch">
         <button
           type="button"

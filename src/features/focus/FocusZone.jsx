@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { ArrowRight, Check, Clock, Flame, HelpCircle, Minus, Target, X } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import {
@@ -119,7 +120,7 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
   // Rafraîchit l'affichage du temps de focus écoulé.
   useEffect(() => {
     if (task && startedAt) setNow(Date.now());
-  }, [task && task.id, startedAt]);
+  }, [task, task?.id, startedAt]);
   useInterval(() => setNow(Date.now()), task && startedAt ? 10000 : null);
 
   const st = task ? statusOf(task.statut) : null;
@@ -176,7 +177,7 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
           aria-label={t("focus_expand")}
         >
           <Flame size={15} className={task ? "trk-focus-flame" : undefined} />
-          {task && <span className="trk-mono">{formatDuration(elapsed)}</span>}
+          {task && <span className="trk-mono"><AnimatedNumber value={formatDuration(elapsed)} pop={false} /></span>}
         </button>
       </div>
     );
@@ -320,7 +321,7 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
                   <span className="trk-tag" style={{ "--pill-color": projectColor(task.projet) }}>{task.projet}</span>
                   <span className="trk-status-pill" style={{ "--pill-color": st.color }}>{t(`status_${st.id}`)}</span>
                   <span className="trk-focus-timer">
-                    <Clock size={10} /> {formatDuration(elapsed)}
+                    <Clock size={10} /> <AnimatedNumber value={formatDuration(elapsed)} pop={false} />
                   </span>
                 </div>
               </button>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import {
   prioOf, statusOf, isDoneStatus, isTaskDone, taskMatchesQuery, randomThemeVars, randomThemePattern,
@@ -11,7 +11,7 @@ import { useUndoRedoShortcut } from "./hooks/useUndoRedoShortcut";
 import { AppHeader } from "./components/AppHeader.jsx";
 import { TitleBar } from "./components/TitleBar.jsx";
 import { Toast } from "./components/Toast.jsx";
-import { DebugConsole } from "./components/DebugConsole.jsx";
+import { DynamicIsland } from "./components/DynamicIsland/DynamicIsland.jsx";
 import { useTasks } from "./features/tasks/useTasks";
 import { TaskList } from "./features/tasks/TaskList.jsx";
 import { TaskModal } from "./features/tasks/TaskModal.jsx";
@@ -27,6 +27,8 @@ import { ChartsSection } from "./features/charts/ChartsSection.jsx";
 import { useBackup } from "./features/backup/useBackup";
 import { ImportConfirmModal } from "./features/backup/ImportConfirmModal.jsx";
 import { PluginsSection } from "./features/plugins/PluginsSection.jsx";
+import { discoverPlugins } from "./services/plugins";
+import { collectTaskColumns, collectTaskPanels } from "./lib/plugins/contrib";
 
 const THEME_STORAGE_KEY = "suivi-travaux-theme";
 const RANDOM_SEED_STORAGE_KEY = "suivi-travaux-random-seed";
@@ -44,10 +46,32 @@ export default function App() {
   const [filterStatuts, setFilterStatuts] = useState([]);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("priorite");
-  const [viewMode, setViewMode] = useState("list");
+  const [viewMode, setViewMode] = useState("kanban");
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null); // { id, action: "delete" | "archive" | "unarchive" }
   const [toast, setToast] = useState(null);
+
+  // ── Colonnes de tâches contribuées par les plugins (v2) ──
+  // Découverte une fois au montage ; les colonnes s'affichent dans chaque
+  // ligne de la vue liste (cf. TaskRow). Découplé de PluginsSection pour
+  // rester disponible quelle que soit la vue active.
+  const [taskColumns, setTaskColumns] = useState([]);
+  const [taskPanels, setTaskPanels] = useState([]);
+  useEffect(() => {
+    const onInvalid = (e) => e.preventDefault();
+    document.addEventListener("invalid", onInvalid, true);
+    return () => document.removeEventListener("invalid", onInvalid, true);
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { plugins } = await discoverPlugins();
+      if (cancelled) return;
+      setTaskColumns(collectTaskColumns(plugins));
+      setTaskPanels(collectTaskPanels(plugins));
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Thème et célébrations ──
   // theme = palette de couleurs (dark / light / random) ; le mode sticky
@@ -179,17 +203,20 @@ export default function App() {
   }, [celebration]);
 
   // ── Dérivés ──
-  const sortTasks = (list) => {
-    const arr = [...list];
-    arr.sort((a, b) => {
-      if (sortBy === "priorite") return prioOf(a.priorite).order - prioOf(b.priorite).order;
-      if (sortBy === "statut") return statusOf(a.statut).weight - statusOf(b.statut).weight;
-      if (sortBy === "projet") return a.projet.localeCompare(b.projet);
-      if (sortBy === "echeance") return (a.echeance || "9999-99-99").localeCompare(b.echeance || "9999-99-99");
-      return 0;
-    });
-    return arr;
-  };
+  const sortTasks = useCallback(
+    (list) => {
+      const arr = [...list];
+      arr.sort((a, b) => {
+        if (sortBy === "priorite") return prioOf(a.priorite).order - prioOf(b.priorite).order;
+        if (sortBy === "statut") return statusOf(a.statut).weight - statusOf(b.statut).weight;
+        if (sortBy === "projet") return a.projet.localeCompare(b.projet);
+        if (sortBy === "echeance") return (a.echeance || "9999-99-99").localeCompare(b.echeance || "9999-99-99");
+        return 0;
+      });
+      return arr;
+    },
+    [sortBy]
+  );
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(
@@ -205,7 +232,7 @@ export default function App() {
     );
   }, [tasks, filterProjects, filterStatuts, search]);
 
-  const sortedTasks = useMemo(() => sortTasks(filteredTasks), [filteredTasks, sortBy]);
+  const sortedTasks = useMemo(() => sortTasks(filteredTasks), [filteredTasks, sortTasks]);
 
   // Vue « Archives » : mêmes recherche/tri, mais parmi les tâches archivées
   // uniquement (les filtres projet/statut ne s'y appliquent pas).
@@ -213,7 +240,7 @@ export default function App() {
     () => tasks.filter((tk) => tk.archived && taskMatchesQuery(tk, search)),
     [tasks, search]
   );
-  const sortedArchivedTasks = useMemo(() => sortTasks(archivedTasks), [archivedTasks, sortBy]);
+  const sortedArchivedTasks = useMemo(() => sortTasks(archivedTasks), [archivedTasks, sortTasks]);
 
   const listResetKey = `${filterProjects.join(",")}|${filterStatuts.join(",")}|${search}|${sortBy}|${viewMode}`;
 
@@ -322,7 +349,7 @@ export default function App() {
       data-pattern={theme === "random" ? randomThemePattern(randomSeed) : undefined}
     >
       <TitleBar maximized={maximized} />
-      <DebugConsole />
+      <DynamicIsland focusSession={focus} onEditTask={setEditing} />
 
       <div className="trk-content">
       {loading ? (
@@ -410,6 +437,7 @@ export default function App() {
                     onUnarchive: handleUnarchiveTask,
                     ...confirmProps,
                     timeLogOps,
+                    taskColumns,
                   }}
                 />
               ) : (
@@ -424,6 +452,7 @@ export default function App() {
                     onUnarchive: handleUnarchiveTask,
                     ...confirmProps,
                     timeLogOps,
+                    taskColumns,
                   }}
                 />
               )}
@@ -482,6 +511,7 @@ export default function App() {
               onClose={() => setEditing(null)}
               timeLogOps={timeLogOps}
               onToast={setToast}
+              taskPanels={taskPanels}
             />
           )}
         </>
