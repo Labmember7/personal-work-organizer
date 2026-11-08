@@ -38,10 +38,10 @@
   box-sizing: border-box;
   transform-origin: top center;
   transition:
-    width 0.38s cubic-bezier(0.32, 1.25, 0.32, 1),
-    height 0.38s cubic-bezier(0.32, 1.25, 0.32, 1),
-    border-radius 0.34s cubic-bezier(0.32, 1.25, 0.32, 1),
-    box-shadow 0.3s ease;
+    width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.25s ease;
 }
 
 /* Mode compact au repos (sans activité en cours) */
@@ -70,7 +70,7 @@
 
 /* Mode survol (élargissement fluide de l'encoche avec raccourcis) */
 .trk-dynamic-island.hovered:not(.open) .trk-island-container {
-  width: 468px;
+  width: 320px;
   height: 38px;
   border-radius: 19px;
   overflow: visible;
@@ -81,7 +81,14 @@
 }
 
 .trk-dynamic-island.is-cooking.hovered:not(.open) .trk-island-container {
-  width: 520px;
+  width: 480px;
+  height: 38px;
+  border-radius: 19px;
+  overflow: visible;
+}
+
+.trk-dynamic-island.is-dual-live.hovered:not(.open) .trk-island-container {
+  width: 580px;
   height: 38px;
   border-radius: 19px;
   overflow: visible;
@@ -446,8 +453,60 @@
   align-items: center;
   justify-content: flex-end;
   gap: 5px;
-  width: calc(50% - 28px);
+  max-width: calc(50% - 20px);
   z-index: 10;
+  transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Bouton d'action compact au survol (zéro téléportation, déploiement continu) */
+.trk-island-compact-action {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4.5px;
+  cursor: pointer;
+  max-width: 75px;
+  opacity: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition:
+    max-width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.22s ease,
+    padding 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    margin 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.trk-island-compact-action.collapsed {
+  max-width: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0 -2.5px;
+  border-width: 0;
+  pointer-events: none;
+}
+
+.trk-island-compact-action:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.trk-island-compact-action:active {
+  transform: scale(0.96);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 /* Pilule Pomodoro en arrière-plan dans l'encoche */
@@ -555,9 +614,28 @@
   font-weight: 600;
   color: #F8FAFC;
   min-width: 0;
+  max-width: 85px;
+  opacity: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition:
+    max-width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.22s ease,
+    margin 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* En mode dual-live au repos : le titre se replie avec élégance et fluidité continue */
+.trk-dynamic-island.is-dual-live:not(.hovered):not(.open) .trk-island-compact-title {
+  max-width: 0;
+  opacity: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.trk-dynamic-island.hovered:not(.open) .trk-island-compact-title {
+  max-width: 95px;
+  opacity: 1;
 }
 
 .trk-island-compact-timer {
@@ -573,7 +651,7 @@
   color: #FFB340;
 }
 
-/* Raccourci compact Debug */
+/* Raccourci compact Debug avec déploiement continu */
 .trk-island-compact-debug {
   display: inline-flex;
   align-items: center;
@@ -585,7 +663,28 @@
   padding: 0 7px;
   color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
-  transition: all 0.18s ease;
+  max-width: 60px;
+  opacity: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition:
+    max-width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.22s ease,
+    padding 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    margin 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.trk-island-compact-debug.collapsed {
+  max-width: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0 -2.5px;
+  border-width: 0;
+  pointer-events: none;
 }
 
 .trk-island-compact-debug:hover {
