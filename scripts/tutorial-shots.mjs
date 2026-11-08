@@ -171,13 +171,16 @@ await clipShot("welcome", { x: 0, y: 0, width: 1120, height: 560 });
 
 // ── 3. tasks : barre d'outils + les deux premières lignes ────────────────────
 {
+  await page.locator(".trk-view-switch button").first().click();
+  await page.waitForSelector(".trk-task-list");
+  await page.waitForTimeout(500);
   const b = await box(".trk-main");
   const row2 = await page.locator(".trk-task-list .trk-task-row").nth(1).boundingBox();
   await clipShot("tasks", {
     x: b.x - 8,
     y: b.y - 8,
     width: b.width + 16,
-    height: row2.y + row2.height - b.y + 16,
+    height: row2 ? row2.y + row2.height - b.y + 16 : 280,
   });
 }
 
@@ -252,23 +255,70 @@ await clipShot("welcome", { x: 0, y: 0, width: 1120, height: 560 });
 
 // ── 8. themes : mode post-it activé, avec les boutons d'apparence ────────────
 {
-  await page.locator(".trk-view-btn").first().click(); // retour en vue liste
+  await page.locator(".trk-view-switch button").first().click(); // retour en vue liste
   await page.waitForSelector(".trk-task-list");
-  // 2e bloc de boutons = apparence ; 2e bouton = la punaise (mode post-it).
-  await page.locator(".trk-btn-group").nth(1).locator(".trk-theme-btn").nth(1).click();
-  await page.waitForTimeout(900);
-  await page.locator(".trk-header").scrollIntoViewIfNeeded();
-  await page.mouse.move(4, 4);
-  await page.waitForTimeout(600);
-  const header = await box(".trk-header");
-  const main = await box(".trk-main");
-  const row2 = await page.locator(".trk-task-list .trk-task-row").nth(1).boundingBox();
-  await clipShot("themes", {
-    x: main.x - 8,
-    y: header.y - 10,
-    width: 1120 - (main.x - 8),
-    height: row2.y + row2.height - header.y + 20,
-  });
+  // Bouton punaise (mode post-it)
+  const pinBtn = page.locator(".trk-theme-btn:has(svg.lucide-pin)").first();
+  if (await pinBtn.count()) {
+    await pinBtn.click();
+    await page.waitForTimeout(900);
+    await page.locator(".trk-header").scrollIntoViewIfNeeded();
+    await page.mouse.move(4, 4);
+    await page.waitForTimeout(600);
+    const header = await box(".trk-header");
+    const main = await box(".trk-main");
+    const row2 = await page.locator(".trk-task-list .trk-task-row").nth(1).boundingBox();
+    await clipShot("themes", {
+      x: main.x - 8,
+      y: header.y - 10,
+      width: 1120 - (main.x - 8),
+      height: row2 ? row2.y + row2.height - header.y + 20 : 350,
+    });
+    const unpin = page.locator(".trk-theme-btn:has(svg.lucide-pin-off)").first();
+    if (await unpin.count()) await unpin.click();
+    await page.waitForTimeout(300);
+  }
+}
+
+// ── 9. island : l'îlot dynamique déplié avec le compagnon ────────────────────
+{
+  const island = page.locator(".trk-island-container").first();
+  if (await island.count()) {
+    await island.click();
+    await page.waitForTimeout(500);
+    const petTab = page.locator(".trk-island-tab").nth(1);
+    if (await petTab.count()) {
+      await petTab.click();
+      await page.waitForTimeout(400);
+    }
+    const islandB = await island.boundingBox();
+    if (islandB) {
+      await clipShot("island", {
+        x: Math.max(0, islandB.x - 12),
+        y: Math.max(0, islandB.y - 10),
+        width: Math.min(islandB.width + 24, 1120),
+        height: Math.min(islandB.height + 20, 800),
+      });
+    }
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+  }
+}
+
+// ── 10. plugins : le gestionnaire de plugins ─────────────────────────────────
+{
+  const pluginsBtn = page.locator(".trk-view-switch button").filter({ hasText: /Plugins/ });
+  if (await pluginsBtn.count()) {
+    await pluginsBtn.click();
+    await page.waitForTimeout(600);
+    const main = await box(".trk-main");
+    await clipShot("plugins", {
+      x: main.x - 8,
+      y: main.y - 8,
+      width: main.width + 16,
+      height: Math.min(main.height + 16, 420),
+    });
+  }
 }
 
 await browser.close();

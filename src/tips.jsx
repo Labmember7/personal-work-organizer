@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   HelpCircle, X, ChevronLeft, ChevronRight, Lightbulb,
   Sparkles, FolderPlus, ClipboardList, Columns3, Target, Clock,
-  BarChart3, Palette, Download,
+  BarChart3, Palette, Download, Bot, Puzzle,
 } from "lucide-react";
 import { useLang } from "./i18n.jsx";
 import { useOutsideClick } from "./hooks/useOutsideClick";
@@ -95,6 +95,8 @@ const TUTORIAL_STEPS = [
   { key: "tasks", icon: ClipboardList },
   { key: "views", icon: Columns3 },
   { key: "focus", icon: Target },
+  { key: "island", icon: Bot },
+  { key: "plugins", icon: Puzzle },
   { key: "time", icon: Clock },
   { key: "charts", icon: BarChart3 },
   { key: "themes", icon: Palette },

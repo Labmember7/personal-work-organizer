@@ -6,9 +6,23 @@
 
 ## Français
 
-### 2.0.0 — 2026-07-25
+### 2.0.0 — 2026-11-08
 
 **Nouveautés**
+- **Dynamic Island & Compagnon Cybernétique** :
+  - Îlot dynamique rétractable au centre de l'en-tête façon Apple, avec expansion fluide au clic
+  - Minuteur Pomodoro avec cycles configurables (focus / pause), carillons sonores distincts de transition et affichage Horloge rétro à volets (Flip Clock)
+  - Compagnon virtuel cybernétique en pixel-art avec ADN procédural unique et persistant, suivi télémétrique (énergie, lien affectif, humeurs) et actions interactives (nourrir, jouer, reposer, mutation ADN)
+  - Pastille de focus dynamique intégrée en direct et console télémétrique de debug
+- **Système de plugins extensible (v2)** :
+  - Architecture sandboxée avec fenêtres iframe isolées et politique de sécurité de contenu (CSP) stricte
+  - Spécification de manifeste v2 avec déclarations de permissions, réglages personnalisés, panneaux de tâches (`taskPanels`) et colonnes sur mesure (`taskColumns`)
+  - Gestionnaire de plugins intégré : découverte, activation/désactivation, inspection des permissions et rafraîchissement
+  - Outillage CLI développeur : commandes `npm run plugin:init` et `npm run plugin:validate`
+  - Deux plugins intégrés par défaut : Mindmap v2 et Suivi de charge de projet
+- **Guide de démarrage enrichi (v2)** :
+  - Nouvelles étapes illustrées dans le guide interactif couvrant l'îlot dynamique et les extensions
+  - Captures d'écran haute définition actualisées en français et en anglais
 - Archives : archiver / désarchiver une tâche (avec confirmation) et vue
   « Archivées » dédiée ; les tâches archivées sortent de l'avancement global,
   des graphiques et des célébrations
@@ -43,12 +57,12 @@
   accessible en écriture
 
 **Technique**
+- 292 tests unitaires automatisés (27 fichiers de tests, 100 % passants)
 - Build Docker : `npm run dist:docker` produit le `.exe` Windows et
   l'AppImage Linux sans installer wine localement
 - Conversion HTML → Markdown (turndown + GFM) pour le mode Formaté
 - Nouveaux modules purs et testés : `mdFormatting`, `richTextEditing`,
-  `htmlToMarkdown`, `images`
-- 150 tests unitaires (contre 74)
+  `htmlToMarkdown`, `images`, `plugins`, `petGenerator`
 
 ### 1.5.2 — 2026-07-20
 
@@ -153,9 +167,23 @@
 
 ## English
 
-### 2.0.0 — 2026-07-25
+### 2.0.0 — 2026-11-08
 
 **New**
+- **Dynamic Island & Cybernetic Virtual Pet**:
+  - Apple-style collapsible top Dynamic Island with smooth expanding spring physics
+  - Pomodoro timer featuring customizable sprint cycles (focus / rest), distinct phase completion chimes, and retro Flip Clock mode
+  - Cybernetic pixel-art companion with unique persistent procedural DNA, live telemetry indicators (energy, bond, mood), and interactive actions (feed, play, sleep, DNA mutation)
+  - Real-time focus task pill integration and debug telemetry console
+- **Extensible App-Tier Plugin System (v2)**:
+  - Sandboxed iframe architecture enforced with strict Content Security Policy (CSP)
+  - V2 plugin manifest specification supporting granular permissions, custom settings, contributed task panels, and custom task columns
+  - Built-in Plugin Manager interface: discover, toggle, inspect permissions, and configure plugins
+  - Developer CLI tooling: `npm run plugin:init` and `npm run plugin:validate`
+  - Bundled plugins: Mindmap v2 and Project Load Tracker
+- **Updated Getting-Started Guide (v2)**:
+  - Interactive walkthrough upgraded with new steps for the Dynamic Island, companion pet, and plugin ecosystem
+  - Fresh high-DPI screenshot assets for both French and English
 - Archives: archive / unarchive a task (with confirmation) and a dedicated
   "Archived" view; archived tasks are excluded from global progress, charts
   and celebrations
@@ -186,12 +214,12 @@
 - Logging: the in-memory buffer is bounded when no folder is writable
 
 **Technical**
+- 292 automated unit tests across 27 test suites with 100% passing rate
 - Docker build: `npm run dist:docker` produces the Windows `.exe` and the
   Linux AppImage without installing wine locally
 - HTML → Markdown conversion (turndown + GFM) for the Formatted mode
 - New pure, tested modules: `mdFormatting`, `richTextEditing`,
-  `htmlToMarkdown`, `images`
-- 150 unit tests (up from 74)
+  `htmlToMarkdown`, `images`, `plugins`, `petGenerator`
 
 ### 1.5.2 — 2026-07-20
 

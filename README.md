@@ -13,13 +13,17 @@ guide, see src/assets/tutorial/). Drop replacements in docs/screenshots/ with
 these exact names and they show up here automatically.
 -->
 
-| Dashboard | Task list | Charts |
+| Dashboard | Dynamic Island & Pet | Plugins Manager |
 |---|---|---|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Task list](docs/screenshots/tasks.png) | ![Charts](docs/screenshots/charts.png) |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Dynamic Island](docs/screenshots/dynamic-island.png) | ![Plugins](docs/screenshots/plugins.png) |
 
-| Kanban | Sticky-note mode |
-|---|---|
-| ![Kanban](docs/screenshots/kanban.png) | ![Sticky-note mode](docs/screenshots/sticky.png) |
+| Kanban | Task list | Charts |
+|---|---|---|
+| ![Kanban](docs/screenshots/kanban.png) | ![Task list](docs/screenshots/tasks.png) | ![Charts](docs/screenshots/charts.png) |
+
+| Sticky-note mode |
+|---|
+| ![Sticky-note mode](docs/screenshots/sticky.png) |
 
 ---
 
@@ -32,6 +36,8 @@ juste à côté de l'exécutable, ce qui la rend portable sur ta clé/SSD extern
 
 ### Fonctionnalités
 
+- **Dynamic Island & Compagnon Cybernétique** : îlot supérieur rétractable avec minuteur Pomodoro, horloge à volets (Flip Clock), compagnon virtuel pixel-art à ADN persistant (nourrir, jouer, dormir, évolution), pastille de tâche en focus et console de debug
+- **Système de plugins extensible (v2)** : exécution isolée avec CSP stricte, panneaux et colonnes de tâches contribués, vues déclaratives, gestionnaire de plugins intégré et CLI `trk-plugin` (`init`, `validate`)
 - Suivi de tâches par projet, avec priorités, échéances et statut
 - Vue liste (avec pagination) et vue kanban avec glisser-déposer entre colonnes
 - Archivage des tâches, avec vue « Archivées » dédiée (hors avancement et graphiques)
@@ -186,6 +192,8 @@ executable, which makes it portable on your USB key / external SSD.
 
 ### Features
 
+- **Dynamic Island & Cybernetic Pet**: top collapsible island with Pomodoro timer, retro flip clock, persistent DNA pixel-art companion (feed, play, sleep, evolve), active focus task pill, and debug telemetry
+- **Extensible Plugin System (v2)**: sandboxed iframe execution with strict CSP, contributed task panels & columns, declarative views, built-in plugins manager, and `trk-plugin` CLI (`init`, `validate`)
 - Task tracking per project, with priorities, due dates and status
 - List view (with pagination) and kanban view with drag & drop between columns
 - Task archiving, with a dedicated "Archived" view (excluded from progress and charts)

@@ -4,7 +4,6 @@ import {
   Check,
   ChevronUp,
   Clock,
-  Coffee,
   Compass,
   Dna,
   ExternalLink,
