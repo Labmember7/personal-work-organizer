@@ -89,7 +89,8 @@
 
 /* Mode ouvert : feuille modale complète épousant le contenu */
 .trk-dynamic-island.open .trk-island-container {
-  width: min(94vw, 560px);
+  width: 560px;
+  max-width: 94vw;
   border-radius: 24px;
   overflow: hidden;
   background: #07090D;
@@ -108,7 +109,7 @@
 }
 
 .trk-dynamic-island.open.mode-pet .trk-island-container {
-  height: 320px;
+  height: 340px;
 }
 
 .trk-dynamic-island.open.mode-focus .trk-island-container {
@@ -1351,6 +1352,33 @@
   color: #34C759;
 }
 
+.trk-island-pet-dna-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #94A3B8;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+
+.trk-island-pet-dna-btn:hover {
+  background: rgba(0, 245, 212, 0.12);
+  border-color: rgba(0, 245, 212, 0.4);
+  color: #00F5D4;
+  transform: translateY(-1px);
+}
+
+.trk-island-pet-dna-btn:active {
+  transform: translateY(0.5px) scale(0.96);
+}
+
 .trk-island-pulse-dot {
   width: 5px;
   height: 5px;
@@ -1431,8 +1459,8 @@
 
 .trk-pet-command-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
 }
 
 .trk-pet-command-btn {
@@ -1440,11 +1468,11 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   border-radius: 13px;
-  padding: 9px 6px;
+  padding: 8px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   cursor: pointer;
   text-align: center;
   transition: all 0.18s ease;
@@ -1486,6 +1514,16 @@
 .trk-command-icon-box.visor { color: #38BDF8; }
 .trk-command-icon-box.radar { color: #A78BFA; }
 .trk-command-icon-box.moon { color: #94A3B8; }
+.trk-command-icon-box.dna { color: #C084FC; }
+
+.trk-pet-command-btn.dna-command-btn:hover {
+  border-color: rgba(192, 132, 252, 0.5);
+  background: rgba(192, 132, 252, 0.1);
+}
+
+.trk-pet-command-btn.dna-command-btn:hover .trk-command-title {
+  color: #C084FC;
+}
 
 .trk-command-texts {
   display: flex;

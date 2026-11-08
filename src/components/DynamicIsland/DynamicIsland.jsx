@@ -6,6 +6,7 @@ import {
   Clock,
   Coffee,
   Compass,
+  Dna,
   ExternalLink,
   Flame,
   Moon,
@@ -23,6 +24,7 @@ import { formatDuration } from "../../utils";
 import { projectColor } from "../../lib/colors";
 import { clearLog, installHostConsoleCapture, subscribeLog } from "../../lib/debugLog";
 import { playAppleChime, playHapticTick, playPhaseSwitchChime } from "../../lib/audioFx";
+import { getOrCreatePetDna, regeneratePetDna } from "../../lib/petGenerator";
 import { DigitalClock } from "./DigitalClock.jsx";
 import { PixelHelper } from "./PixelHelper.jsx";
 import { PomodoroTimer, PRESETS } from "./PomodoroTimer.jsx";
@@ -48,7 +50,8 @@ export function DynamicIsland({ focusSession, onEditTask }) {
   const hoverTimerRef = useRef(null);
   const [now, setNow] = useState(() => Date.now());
 
-  // ── Compagnon Nova state ──
+  // ── Compagnon Unique Généré & Persistant ──
+  const [petDna, setPetDna] = useState(() => getOrCreatePetDna());
   const [petMood, setPetMood] = useState("normal");
   const [petEnergy, setPetEnergy] = useState(96);
   const [petBond, setPetBond] = useState(4);
@@ -256,7 +259,7 @@ export function DynamicIsland({ focusSession, onEditTask }) {
 
   const elapsedTimer = formatElapsedExact(focusStartedAt, now);
 
-  // Actions d'interaction avec Nova
+  // Actions d'interaction avec le compagnon cybernétique
   const handlePetAction = (action) => {
     if (action === "pet") {
       setPetMood("love");
@@ -273,6 +276,12 @@ export function DynamicIsland({ focusSession, onEditTask }) {
       setPetMood("radar");
     } else if (action === "sleep") {
       setPetMood("sleepy");
+    } else if (action === "reroll") {
+      const newDna = regeneratePetDna();
+      setPetDna(newDna);
+      playAppleChime();
+      setPetMood("happy");
+      setTimeout(() => setPetMood(isCooking || pomoRunning ? "focused" : "normal"), 2200);
     } else if (action === "track") {
       setPetMood("normal");
     }
@@ -319,12 +328,13 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                 <DigitalClock className="trk-island-clock-mini" />
               </div>
 
-              {/* CENTRE : Nova TOUJOURS AU MILIEU PARFAIT (50% absolu) */}
+              {/* CENTRE : Bot TOUJOURS AU MILIEU PARFAIT (50% absolu) */}
               <div className="trk-island-center-bot">
                 <PixelHelper
                   size={34}
                   bubbleOut
                   mood={petMood}
+                  dna={petDna}
                   onClick={(e) => {
                     e.stopPropagation();
                     setMode("pet");
@@ -459,12 +469,13 @@ export function DynamicIsland({ focusSession, onEditTask }) {
               </button>
             </div>
 
-            {/* CENTRE : Nova Companion TOUJOURS AU CENTRE */}
+            {/* CENTRE : Bot Companion TOUJOURS AU CENTRE */}
             <div className="trk-island-center-bot">
               <PixelHelper
                 size={34}
                 bubbleOut
                 mood={petMood}
+                dna={petDna}
                 onClick={() => {
                   setMode("pet");
                   setOpen(true);
@@ -472,7 +483,7 @@ export function DynamicIsland({ focusSession, onEditTask }) {
               />
             </div>
 
-            {/* DROITE : Raccourcis Focus Live (si cooking) + Nova + Debug */}
+            {/* DROITE : Raccourcis Focus Live (si cooking) + Pet + Debug */}
             <div className="trk-island-hover-right">
               {isCooking ? (
                 <button
@@ -496,10 +507,10 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                     setMode("pet");
                     setOpen(true);
                   }}
-                  title="Nova Cyber Companion"
+                  title={`${petDna.name} · ${petDna.archetype}`}
                 >
                   <Sparkles size={11} />
-                  <span>Nova</span>
+                  <span>{petDna.name}</span>
                 </button>
               )}
 
@@ -569,7 +580,7 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                   onClick={() => setMode("pet")}
                 >
                   <Sparkles size={12} className="trk-island-sparkle-icon" />
-                  <span>Nova</span>
+                  <span>{petDna.name}</span>
                   <span className="trk-island-badge">{petEnergy}%</span>
                 </button>
 
@@ -636,7 +647,7 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                 />
               )}
 
-              {/* ── 2. ONGLET CYBER COMPANION NOVA DECK ── */}
+              {/* ── 2. ONGLET CYBER COMPANION PET DECK ── */}
               {mode === "pet" && (
                 <div className="trk-island-pet-deck">
                   {/* Zone Avatar 2.5D & Télémétrie */}
@@ -645,21 +656,40 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                       <PixelHelper
                         size={72}
                         mood={petMood}
+                        dna={petDna}
                         onClick={() => handlePetAction("pet")}
                       />
                     </div>
                     <div className="trk-island-pet-hero-info">
                       <div className="trk-island-pet-hero-title">
-                        <h3>Cyber Companion Nova</h3>
+                        <h3>{petDna.name}</h3>
                         <span className="trk-island-pet-status-pill">
                           <span className="trk-island-pulse-dot" /> Online
                         </span>
+                        <button
+                          type="button"
+                          className="trk-island-pet-dna-btn"
+                          onClick={() => handlePetAction("reroll")}
+                          title="Synthesize new unique companion DNA & traits"
+                        >
+                          <Dna size={12} />
+                          <span>Re-roll DNA</span>
+                        </button>
                       </div>
                       <p className="trk-island-pet-subtitle">
-                        Tactile Companion Deck & Neural Sync. Real-time sub-pixel cursor gaze.
+                        {petDna.archetype} · {petDna.personality}
                       </p>
 
                       <div className="trk-island-pet-telemetry">
+                        <div className="trk-island-telemetry-item">
+                          <span className="trk-telemetry-label">Palette</span>
+                          <span
+                            className="trk-telemetry-val trk-mono"
+                            style={{ color: petDna.palette?.neon || "#00F5D4" }}
+                          >
+                            {petDna.palette?.name || "Cyber"}
+                          </span>
+                        </div>
                         <div className="trk-island-telemetry-item">
                           <span className="trk-telemetry-label">Core</span>
                           <div className="trk-telemetry-bar">
@@ -753,6 +783,21 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                         <div className="trk-command-texts">
                           <span className="trk-command-title">Standby</span>
                           <span className="trk-command-sub">Sleep Mode</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="trk-pet-command-btn dna-command-btn"
+                        onClick={() => handlePetAction("reroll")}
+                        title="Re-synthesize unique cyber pet DNA"
+                      >
+                        <div className="trk-command-icon-box dna">
+                          <Dna size={15} />
+                        </div>
+                        <div className="trk-command-texts">
+                          <span className="trk-command-title">New DNA</span>
+                          <span className="trk-command-sub">Re-roll</span>
                         </div>
                       </button>
                     </div>

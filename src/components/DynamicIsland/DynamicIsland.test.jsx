@@ -105,4 +105,40 @@ describe("DynamicIsland", () => {
     expect(container.querySelector(".trk-island-focus-pill")).toBeTruthy();
     expect(container.querySelector(".trk-dynamic-island.is-dual-live")).toBeTruthy();
   });
+
+  it("renders uniquely generated pet with custom DNA and supports DNA re-rolling", () => {
+    localStorage.clear();
+    const { container } = renderIsland();
+
+    // Click center bot to open pet deck
+    const bot = container.querySelector(".trk-island-center-bot");
+    expect(bot).toBeTruthy();
+    fireEvent.click(bot.querySelector(".trk-pixel-helper-pod"));
+
+    // Verify modal opened in pet mode
+    expect(container.querySelector(".trk-island-pet-deck")).toBeTruthy();
+
+    // Check that title has custom generated pet name and archetype
+    const titleEl = container.querySelector(".trk-island-pet-hero-title h3");
+    expect(titleEl).toBeTruthy();
+    const initialName = titleEl.textContent;
+    expect(initialName.length).toBeGreaterThan(0);
+
+    const subtitleEl = container.querySelector(".trk-island-pet-subtitle");
+    expect(subtitleEl).toBeTruthy();
+    expect(subtitleEl.textContent.length).toBeGreaterThan(0);
+
+    // Verify Palette telemetry
+    expect(container.textContent).toContain("Palette");
+
+    // Click Re-roll DNA button
+    const rerollBtn = screen.getByTitle("Synthesize new unique companion DNA & traits");
+    expect(rerollBtn).toBeTruthy();
+    fireEvent.click(rerollBtn);
+
+    // Verify new pet is generated and persisted in localStorage
+    const storedDna = JSON.parse(localStorage.getItem("suivi_travaux_pet_dna"));
+    expect(storedDna).toBeDefined();
+    expect(typeof storedDna.name).toBe("string");
+  });
 });
