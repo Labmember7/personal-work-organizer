@@ -29,7 +29,7 @@ function decimalsOf(n) {
 
 function render(skeleton, values, templates) {
   let i = 0;
-  return skeleton.replace(/\u0000/g, () => {
+  return skeleton.replaceAll("\u0000", () => {
     const tpl = templates[i];
     const v = values[i++];
     const dec = decimalsOf(tpl);

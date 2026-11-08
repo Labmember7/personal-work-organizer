@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   generatePetDna,
   getOrCreatePetDna,
-  PET_PALETTES,
   regeneratePetDna,
 } from "./petGenerator";
 
@@ -55,7 +54,7 @@ describe("Procedural Pet Generator", () => {
   });
 
   it("regenerates pet DNA and updates localStorage", () => {
-    const firstPet = getOrCreatePetDna();
+    getOrCreatePetDna();
     const newPet = regeneratePetDna();
 
     expect(newPet).toBeDefined();

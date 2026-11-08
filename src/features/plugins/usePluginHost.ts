@@ -182,9 +182,9 @@ export function usePluginHost({
 
   useEffect(() => {
     if (ready) postRef.current({ type: "host:lang", lang, dict });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `dict` est un
-    // nouvel objet à chaque rendu de l'hôte ; seul un changement de `lang`
+    // `dict` est un nouvel objet à chaque rendu de l'hôte ; seul un changement de `lang`
     // doit déclencher l'envoi (cf. dictRef, toujours à jour dans host:init).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, lang]);
 
   // Les réglages du plugin peuvent changer sans rechargement de l'iframe

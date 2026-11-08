@@ -29,6 +29,10 @@ const LOAD_ERROR_KEYS = {
 // Icône du plugin : celle déclarée dans son manifeste (nom lucide-react),
 // repli sur Puzzle si absente ou inconnue — un plugin ne doit jamais rester
 // sans icône, même écrit avant l'ajout d'une icône à la bibliothèque.
+function PluginIcon({ name, size = 14 }) {
+  return React.createElement(iconFor(name), { size });
+}
+
 function iconFor(name) {
   return (name && LucideIcons[name]) || Puzzle;
 }
@@ -118,7 +122,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
   // plugins (relecture manifeste + specs) et on remonte la vue active.
   useEffect(() => {
     if (!window.plugins || typeof window.plugins.onReload !== "function") return;
-    const handler = ({ id }) => {
+    const handler = () => {
       void refreshPlugins(true);
     };
     window.plugins.onReload(handler);
@@ -211,7 +215,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
     );
   }
 
-  const ActiveIcon = iconFor(activePlugin?.manifest.icon);
+
 
   return (
     <div className="trk-plugins">
@@ -220,7 +224,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
           {plugins.length > 1 ? (
             <div className="trk-view-switch trk-plugin-switch">
               {plugins.map((p) => {
-                const Icon = iconFor(p.manifest.icon);
+
                 return (
                   <button
                     key={p.manifest.id}
@@ -230,14 +234,14 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
                     title={localized(p.manifest.name, lang)}
                     aria-pressed={p.manifest.id === pluginId}
                   >
-                    <Icon size={14} /> <span className="trk-view-label">{localized(p.manifest.name, lang)}</span>
+                    <PluginIcon name={p.manifest.icon} size={14} /> <span className="trk-view-label">{localized(p.manifest.name, lang)}</span>
                   </button>
                 );
               })}
             </div>
           ) : (
             <div className="trk-plugins-title">
-              <ActiveIcon size={15} />
+              <PluginIcon name={activePlugin?.manifest.icon} size={15} />
               <span>{localized(activePlugin?.manifest.name, lang)}</span>
             </div>
           )}
@@ -259,7 +263,7 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
         {fullscreen && (
           <div className="trk-plugin-fullscreen-bar">
             <div className="trk-plugin-fullscreen-title">
-              <ActiveIcon size={14} />
+              <PluginIcon name={activePlugin?.manifest.icon} size={14} />
               <span>{localized(activePlugin?.manifest.name, lang)}</span>
             </div>
             <button

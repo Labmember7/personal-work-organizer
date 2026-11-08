@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import {
   prioOf, statusOf, isDoneStatus, isTaskDone, taskMatchesQuery, randomThemeVars, randomThemePattern,
@@ -203,17 +203,20 @@ export default function App() {
   }, [celebration]);
 
   // ── Dérivés ──
-  const sortTasks = (list) => {
-    const arr = [...list];
-    arr.sort((a, b) => {
-      if (sortBy === "priorite") return prioOf(a.priorite).order - prioOf(b.priorite).order;
-      if (sortBy === "statut") return statusOf(a.statut).weight - statusOf(b.statut).weight;
-      if (sortBy === "projet") return a.projet.localeCompare(b.projet);
-      if (sortBy === "echeance") return (a.echeance || "9999-99-99").localeCompare(b.echeance || "9999-99-99");
-      return 0;
-    });
-    return arr;
-  };
+  const sortTasks = useCallback(
+    (list) => {
+      const arr = [...list];
+      arr.sort((a, b) => {
+        if (sortBy === "priorite") return prioOf(a.priorite).order - prioOf(b.priorite).order;
+        if (sortBy === "statut") return statusOf(a.statut).weight - statusOf(b.statut).weight;
+        if (sortBy === "projet") return a.projet.localeCompare(b.projet);
+        if (sortBy === "echeance") return (a.echeance || "9999-99-99").localeCompare(b.echeance || "9999-99-99");
+        return 0;
+      });
+      return arr;
+    },
+    [sortBy]
+  );
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(
@@ -229,7 +232,7 @@ export default function App() {
     );
   }, [tasks, filterProjects, filterStatuts, search]);
 
-  const sortedTasks = useMemo(() => sortTasks(filteredTasks), [filteredTasks, sortBy]);
+  const sortedTasks = useMemo(() => sortTasks(filteredTasks), [filteredTasks, sortTasks]);
 
   // Vue « Archives » : mêmes recherche/tri, mais parmi les tâches archivées
   // uniquement (les filtres projet/statut ne s'y appliquent pas).
@@ -237,7 +240,7 @@ export default function App() {
     () => tasks.filter((tk) => tk.archived && taskMatchesQuery(tk, search)),
     [tasks, search]
   );
-  const sortedArchivedTasks = useMemo(() => sortTasks(archivedTasks), [archivedTasks, sortBy]);
+  const sortedArchivedTasks = useMemo(() => sortTasks(archivedTasks), [archivedTasks, sortTasks]);
 
   const listResetKey = `${filterProjects.join(",")}|${filterStatuts.join(",")}|${search}|${sortBy}|${viewMode}`;
 

@@ -10,7 +10,7 @@ import { extractManifestBlock, parseManifest } from "../lib/plugins/manifest";
 import { parseManifestV2 } from "../lib/plugins/manifest2";
 import type { PluginManifestV2 } from "../lib/plugins/manifest2";
 import { parseViewSpecText } from "../lib/plugins/viewSpec";
-import type { PluginCapability, PluginManifest, PluginScopeKind, PluginSource } from "../lib/plugins/types";
+import type { PluginCapability, PluginManifest, PluginSource } from "../lib/plugins/types";
 import type { PluginLoadError } from "../lib/plugins/types";
 import type { RawPluginEntry } from "./storage";
 

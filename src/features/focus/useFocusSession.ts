@@ -77,7 +77,7 @@ export function useFocusSession({ loading, tasks, tasksRef, saveTasks, moveTask,
       setFocusLeaving(false);
     }
     if (!focusId && focusStartedAt) setFocusStartedAt(null);
-  }, [loading, focusId, focusTask, focusStartedAt]);
+  }, [loading, focusId, focusTask, focusStartedAt, setFocusId, setFocusStartedAt]);
 
   // Sortie automatique (animée) dès que la tâche focalisée est terminée,
   // quel que soit l'endroit où elle a été terminée (kanban, modal, zone).
@@ -100,6 +100,7 @@ export function useFocusSession({ loading, tasks, tasksRef, saveTasks, moveTask,
       setFocusLeaving(false);
     }, 900);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTask]);
 
   const focusOnTask = (id: string) => {

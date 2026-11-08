@@ -183,15 +183,7 @@ const EYE_SHAPES = [
   "visor_strip",    // Regard large fente stylisée
 ];
 
-// Simple hash / PRNG pour consistance
-function hashString(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
+// PRNG pour consistance
 
 function createRng(seed) {
   let s = seed % 2147483647;

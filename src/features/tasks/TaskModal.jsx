@@ -9,7 +9,7 @@ import { TimeLogSection } from "../timelog/TimeLogSection.jsx";
 import { localized } from "../../lib/plugins/manifest";
 import { projectTask } from "../../lib/plugins/projection";
 import { DeclarativeView } from "../plugins/DeclarativeView.jsx";
-import { PluginFrame } from "../plugins/PluginFrame.jsx";
+
 
 // Modal de création/édition d'une tâche. Le composant possède son brouillon
 // (copie de `initial`) ; la fermeture demande confirmation si le brouillon a
@@ -21,7 +21,7 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
   const [descMode, setDescMode] = useState("formatted");
   const [confirmClose, setConfirmClose] = useState(false);
   const [titleError, setTitleError] = useState(false);
-  const panelFrameRef = useRef(null);
+
   const initialRef = useRef(initial);
 
   const isDirty = () => JSON.stringify(draft) !== JSON.stringify(initialRef.current);

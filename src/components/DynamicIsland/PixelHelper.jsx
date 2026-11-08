@@ -35,12 +35,18 @@ export function PixelHelper({
     currentGazeY: 0,
     blinkProgress: 0,
     isBlinking: false,
-    lastBlink: Date.now(),
+    lastBlink: 0,
     nextBlinkInterval: 3000,
-    lastInteraction: Date.now(),
+    lastInteraction: 0,
     scanPos: 0,
     munchFrame: 0,
   });
+
+  useEffect(() => {
+    const now = Date.now();
+    animState.current.lastBlink = now;
+    animState.current.lastInteraction = now;
+  }, []);
 
   // Synchronise le mood externe
   useEffect(() => {

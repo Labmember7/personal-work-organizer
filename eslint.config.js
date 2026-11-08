@@ -26,15 +26,18 @@ export default tseslint.config(
       "react/prop-types": "off",
       // Le contenu du MarkdownEditor passe par DOMPurify (lib/markdown.ts).
       "react/no-danger": "off",
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", caughtErrors: "none" }],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" },
+      ],
       // Aurait attrapé le bug de closure périmée de la zone de focus (B1).
       "react-hooks/exhaustive-deps": "warn",
       // Règles « React Compiler » du plugin v7 : le motif volontaire
       // « latest ref » (ref.current = valeur pendant le rendu, lue plus tard
       // dans un callback) et les setState de synchronisation dans les effets
-      // sont assumés ici — on garde ces règles en simple avertissement.
-      "react-hooks/refs": "warn",
-      "react-hooks/set-state-in-effect": "warn",
+      // sont assumés ici par conception.
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
       "react-hooks/purity": "warn",
       "react-hooks/immutability": "warn",
       "react-hooks/preserve-manual-memoization": "warn",

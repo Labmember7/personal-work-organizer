@@ -120,7 +120,7 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
   // Rafraîchit l'affichage du temps de focus écoulé.
   useEffect(() => {
     if (task && startedAt) setNow(Date.now());
-  }, [task && task.id, startedAt]);
+  }, [task, task?.id, startedAt]);
   useInterval(() => setNow(Date.now()), task && startedAt ? 10000 : null);
 
   const st = task ? statusOf(task.statut) : null;
