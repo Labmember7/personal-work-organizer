@@ -50,6 +50,12 @@ export default function App() {
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null); // { id, action: "delete" | "archive" | "unarchive" }
   const [toast, setToast] = useState(null);
+  const [chartsReady, setChartsReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setChartsReady(true), 120);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ── Colonnes de tâches contribuées par les plugins (v2) ──
   // Découverte une fois au montage ; les colonnes s'affichent dans chaque
@@ -116,20 +122,24 @@ export default function App() {
 
   // Mini célébration quand une tâche passe à « terminé », sauf si tout est
   // terminé (la grande célébration prend le relais).
-  const celebrateTaskDone = (statut, nextTasks) => {
+  const celebrateTaskDone = useCallback((statut, nextTasks) => {
     if (!celebrationsOn) return;
     if (!isDoneStatus(statut)) return;
     if (nextTasks.every(isTaskDone)) return;
     setMiniCeleb(Date.now());
-  };
+  }, [celebrationsOn]);
 
   // ── Données et features ──
   const store = useTasks({ onTaskDone: celebrateTaskDone });
-  const { loading, tasks, projects, saveError } = store;
+  const {
+    loading, tasks, projects, saveError,
+    deleteTask, archiveTask, unarchiveTask, moveTask,
+    addTimeLog, editTimeLog, deleteTimeLog,
+  } = store;
 
   // Les tâches archivées sont exclues du tableau de bord (progression,
   // graphiques, célébrations) : elles ne représentent plus du travail actif.
-  const activeTasks = tasks.filter((tk) => !tk.archived);
+  const activeTasks = useMemo(() => tasks.filter((tk) => !tk.archived), [tasks]);
 
   useUndoRedoShortcut({ undo: store.undo, redo: store.redo });
 
@@ -149,7 +159,8 @@ export default function App() {
     onToast: setToast, t,
   });
 
-  const chartData = useChartData(activeTasks, projects);
+  const deferredActiveTasks = React.useDeferredValue(activeTasks);
+  const chartData = useChartData(deferredActiveTasks, projects);
 
   // ── Guide de démarrage : affiché à la première ouverture, rejouable via le « ? » ──
   const [tutorialOpen, setTutorialOpen] = useState(() => {
@@ -182,7 +193,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const doneCount = activeTasks.filter(isTaskDone).length;
+  const doneCount = useMemo(() => activeTasks.filter(isTaskDone).length, [activeTasks]);
   const allDone = activeTasks.length > 0 && doneCount === activeTasks.length;
 
   // Célébration au passage à « tout terminé » (jamais au chargement initial).
@@ -251,88 +262,121 @@ export default function App() {
   }, [activeTasks]);
 
   // ── Actions ──
-  const openNewTask = () => {
-    setEditing({
-      id: null,
-      type: "standard",
-      projet: (filterProjects.length === 1 ? filterProjects[0] : projects[0]) || "",
-      titre: "",
-      description: "",
-      priorite: "moyenne",
-      statut: "analyser",
-      assigne: "",
-      dateDebut: new Date().toISOString().slice(0, 10),
-      echeance: "",
-      timeLogs: [],
+  const openNewTask = useCallback(() => {
+    React.startTransition(() => {
+      setEditing({
+        id: null,
+        type: "standard",
+        projet: (filterProjects.length === 1 ? filterProjects[0] : projects[0]) || "",
+        titre: "",
+        description: "",
+        priorite: "moyenne",
+        statut: "analyser",
+        assigne: "",
+        dateDebut: new Date().toISOString().slice(0, 10),
+        echeance: "",
+        timeLogs: [],
+      });
     });
-  };
+  }, [filterProjects, projects]);
 
-  const openEditTask = (task) => setEditing({ ...task });
+  const openEditTask = useCallback((task) => {
+    React.startTransition(() => {
+      setEditing({ ...task });
+    });
+  }, []);
 
   // Un nœud de plugin peut pointer une tâche qui n'existe plus (supprimée
   // depuis) : on le signale plutôt que de silencieusement ne rien faire.
-  const handleRevealTask = (id) => {
+  const handleRevealTask = useCallback((id) => {
     const task = tasks.find((tk) => tk.id === id);
     if (task) openEditTask(task);
     else setToast({ type: "error", text: t("plugin_task_not_found") });
-  };
+  }, [tasks, openEditTask, t]);
 
-  const handlePluginToast = (message) => setToast({ type: "success", text: message });
+  const handlePluginToast = useCallback((message) => setToast({ type: "success", text: message }), []);
 
-  const handleDeleteTask = (id) => {
-    store.deleteTask(id);
+  const handleDeleteTask = useCallback((id) => {
+    deleteTask(id);
     setConfirm(null);
-  };
+  }, [deleteTask]);
 
-  const handleArchiveTask = (id) => {
-    store.archiveTask(id);
+  const handleArchiveTask = useCallback((id) => {
+    archiveTask(id);
     setConfirm(null);
-  };
+  }, [archiveTask]);
 
-  const handleUnarchiveTask = (id) => {
-    store.unarchiveTask(id);
+  const handleUnarchiveTask = useCallback((id) => {
+    unarchiveTask(id);
     setConfirm(null);
-  };
+  }, [unarchiveTask]);
 
-  const toggleFilterProject = (name) => {
+  const toggleFilterProject = useCallback((name) => {
     setFilterProjects((prev) =>
       prev.includes(name) ? prev.filter((p) => p !== name) : [...prev, name]
     );
-  };
+  }, []);
 
-  const toggleFilterStatut = (id) => {
+  const toggleFilterStatut = useCallback((id) => {
     setFilterStatuts((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     );
-  };
+  }, []);
 
-  const handleRemoveProject = (name) => {
+  const handleClearProjectFilters = useCallback(() => setFilterProjects([]), []);
+  const handleClearStatuts = useCallback(() => setFilterStatuts([]), []);
+
+  const handleRemoveProject = useCallback((name) => {
     if (removeProject(name)) {
       setFilterProjects((prev) => prev.filter((p) => p !== name));
     }
-  };
+  }, [removeProject]);
 
-  const handleRenameProject = (oldName, newName) => {
+  const handleRenameProject = useCallback((oldName, newName) => {
     if (renameProject(oldName, newName)) {
       const trimmed = newName.trim();
       setFilterProjects((prev) => prev.map((p) => (p === oldName ? trimmed : p)));
     }
-  };
+  }, [renameProject]);
 
-  const timeLogOps = {
-    addTimeLog: store.addTimeLog,
-    editTimeLog: store.editTimeLog,
-    deleteTimeLog: store.deleteTimeLog,
-  };
+  const handleAskDelete = useCallback((id) => setConfirm({ id, action: "delete" }), []);
+  const handleAskArchive = useCallback((id) => setConfirm({ id, action: "archive" }), []);
+  const handleAskUnarchive = useCallback((id) => setConfirm({ id, action: "unarchive" }), []);
+  const handleCancelConfirm = useCallback(() => setConfirm(null), []);
 
-  const confirmProps = {
+  const confirmProps = useMemo(() => ({
     confirmId: confirm?.id ?? null,
     confirmAction: confirm?.action ?? null,
-    onAskDelete: (id) => setConfirm({ id, action: "delete" }),
-    onAskArchive: (id) => setConfirm({ id, action: "archive" }),
-    onAskUnarchive: (id) => setConfirm({ id, action: "unarchive" }),
-    onCancelConfirm: () => setConfirm(null),
-  };
+    onAskDelete: handleAskDelete,
+    onAskArchive: handleAskArchive,
+    onAskUnarchive: handleAskUnarchive,
+    onCancelConfirm: handleCancelConfirm,
+  }), [confirm?.id, confirm?.action, handleAskDelete, handleAskArchive, handleAskUnarchive, handleCancelConfirm]);
+
+  const timeLogOps = useMemo(() => ({
+    addTimeLog,
+    editTimeLog,
+    deleteTimeLog,
+  }), [addTimeLog, editTimeLog, deleteTimeLog]);
+
+  const boardProps = useMemo(() => ({
+    onMove: moveTask,
+    onEdit: openEditTask,
+    onDelete: handleDeleteTask,
+    onArchive: handleArchiveTask,
+    onUnarchive: handleUnarchiveTask,
+    ...confirmProps,
+  }), [moveTask, openEditTask, handleDeleteTask, handleArchiveTask, handleUnarchiveTask, confirmProps]);
+
+  const rowProps = useMemo(() => ({
+    onEdit: openEditTask,
+    onDelete: handleDeleteTask,
+    onArchive: handleArchiveTask,
+    onUnarchive: handleUnarchiveTask,
+    ...confirmProps,
+    timeLogOps,
+    taskColumns,
+  }), [openEditTask, handleDeleteTask, handleArchiveTask, handleUnarchiveTask, confirmProps, timeLogOps, taskColumns]);
 
   // ── Rendu ──
   return (
@@ -382,7 +426,7 @@ export default function App() {
               projectProgress={chartData.projectProgress}
               filterProjects={filterProjects}
               onToggleFilter={toggleFilterProject}
-              onClearFilters={() => setFilterProjects([])}
+              onClearFilters={handleClearProjectFilters}
               onAdd={addProject}
               onRemove={handleRemoveProject}
               onRename={handleRenameProject}
@@ -394,7 +438,7 @@ export default function App() {
                 onSearchChange={setSearch}
                 filterStatuts={filterStatuts}
                 onToggleStatut={toggleFilterStatut}
-                onClearStatuts={() => setFilterStatuts([])}
+                onClearStatuts={handleClearStatuts}
                 sortBy={sortBy}
                 onSortChange={setSortBy}
                 viewMode={viewMode}
@@ -406,14 +450,7 @@ export default function App() {
                 <KanbanSection
                   tasks={sortedTasks}
                   onNewTask={openNewTask}
-                  boardProps={{
-                    onMove: store.moveTask,
-                    onEdit: openEditTask,
-                    onDelete: handleDeleteTask,
-                    onArchive: handleArchiveTask,
-                    onUnarchive: handleUnarchiveTask,
-                    ...confirmProps,
-                  }}
+                  boardProps={boardProps}
                 />
               ) : viewMode === "plugins" ? (
                 <PluginsSection
@@ -430,36 +467,22 @@ export default function App() {
                   resetKey={listResetKey}
                   onNewTask={undefined}
                   emptyLabel={t("empty_archived_list")}
-                  rowProps={{
-                    onEdit: openEditTask,
-                    onDelete: handleDeleteTask,
-                    onArchive: handleArchiveTask,
-                    onUnarchive: handleUnarchiveTask,
-                    ...confirmProps,
-                    timeLogOps,
-                    taskColumns,
-                  }}
+                  rowProps={rowProps}
                 />
               ) : (
                 <TaskList
                   tasks={sortedTasks}
                   resetKey={listResetKey}
                   onNewTask={openNewTask}
-                  rowProps={{
-                    onEdit: openEditTask,
-                    onDelete: handleDeleteTask,
-                    onArchive: handleArchiveTask,
-                    onUnarchive: handleUnarchiveTask,
-                    ...confirmProps,
-                    timeLogOps,
-                    taskColumns,
-                  }}
+                  rowProps={rowProps}
                 />
               )}
             </main>
           </div>
 
-          <ChartsSection tasks={activeTasks} projects={projects} chartData={chartData} onEditTask={openEditTask} />
+          {chartsReady && (
+            <ChartsSection tasks={deferredActiveTasks} projects={projects} chartData={chartData} onEditTask={openEditTask} />
+          )}
 
           <FocusZone
             task={focus.focusTask}

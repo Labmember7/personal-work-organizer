@@ -22,6 +22,11 @@ import "@fontsource/patrick-hand/latin-ext-400.css";
 import "./styles/index.css";
 import App from "./App.jsx";
 import { LanguageProvider } from "./i18n.jsx";
+import { initTauriBridge } from "./services/tauriBridge";
+import { initPerformanceMonitoring } from "./lib/performanceMonitor";
+
+initTauriBridge();
+initPerformanceMonitoring();
 
 createRoot(document.getElementById("root")).render(
   <LanguageProvider>

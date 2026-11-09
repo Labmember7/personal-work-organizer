@@ -12,11 +12,21 @@ const KANBAN_PAGE_SIZE = 3;
 
 // Colonne kanban : un statut, avec recherche et filtre priorité locaux,
 // pagination, et dépôt par drag & drop.
-export function KanbanColumn({ status, tasks, dragCtx, cardProps }) {
+export const KanbanColumn = React.memo(function KanbanColumn({
+  status,
+  tasks,
+  isOver,
+  setOverCol,
+  dragId,
+  setDragId,
+  onMove,
+  endDrag,
+  justMovedId,
+  cardProps,
+}) {
   const { t } = useLang();
   const [query, setQuery] = useState("");
   const [prio, setPrio] = useState("");
-  const { dragId, setDragId, overCol, setOverCol, onMove, endDrag, justMovedId } = dragCtx;
 
   const visible = useMemo(
     () => tasks.filter((tk) => (!prio || tk.priorite === prio) && taskMatchesQuery(tk, query)),
@@ -28,15 +38,15 @@ export function KanbanColumn({ status, tasks, dragCtx, cardProps }) {
 
   return (
     <div
-      className={"trk-kanban-col" + (overCol === status.id ? " drag-over" : "")}
+      className={"trk-kanban-col" + (isOver ? " drag-over" : "")}
       style={{ "--col-color": status.color }}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
-        if (overCol !== status.id) setOverCol(status.id);
+        if (!isOver) setOverCol(status.id);
       }}
       onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setOverCol(null);
+        if (isOver && !e.currentTarget.contains(e.relatedTarget)) setOverCol(null);
       }}
       onDrop={(e) => {
         e.preventDefault();
@@ -100,4 +110,4 @@ export function KanbanColumn({ status, tasks, dragCtx, cardProps }) {
       </div>
     </div>
   );
-}
+});

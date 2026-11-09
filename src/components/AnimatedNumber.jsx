@@ -49,7 +49,7 @@ function render(skeleton, values, templates) {
 const reduceMotion = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-export function AnimatedNumber({ value, format, duration = 650, className = "", pop = true, as: Tag = "span" }) {
+export const AnimatedNumber = React.memo(function AnimatedNumber({ value, format, duration = 650, className = "", pop = true, as: Tag = "span" }) {
   const text = format ? format(value) : String(value ?? "");
   const [display, setDisplay] = useState(text);
   const [bump, setBump] = useState(0);
@@ -92,4 +92,4 @@ export function AnimatedNumber({ value, format, duration = 650, className = "", 
       {display}
     </Tag>
   );
-}
+});

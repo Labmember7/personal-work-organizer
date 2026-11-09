@@ -11,7 +11,7 @@ import { evalColumnValue } from "../../lib/plugins/contrib";
 
 // Ligne de la vue liste : draggable vers la zone de focus, badge horloge
 // ouvrant le popover de pointage, suppression/archivage avec confirmation inline.
-export function TaskRow({
+export const TaskRow = React.memo(function TaskRow({
   task, onEdit, onDelete, onArchive, onUnarchive,
   confirmId, confirmAction, onAskDelete, onAskArchive, onAskUnarchive, onCancelConfirm,
   timeLogOps, taskColumns,
@@ -127,4 +127,4 @@ export function TaskRow({
       </div>
     </div>
   );
-}
+});

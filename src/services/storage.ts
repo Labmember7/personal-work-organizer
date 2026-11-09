@@ -39,6 +39,8 @@ export interface RawPluginEntry {
 interface PluginsBridge {
   list(): Promise<RawPluginEntry[]>;
   saveFile(payload: { name: string; mime: string; base64?: string; text?: string }): Promise<{ canceled: boolean; filePath?: string }>;
+  watch?(id: string, dir: string): Promise<{ ok: boolean; reason?: string }>;
+  onReload?(callback: (payload: { id: string }) => void): () => void;
 }
 
 declare global {

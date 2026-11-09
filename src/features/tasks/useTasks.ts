@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { Project, Task, TaskDraft, TaskType, TimeLog } from "../../lib/types";
 import { isTaskDone, statusesForTask, STATUSES, SIMPLE_STATUSES } from "../../lib/statuses";
 import { uid } from "../../lib/uid";
@@ -97,14 +97,14 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
           const loadedTasks = parsed.tasks || [];
           setTasks(loadedTasks);
           setProjects(parsed.projects && parsed.projects.length ? parsed.projects : initialProjects);
-          // Uniquement quand les données ont bien été relues : un store
-          // illisible remonte `null` ici, et purger sur cette base
-          // effacerait toutes les images d'un coup.
-          try {
-            await pruneUnusedImages(collectImageRefs(loadedTasks.map((t) => t.description)));
-          } catch (e) {
-            // nettoyage best-effort : les orphelins seront repris au prochain lancement
-          }
+          // Nettoyage des images orphelines en tâche de fond après l'affichage initial
+          setTimeout(async () => {
+            try {
+              await pruneUnusedImages(collectImageRefs(loadedTasks.map((t) => t.description)));
+            } catch (e) {
+              // nettoyage best-effort : les orphelins seront repris au prochain lancement
+            }
+          }, 350);
         } else {
           setProjects(initialProjects);
         }
@@ -116,7 +116,7 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     })();
   }, []);
 
-  const persist = async (nextTasks: Task[], nextProjects: Project[]) => {
+  const persist = useCallback(async (nextTasks: Task[], nextProjects: Project[]) => {
     try {
       const ok = await saveValue(STORAGE_KEY, { tasks: nextTasks, projects: nextProjects });
       setSaveError(!ok);
@@ -128,50 +128,50 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     } catch (e) {
       // la synchronisation du fichier de config a échoué, la sauvegarde principale reste valide
     }
-  };
+  }, []);
 
   // Empile l'état courant avant de le remplacer, pour permettre un undo.
   // Toute nouvelle action invalide la pile de redo (comme un traitement de
   // texte classique).
-  const recordHistory = () => {
+  const recordHistory = useCallback(() => {
     pastRef.current.push({ tasks: tasksRef.current, projects: projectsRef.current });
     if (pastRef.current.length > HISTORY_LIMIT) pastRef.current.shift();
     futureRef.current = [];
     setCanUndo(true);
     setCanRedo(false);
-  };
+  }, []);
 
-  const applySnapshot = (snap: Snapshot) => {
+  const applySnapshot = useCallback((snap: Snapshot) => {
     setTasks(snap.tasks);
     setProjects(snap.projects);
     persist(snap.tasks, snap.projects);
-  };
+  }, [persist]);
 
   // Les refs évitent toute capture périmée : saveTasks peut être appelé
   // depuis un timer sans risquer de persister d'anciens projets (et
   // inversement pour saveProjects).
-  const saveTasks = (next: Task[]) => {
+  const saveTasks = useCallback((next: Task[]) => {
     recordHistory();
     setTasks(next);
     persist(next, projectsRef.current);
-  };
+  }, [persist, recordHistory]);
 
-  const saveProjects = (next: Project[]) => {
+  const saveProjects = useCallback((next: Project[]) => {
     recordHistory();
     setProjects(next);
     persist(tasksRef.current, next);
-  };
+  }, [persist, recordHistory]);
 
-  const saveBoth = (nextTasks: Task[], nextProjects: Project[]) => {
+  const saveBoth = useCallback((nextTasks: Task[], nextProjects: Project[]) => {
     recordHistory();
     setTasks(nextTasks);
     setProjects(nextProjects);
     persist(nextTasks, nextProjects);
-  };
+  }, [persist, recordHistory]);
 
   // Undo/redo n'appellent jamais recordHistory : ils déplacent l'état
   // courant vers la pile opposée puis restaurent l'instantané visé.
-  const undo = () => {
+  const undo = useCallback(() => {
     const prev = pastRef.current.pop();
     if (!prev) return;
     futureRef.current.push({ tasks: tasksRef.current, projects: projectsRef.current });
@@ -179,9 +179,9 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     setCanUndo(pastRef.current.length > 0);
     setCanRedo(true);
     applySnapshot(prev);
-  };
+  }, [applySnapshot]);
 
-  const redo = () => {
+  const redo = useCallback(() => {
     const next = futureRef.current.pop();
     if (!next) return;
     pastRef.current.push({ tasks: tasksRef.current, projects: projectsRef.current });
@@ -189,12 +189,12 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     setCanRedo(futureRef.current.length > 0);
     setCanUndo(true);
     applySnapshot(next);
-  };
+  }, [applySnapshot]);
 
   // Création ou édition depuis le modal. En édition, les timeLogs du store
   // font foi : ils sont mutés en direct par les opérations de pointage,
   // le brouillon du modal peut être en retard.
-  const upsertTask = (draft: TaskDraft) => {
+  const upsertTask = useCallback((draft: TaskDraft) => {
     if (draft.id) {
       const saved: Task = { ...draft, id: draft.id };
       const prev = tasksRef.current.find((t) => t.id === draft.id);
@@ -206,23 +206,23 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     } else {
       saveTasks([...tasksRef.current, { ...draft, id: uid() }]);
     }
-  };
+  }, [saveTasks]);
 
-  const deleteTask = (id: string) => {
+  const deleteTask = useCallback((id: string) => {
     saveTasks(tasksRef.current.filter((t) => t.id !== id));
-  };
+  }, [saveTasks]);
 
-  const archiveTask = (id: string) => {
+  const archiveTask = useCallback((id: string) => {
     saveTasks(tasksRef.current.map((t) => (t.id === id ? { ...t, archived: true } : t)));
-  };
+  }, [saveTasks]);
 
-  const unarchiveTask = (id: string) => {
+  const unarchiveTask = useCallback((id: string) => {
     saveTasks(tasksRef.current.map((t) => (t.id === id ? { ...t, archived: false } : t)));
-  };
+  }, [saveTasks]);
 
   // Déposer une carte sur une colonne de l'autre tableau (workflow <-> simple)
   // convertit aussi le type de la tâche vers celui du statut cible.
-  const moveTask = (id: string, statut: string) => {
+  const moveTask = useCallback((id: string, statut: string) => {
     const task = tasksRef.current.find((t) => t.id === id);
     if (!task || task.statut === statut) return;
     let type: TaskType | undefined = task.type;
@@ -235,18 +235,18 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     const next = tasksRef.current.map((t) => (t.id === id ? { ...t, type, statut } : t));
     saveTasks(next);
     if (isTaskDone({ statut })) onTaskDoneRef.current?.(statut, next);
-  };
+  }, [saveTasks]);
 
-  const addTimeLog = (taskId: string, minutes: number, note: string) => {
+  const addTimeLog = useCallback((taskId: string, minutes: number, note: string) => {
     const entry: TimeLog = { id: uid(), minutes, note, date: new Date().toISOString().slice(0, 10) };
     saveTasks(
       tasksRef.current.map((t) =>
         t.id === taskId ? { ...t, timeLogs: [...(t.timeLogs || []), entry] } : t
       )
     );
-  };
+  }, [saveTasks]);
 
-  const editTimeLog = (taskId: string, logId: string, minutes: number, note: string) => {
+  const editTimeLog = useCallback((taskId: string, logId: string, minutes: number, note: string) => {
     saveTasks(
       tasksRef.current.map((t) =>
         t.id === taskId
@@ -257,15 +257,15 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
           : t
       )
     );
-  };
+  }, [saveTasks]);
 
-  const deleteTimeLog = (taskId: string, logId: string) => {
+  const deleteTimeLog = useCallback((taskId: string, logId: string) => {
     saveTasks(
       tasksRef.current.map((t) =>
         t.id === taskId ? { ...t, timeLogs: (t.timeLogs || []).filter((l) => l.id !== logId) } : t
       )
     );
-  };
+  }, [saveTasks]);
 
   return {
     loading, tasks, projects, saveError,

@@ -11,8 +11,8 @@ export function TitleBar({ maximized }) {
   if (!hasControls) return null;
 
   return (
-    <div className="trk-titlebar">
-      <div className="trk-titlebar-drag">
+    <div className="trk-titlebar" data-tauri-drag-region>
+      <div className="trk-titlebar-drag" data-tauri-drag-region>
         <span className="trk-titlebar-title">{t("titlebar_title")}</span>
       </div>
       <div className="trk-traffic-lights">

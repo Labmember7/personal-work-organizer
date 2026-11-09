@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import type { Project, Task } from "../../lib/types";
 
 interface ProjectStore {
@@ -18,22 +19,22 @@ export interface ProjectOps {
 // été appliquée, pour que l'appelant synchronise ses filtres.
 export function useProjects({ tasks, projects, saveProjects, saveBoth }: ProjectStore): ProjectOps {
   // Rend true si le projet a été ajouté (nom non vide et pas de doublon).
-  const addProject = (name: string): boolean => {
+  const addProject = useCallback((name: string): boolean => {
     const trimmed = name.trim();
     if (!trimmed || projects.includes(trimmed)) return false;
     saveProjects([...projects, trimmed]);
     return true;
-  };
+  }, [projects, saveProjects]);
 
   // Refusé si des tâches y sont encore rattachées.
-  const removeProject = (name: string): boolean => {
+  const removeProject = useCallback((name: string): boolean => {
     if (tasks.some((t) => t.projet === name)) return false;
     saveProjects(projects.filter((p) => p !== name));
     return true;
-  };
+  }, [projects, tasks, saveProjects]);
 
   // Renomme le projet et réaffecte ses tâches en une seule sauvegarde.
-  const renameProject = (oldName: string, newName: string): boolean => {
+  const renameProject = useCallback((oldName: string, newName: string): boolean => {
     const trimmed = newName.trim();
     if (!oldName || !trimmed || trimmed === oldName) return false;
     if (projects.includes(trimmed)) return false;
@@ -42,7 +43,7 @@ export function useProjects({ tasks, projects, saveProjects, saveBoth }: Project
       projects.map((p) => (p === oldName ? trimmed : p))
     );
     return true;
-  };
+  }, [projects, tasks, saveBoth]);
 
   return { addProject, removeProject, renameProject };
 }

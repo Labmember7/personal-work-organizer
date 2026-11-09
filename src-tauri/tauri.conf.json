@@ -1,0 +1,46 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "SuiviTravaux",
+  "version": "2.0.0",
+  "identifier": "com.bacem.suivitravaux",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Suivi des travaux",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 900,
+        "minHeight": 600,
+        "decorations": false,
+        "transparent": false,
+        "shadow": true,
+        "dragDropEnabled": false,
+        "backgroundColor": "#10141A"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' app-image: app-plugin:; script-src 'self' 'unsafe-inline' app-plugin:; style-src 'self' 'unsafe-inline' app-plugin:; img-src 'self' data: blob: app-image: app-plugin:; font-src 'self' data:; connect-src 'self' app-image: app-plugin:; frame-src 'self' app-plugin:;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "../plugins/**/*"
+    ]
+  }
+}

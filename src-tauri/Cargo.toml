@@ -1,0 +1,32 @@
+[package]
+name = "suivi-travaux"
+version = "2.0.0"
+description = "Suivi des travaux par projet - app de bureau portable"
+authors = ["Bacem"]
+edition = "2021"
+
+[lib]
+name = "suivi_travaux_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+notify = "6.1"
+regex = "1"
+parking_lot = "0.12"
+log = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

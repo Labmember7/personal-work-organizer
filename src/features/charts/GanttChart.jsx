@@ -8,7 +8,7 @@ const fmtTick = (d, locale) => d.toLocaleDateString(locale, { day: "2-digit", mo
 
 // Gantt par projet : uniquement les tâches ayant une échéance, regroupées
 // par projet, avec la ligne « aujourd'hui » sur le domaine temporel commun.
-export function GanttChart({ tasks, projects, onEditTask }) {
+export const GanttChart = React.memo(function GanttChart({ tasks, projects, onEditTask }) {
   const { t: tr, locale } = useLang();
   const rows = useMemo(() => {
     const eligible = tasks
@@ -124,4 +124,4 @@ export function GanttChart({ tasks, projects, onEditTask }) {
       </div>
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUSES } from "../../utils";
 import { KanbanColumn } from "./KanbanColumn.jsx";
 
@@ -14,19 +14,50 @@ export function KanbanBoard({ tasks, statuses = STATUSES, onMove, ...cardProps }
   const landingTimer = useRef(null);
   useEffect(() => () => clearTimeout(landingTimer.current), []);
 
-  const endDrag = () => {
+  const endDrag = useCallback(() => {
     setDragId(null);
     setOverCol(null);
-  };
+  }, []);
 
-  const move = (id, statusId) => {
-    onMove(id, statusId);
-    clearTimeout(landingTimer.current);
-    setJustMovedId(id);
-    landingTimer.current = setTimeout(() => setJustMovedId(null), LANDING_MS);
-  };
+  const move = useCallback(
+    (id, statusId) => {
+      onMove(id, statusId);
+      clearTimeout(landingTimer.current);
+      setJustMovedId(id);
+      landingTimer.current = setTimeout(() => setJustMovedId(null), LANDING_MS);
+    },
+    [onMove]
+  );
 
-  const dragCtx = { dragId, setDragId, overCol, setOverCol, onMove: move, endDrag, justMovedId };
+  const prevTasksByStatusRef = useRef({});
+  const tasksByStatus = useMemo(() => {
+    const freshMap = {};
+    for (const s of statuses) {
+      freshMap[s.id] = [];
+    }
+    for (const tk of tasks) {
+      if (freshMap[tk.statut]) {
+        freshMap[tk.statut].push(tk);
+      }
+    }
+    const stableMap = {};
+    const prev = prevTasksByStatusRef.current;
+    for (const s of statuses) {
+      const prevArr = prev[s.id];
+      const freshArr = freshMap[s.id];
+      if (
+        prevArr &&
+        prevArr.length === freshArr.length &&
+        prevArr.every((tk, idx) => tk === freshArr[idx])
+      ) {
+        stableMap[s.id] = prevArr;
+      } else {
+        stableMap[s.id] = freshArr;
+      }
+    }
+    prevTasksByStatusRef.current = stableMap;
+    return stableMap;
+  }, [tasks, statuses]);
 
   return (
     <div className="trk-kanban">
@@ -34,8 +65,14 @@ export function KanbanBoard({ tasks, statuses = STATUSES, onMove, ...cardProps }
         <KanbanColumn
           key={s.id}
           status={s}
-          tasks={tasks.filter((tk) => tk.statut === s.id)}
-          dragCtx={dragCtx}
+          tasks={tasksByStatus[s.id] || []}
+          isOver={overCol === s.id}
+          setOverCol={setOverCol}
+          dragId={dragId}
+          setDragId={setDragId}
+          onMove={move}
+          endDrag={endDrag}
+          justMovedId={justMovedId}
           cardProps={cardProps}
         />
       ))}

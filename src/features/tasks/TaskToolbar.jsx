@@ -7,7 +7,7 @@ import { StatusFilterDropdown } from "./StatusFilterDropdown.jsx";
 
 // Barre d'outils de la zone principale : recherche, filtre de statuts, tri,
 // bascule liste/kanban et création de tâche.
-export function TaskToolbar({
+export const TaskToolbar = React.memo(function TaskToolbar({
   search, onSearchChange,
   filterStatuts, onToggleStatut, onClearStatuts,
   sortBy, onSortChange,
@@ -80,4 +80,4 @@ export function TaskToolbar({
       <HelpTip tipKey="tasks" />
     </div>
   );
-}
+});

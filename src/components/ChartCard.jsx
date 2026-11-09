@@ -6,7 +6,7 @@ import { HelpTip } from "../tips.jsx";
 
 // Carte de graphique réutilisable : bouton focus -> modal agrandi
 // avec le même graphique en grand et un tableau de détails.
-export function ChartCard({ title, empty, emptyLabel, render, details, tip, className = "" }) {
+export const ChartCard = React.memo(function ChartCard({ title, empty, emptyLabel, render, details, tip, className = "" }) {
   const { t } = useLang();
   const [focused, setFocused] = useState(false);
 
@@ -59,4 +59,4 @@ export function ChartCard({ title, empty, emptyLabel, render, details, tip, clas
       )}
     </div>
   );
-}
+});

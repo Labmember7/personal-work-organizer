@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Activity,
   Bug,
   Check,
   ChevronUp,
@@ -22,6 +23,7 @@ import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { formatDuration } from "../../utils";
 import { projectColor } from "../../lib/colors";
 import { clearLog, installHostConsoleCapture, subscribeLog } from "../../lib/debugLog";
+import { clearPerfMetrics, getPerfState, subscribePerf } from "../../lib/performanceMonitor";
 import { playAppleChime, playHapticTick, playPhaseSwitchChime } from "../../lib/audioFx";
 import { getOrCreatePetDna, regeneratePetDna } from "../../lib/petGenerator";
 import { DigitalClock } from "./DigitalClock.jsx";
@@ -83,6 +85,13 @@ export function DynamicIsland({ focusSession, onEditTask }) {
   const bodyRef = useRef(null);
   const islandRef = useRef(null);
   const lastLen = useRef(0);
+
+  // Latency & INP Perf state
+  const [perfState, setPerfState] = useState(() => getPerfState());
+
+  useEffect(() => {
+    return subscribePerf(setPerfState);
+  }, []);
 
   // Focus session props
   const {
@@ -517,6 +526,21 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                   <span>Debug</span>
                   {entries.length > 0 && <span className="trk-island-badge">{entries.length}</span>}
                 </button>
+
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "perf"}
+                  className={"trk-island-tab perf-tab" + (mode === "perf" ? " active" : "")}
+                  onClick={() => setMode("perf")}
+                >
+                  <span className={"trk-island-mini-dot " + (perfState.rating === "fast" ? "ok" : perfState.rating === "good" ? "warn" : "error")} />
+                  <Activity size={12} />
+                  <span>Latency</span>
+                  <span className="trk-island-badge">
+                    {perfState.lastLatency !== null ? `${Math.round(perfState.lastLatency)}ms` : `${perfState.fps}fps`}
+                  </span>
+                </button>
               </div>
 
               <button
@@ -832,6 +856,68 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                         <span className="trk-debug-text">{e.text}</span>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── 5. ONGLET LATENCE & INP PERFORMANCE ── */}
+              {mode === "perf" && (
+                <div className="trk-island-perf-panel">
+                  <div className="trk-perf-header">
+                    <div className="trk-perf-stat-card">
+                      <span className="trk-perf-label">INP (Last)</span>
+                      <span className={"trk-perf-val " + perfState.rating}>
+                        {perfState.lastLatency !== null ? `${perfState.lastLatency}ms` : "—"}
+                      </span>
+                    </div>
+                    <div className="trk-perf-stat-card">
+                      <span className="trk-perf-label">Avg Latency</span>
+                      <span className="trk-perf-val">
+                        {perfState.avgLatency ? `${perfState.avgLatency}ms` : "0ms"}
+                      </span>
+                    </div>
+                    <div className="trk-perf-stat-card">
+                      <span className="trk-perf-label">Max Spike</span>
+                      <span className={"trk-perf-val " + (perfState.maxLatency > 50 ? "warn" : "ok")}>
+                        {perfState.maxLatency ? `${perfState.maxLatency}ms` : "0ms"}
+                      </span>
+                    </div>
+                    <div className="trk-perf-stat-card">
+                      <span className="trk-perf-label">FPS</span>
+                      <span className="trk-perf-val highlight">{perfState.fps}</span>
+                    </div>
+                  </div>
+
+                  <div className="trk-perf-toolbar">
+                    <span className="trk-perf-rating-badge">
+                      {perfState.rating === "fast"
+                        ? "⚡ 60/120fps Instant (<16ms)"
+                        : perfState.rating === "good"
+                          ? "✨ Smooth (<50ms)"
+                          : "⚠️ Main thread lag (>50ms)"}
+                    </span>
+                    <button
+                      type="button"
+                      className="trk-island-btn"
+                      onClick={clearPerfMetrics}
+                      title="Clear Latency History"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+
+                  <div className="trk-perf-list">
+                    {perfState.interactions.length === 0 ? (
+                      <div className="trk-perf-empty">No interactions recorded yet. Click or drag to inspect latency.</div>
+                    ) : (
+                      perfState.interactions.map((it) => (
+                        <div key={it.id} className={"trk-perf-row " + it.status}>
+                          <span className="trk-perf-type">{it.type}</span>
+                          <span className="trk-perf-target" title={it.target}>{it.target}</span>
+                          <span className="trk-perf-duration">{it.duration}ms</span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}

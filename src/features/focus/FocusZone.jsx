@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { ArrowRight, Check, Clock, Flame, HelpCircle, Minus, Target, X } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
@@ -42,7 +43,7 @@ const WAVE_BODY = `${WAVE_SURFACE}L400,68L0,68Z`;
 // Zone de focus : dock flottant qui accueille UNE tâche en cours (drag & drop).
 // La tâche « cuit » (animations + pointage du temps) et sort automatiquement
 // une fois terminée. Réductible en pastille compacte.
-export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAdvance, onRelease, onEdit }) {
+export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAdvance, onRelease, onEdit }) {
   const { t } = useLang();
   const [over, setOver] = useState(false);
   const [dragOut, setDragOut] = useState(false);
@@ -62,10 +63,13 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
   // goutte d'eau. Uniquement des transforms via rAF, aucun re-render par frame.
   useEffect(() => {
     if (!dragOut) return;
-    const onDragOver = (e) => {
-      pointerRef.current = { x: e.clientX, y: e.clientY };
+    const updateCoord = (e) => {
+      if (e.clientX || e.clientY) {
+        pointerRef.current = { x: e.clientX, y: e.clientY };
+      }
     };
-    document.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragover", updateCoord, { capture: true, passive: true });
+    window.addEventListener("drag", updateCoord, { capture: true, passive: true });
     // Rect figé au début du drag (la zone est fixe et non transformée) :
     // sert à signaler si le lâcher garderait la tâche (dedans) ou la
     // libérerait (dehors), sans getBoundingClientRect par frame.
@@ -107,7 +111,8 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
     };
     raf = requestAnimationFrame(loop);
     return () => {
-      document.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragover", updateCoord, { capture: true });
+      window.removeEventListener("drag", updateCoord, { capture: true });
       cancelAnimationFrame(raf);
     };
   }, [dragOut]);
@@ -308,11 +313,13 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
                   popTimerRef.current = setTimeout(() => setGhostPop(false), 500);
                   // Déposée hors de la zone = libération (équivalent du bouton X).
                   const zone = zoneRef.current;
-                  if (!zone || (e.clientX === 0 && e.clientY === 0)) return;
+                  if (!zone) return;
+                  const clientX = (e.clientX === 0 && e.clientY === 0) ? pointerRef.current.x : e.clientX;
+                  const clientY = (e.clientX === 0 && e.clientY === 0) ? pointerRef.current.y : e.clientY;
                   const r = zone.getBoundingClientRect();
                   const inside =
-                    e.clientX >= r.left && e.clientX <= r.right &&
-                    e.clientY >= r.top && e.clientY <= r.bottom;
+                    clientX >= r.left && clientX <= r.right &&
+                    clientY >= r.top && clientY <= r.bottom;
                   if (!inside) onRelease();
                 }}
               >
@@ -379,7 +386,7 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
           <span className="trk-flame trk-flame-core" />
         </div>
       )}
-      {(dragOut || ghostPop) && (
+      {typeof document !== "undefined" && (dragOut || ghostPop) && createPortal(
         <div
           ref={ghostRef}
           className={
@@ -401,9 +408,10 @@ export function FocusZone({ task, leaving, enterKey, startedAt, onDropTask, onAd
               <i /><i /><i /><i /><i /><i />
             </span>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
-}
+});
 

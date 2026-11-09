@@ -54,36 +54,60 @@ export function PixelHelper({
     animState.current.lastInteraction = Date.now();
   }, [mood]);
 
-  // Écouteur de mouvement de souris global pour le suivi du regard
+  // Écouteur de mouvement de souris global pour le suivi du regard (rAF + cache position)
   useEffect(() => {
+    let cachedCenter = null;
+    let rafId = null;
+
+    const updateCenter = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      cachedCenter = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+    };
+
+    updateCenter();
+    window.addEventListener("resize", updateCenter, { passive: true });
+
     const onMouseMove = (e) => {
       const state = animState.current;
       state.lastInteraction = Date.now();
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
 
-      const rect = canvas.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      const deltaX = e.clientX - centerX;
-      const deltaY = e.clientY - centerY;
-      const dist = Math.hypot(deltaX, deltaY);
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (!cachedCenter) updateCenter();
+        if (!cachedCenter) return;
 
-      if (dist < 4) {
-        state.targetGazeX = 0;
-        state.targetGazeY = 0;
-        return;
-      }
+        const deltaX = clientX - cachedCenter.x;
+        const deltaY = clientY - cachedCenter.y;
+        const dist = Math.hypot(deltaX, deltaY);
 
-      // Décalage du regard dans la grille pixel (-2.2 à +2.2 pixels)
-      const maxOffset = 2.2;
-      const factor = Math.min(1, dist / 240);
-      state.targetGazeX = (deltaX / dist) * maxOffset * factor;
-      state.targetGazeY = (deltaY / dist) * maxOffset * factor;
+        if (dist < 4) {
+          state.targetGazeX = 0;
+          state.targetGazeY = 0;
+          return;
+        }
+
+        // Décalage du regard dans la grille pixel (-2.2 à +2.2 pixels)
+        const maxOffset = 2.2;
+        const factor = Math.min(1, dist / 240);
+        state.targetGazeX = (deltaX / dist) * maxOffset * factor;
+        state.targetGazeY = (deltaY / dist) * maxOffset * factor;
+      });
     };
 
     window.addEventListener("mousemove", onMouseMove, { passive: true });
-    return () => window.removeEventListener("mousemove", onMouseMove);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", updateCenter);
+      window.removeEventListener("mousemove", onMouseMove);
+    };
   }, []);
 
   // Détection d'inactivité -> mode endormi après 30s

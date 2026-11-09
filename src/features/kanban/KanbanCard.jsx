@@ -7,7 +7,7 @@ import { useFocusInfo, useLiveMinutes } from "../focus/FocusContext.jsx";
 
 // Carte de tâche du kanban : draggable vers les autres colonnes ou la zone
 // de focus. Le temps affiché suit la session de focus en direct.
-export function KanbanCard({
+export const KanbanCard = React.memo(function KanbanCard({
   task, dragging, justMoved, onDragStart, onDragEnd, onEdit, onDelete, onArchive, onUnarchive,
   confirmId, confirmAction, onAskDelete, onAskArchive, onAskUnarchive, onCancelConfirm,
 }) {
@@ -96,4 +96,4 @@ export function KanbanCard({
       </div>
     </div>
   );
-}
+});

@@ -9,7 +9,7 @@ const CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  "img-src 'self' data: blob: app-image:",
   "font-src 'self' data:",
   "connect-src 'self'",
   "object-src 'none'",
@@ -32,4 +32,28 @@ const injectCsp = () => ({
 export default defineConfig({
   plugins: [react(), injectCsp()],
   base: "./",
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("recharts") || id.includes("d3-")) {
+              return "vendor-charts";
+            }
+            if (id.includes("@tiptap") || id.includes("prosemirror")) {
+              return "vendor-editor";
+            }
+            if (id.includes("lucide-react")) {
+              return "vendor-icons";
+            }
+            if (id.includes("dompurify") || id.includes("turndown") || id.includes("marked")) {
+              return "vendor-markdown";
+            }
+            return "vendor";
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 800,
+  },
 });

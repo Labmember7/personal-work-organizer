@@ -8,7 +8,7 @@ import { HelpTip } from "../tips.jsx";
 
 // En-tête : marque, jauge d'avancement global et actions générales
 // (import/export, tutoriel, célébrations, thème, langue, undo/redo).
-export function AppHeader({
+export const AppHeader = React.memo(function AppHeader({
   globalProgress, doneCount, totalTasks,
   onImport, onExport, ioBusy,
   onOpenTutorial,
@@ -127,4 +127,4 @@ export function AppHeader({
       </div>
     </div>
   );
-}
+});

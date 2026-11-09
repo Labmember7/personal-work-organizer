@@ -12,7 +12,7 @@ const PROJECT_PAGE_SIZE = 6;
 
 // Barre latérale des projets : filtre multi-projets, recherche, pagination,
 // ajout / renommage / suppression (uniquement si le projet est vide).
-export function ProjectSidebar({
+export const ProjectSidebar = React.memo(function ProjectSidebar({
   totalTasks, projectProgress, filterProjects,
   onToggleFilter, onClearFilters, onAdd, onRemove, onRename,
 }) {
@@ -163,4 +163,4 @@ export function ProjectSidebar({
       )}
     </aside>
   );
-}
+});

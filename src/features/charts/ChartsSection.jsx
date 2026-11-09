@@ -18,7 +18,7 @@ const tooltipStyle = {
 
 // Les quatre graphiques de synthèse + le Gantt, chacun dans une ChartCard
 // (agrandissable en modal avec tableau de détails).
-export function ChartsSection({ tasks, projects, chartData, onEditTask }) {
+export const ChartsSection = React.memo(function ChartsSection({ tasks, projects, chartData, onEditTask }) {
   const { t } = useLang();
   const {
     statusDistribution, perProjectStacked, projectTimeDistribution,
@@ -168,4 +168,4 @@ export function ChartsSection({ tasks, projects, chartData, onEditTask }) {
       />
     </>
   );
-}
+});
