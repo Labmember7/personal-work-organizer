@@ -118,7 +118,10 @@ fn data_import(app: AppHandle) -> data_io::ImportResult {
     data_io::import_data(&app)
 }
 
-use window::{window_close, window_is_maximized, window_minimize, window_toggle_maximize};
+use window::{
+    pet_hide, pet_restore_main, pet_show, window_close, window_is_maximized, window_minimize,
+    window_toggle_maximize,
+};
 
 pub fn run() {
     let store_file = get_store_file(None);
@@ -132,6 +135,15 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(app_state)
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::Focused(focused) = event {
+                    if *focused {
+                        let _ = window.emit("main:minimized-changed", false);
+                    }
+                }
+            }
+        })
         .register_uri_scheme_protocol("app-image", |ctx, request| {
             protocols::handle_app_image(ctx.app_handle(), &request)
         })
@@ -156,6 +168,9 @@ pub fn run() {
             window_toggle_maximize,
             window_close,
             window_is_maximized,
+            pet_show,
+            pet_hide,
+            pet_restore_main,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

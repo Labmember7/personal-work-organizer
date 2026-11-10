@@ -51,7 +51,12 @@ export const KanbanColumn = React.memo(function KanbanColumn({
       onDrop={(e) => {
         e.preventDefault();
         const id = e.dataTransfer.getData("text/plain") || dragId;
-        if (id) onMove(id, status.id);
+        const hasCoords = typeof e.clientX === "number" && typeof e.clientY === "number" && !isNaN(e.clientX) && !isNaN(e.clientY) && (e.clientX > 0 || e.clientY > 0);
+        const origin = hasCoords ? { x: e.clientX, y: e.clientY } : undefined;
+        if (id) {
+          if (origin) onMove(id, status.id, origin);
+          else onMove(id, status.id);
+        }
         endDrag();
       }}
     >
@@ -95,11 +100,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
             task={task}
             dragging={dragId === task.id}
             justMoved={justMovedId === task.id}
-            onDragStart={(e) => {
-              e.dataTransfer.setData("text/plain", task.id);
-              e.dataTransfer.effectAllowed = "move";
-              setDragId(task.id);
-            }}
+            onDragStart={setDragId}
             onDragEnd={endDrag}
             {...cardProps}
           />

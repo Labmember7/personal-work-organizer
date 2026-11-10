@@ -17,6 +17,13 @@ export const KanbanCard = React.memo(function KanbanCard({
   const minutes = useLiveMinutes(task);
   const { focusId } = useFocusInfo();
   const isFocused = focusId === task.id;
+
+  const handleDragStart = (e) => {
+    e.dataTransfer.setData("text/plain", task.id);
+    e.dataTransfer.effectAllowed = "move";
+    if (onDragStart) onDragStart(task.id);
+  };
+
   return (
     <div
       className={
@@ -27,7 +34,7 @@ export const KanbanCard = React.memo(function KanbanCard({
         (justMoved ? " trk-sticky-landed" : "")
       }
       draggable
-      onDragStart={onDragStart}
+      onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
       style={{ "--rail-color": pr.color, "--note-color": pc }}
     >

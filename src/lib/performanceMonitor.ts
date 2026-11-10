@@ -154,7 +154,7 @@ export function initPerformanceMonitoring(): void {
       const eventObserver = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           const type = entry.name || "event";
-          if (type === "pointerdown" || type === "mousedown") continue;
+          if (type === "pointerdown" || type === "mousedown" || type === "dragover" || type === "dragenter" || type === "dragleave") continue;
           const target = (entry as unknown as { target?: { tagName?: string; className?: string } }).target?.tagName || type;
           recordInteraction(type, String(target), entry.duration);
         }
@@ -181,26 +181,32 @@ export function initPerformanceMonitoring(): void {
     }
   }
 
-  // 4. Capture passive des clics / touches / drag pour mesurer le temps de réponse
-  const monitorEvent = (e: Event) => {
-    const start = performance.now();
-    const type = e.type;
-    const targetEl = e.target as HTMLElement | null;
-    const targetDesc = targetEl
-      ? `${targetEl.tagName.toLowerCase()}${targetEl.className ? `.${String(targetEl.className).split(" ")[0]}` : ""}`
-      : "window";
+  // 4. Capture passive des clics / touches / drag pour mesurer le temps de réponse (secours ou complément)
+  const hasNativeEventTiming = typeof PerformanceObserver !== "undefined" &&
+    Array.isArray(PerformanceObserver.supportedEntryTypes) &&
+    PerformanceObserver.supportedEntryTypes.includes("event");
 
-    // Mesure au microtask suivant (une fois le traitement d'événement terminé)
-    queueMicrotask(() => {
-      const duration = performance.now() - start;
-      if (duration >= 2) {
-        recordInteraction(type, targetDesc, duration);
-      }
+  if (!hasNativeEventTiming) {
+    const monitorEvent = (e: Event) => {
+      const start = performance.now();
+      const type = e.type;
+      const targetEl = e.target as HTMLElement | null;
+      const targetDesc = targetEl
+        ? `${targetEl.tagName.toLowerCase()}${targetEl.className ? `.${String(targetEl.className).split(" ")[0]}` : ""}`
+        : "window";
+
+      // Mesure au microtask suivant (une fois le traitement d'événement terminé)
+      queueMicrotask(() => {
+        const duration = performance.now() - start;
+        if (duration >= 2) {
+          recordInteraction(type, targetDesc, duration);
+        }
+      });
+    };
+
+    ["click", "keydown", "drop", "dragend"].forEach((evt) => {
+      window.addEventListener(evt, monitorEvent, { passive: true, capture: true });
     });
-  };
-
-  ["click", "keydown", "drop", "dragend"].forEach((evt) => {
-    window.addEventListener(evt, monitorEvent, { passive: true, capture: true });
-  });
+  }
 }
 

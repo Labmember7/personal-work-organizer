@@ -24,12 +24,23 @@ import App from "./App.jsx";
 import { LanguageProvider } from "./i18n.jsx";
 import { initTauriBridge } from "./services/tauriBridge";
 import { initPerformanceMonitoring } from "./lib/performanceMonitor";
+import { isPetWindow } from "./services/desktopPet";
+import { DesktopPetWindow } from "./features/desktopPet/DesktopPetWindow.jsx";
 
 initTauriBridge();
 initPerformanceMonitoring();
 
-createRoot(document.getElementById("root")).render(
-  <LanguageProvider>
-    <App />
-  </LanguageProvider>
-);
+if (isPetWindow()) {
+  document.documentElement.classList.add("pet-window-mode");
+  createRoot(document.getElementById("root")).render(
+    <LanguageProvider>
+      <DesktopPetWindow />
+    </LanguageProvider>
+  );
+} else {
+  createRoot(document.getElementById("root")).render(
+    <LanguageProvider>
+      <App />
+    </LanguageProvider>
+  );
+}

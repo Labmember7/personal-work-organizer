@@ -200,4 +200,50 @@ describe("DynamicIsland", () => {
     expect(storedDna).toBeDefined();
     expect(typeof storedDna.name).toBe("string");
   });
+
+  it("renders floating companion option toggle in pet deck and responds to toggling", () => {
+    const onToggle = vi.fn();
+    const { container } = renderIsland({
+      desktopPetEnabled: true,
+      onToggleDesktopPet: onToggle,
+    });
+
+    // Click center bot to open pet deck
+    const bot = container.querySelector(".trk-island-center-bot");
+    fireEvent.click(bot.querySelector(".trk-pixel-helper-pod"));
+
+    // Verify toggle row is present
+    const toggleSwitch = screen.getByRole("switch");
+    expect(toggleSwitch).toBeTruthy();
+    expect(toggleSwitch.getAttribute("aria-checked")).toBe("true");
+
+    // Click toggle
+    fireEvent.click(toggleSwitch);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("toggles Pomodoro sound without throwing ReferenceError when clicking sound button", () => {
+    const { container } = renderIsland();
+
+    // Open island by clicking clock
+    const clock = container.querySelector(".trk-island-triad-left");
+    fireEvent.click(clock);
+
+    // Switch to Focus & Rest subtab
+    const pomoSubtab = screen.getByText("Focus & Rest");
+    fireEvent.click(pomoSubtab);
+
+    // Click sound button
+    const soundBtn = container.querySelector(".trk-pomo-sound-btn");
+    expect(soundBtn).toBeTruthy();
+    expect(screen.getByText("Sounds On")).toBeTruthy();
+
+    // Toggle sound off - must not throw setPomoSound ReferenceError
+    fireEvent.click(soundBtn);
+    expect(screen.getByText("Muted")).toBeTruthy();
+
+    // Toggle sound back on
+    fireEvent.click(soundBtn);
+    expect(screen.getByText("Sounds On")).toBeTruthy();
+  });
 });

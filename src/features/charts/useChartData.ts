@@ -65,5 +65,8 @@ export function useChartData(tasks: Task[], projects: Project[]): ChartData {
     });
   }, [projects, tasks]);
 
-  return { statusDistribution, perProjectStacked, projectTimeDistribution, priorityDistribution, projectProgress };
+  return useMemo(
+    () => ({ statusDistribution, perProjectStacked, projectTimeDistribution, priorityDistribution, projectProgress }),
+    [statusDistribution, perProjectStacked, projectTimeDistribution, priorityDistribution, projectProgress]
+  );
 }

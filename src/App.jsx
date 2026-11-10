@@ -5,6 +5,7 @@ import {
 } from "./utils";
 import { useLang } from "./i18n.jsx";
 import { CelebrationOverlay, MiniCelebration, pickCelebration } from "./celebration.jsx";
+import { playTaskDoneSound } from "./lib/audioFx";
 import { Tutorial, TUTORIAL_STORAGE_KEY } from "./tips.jsx";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { useUndoRedoShortcut } from "./hooks/useUndoRedoShortcut";
@@ -12,6 +13,9 @@ import { AppHeader } from "./components/AppHeader.jsx";
 import { TitleBar } from "./components/TitleBar.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { DynamicIsland } from "./components/DynamicIsland/DynamicIsland.jsx";
+import { DesktopPetSync } from "./features/desktopPet/DesktopPetSync.jsx";
+import { usePomodoroSession } from "./hooks/usePomodoroSession";
+import { getOrCreatePetDna } from "./lib/petGenerator";
 import { useTasks } from "./features/tasks/useTasks";
 import { TaskList } from "./features/tasks/TaskList.jsx";
 import { TaskModal } from "./features/tasks/TaskModal.jsx";
@@ -40,6 +44,31 @@ const CELEBRATIONS_STORAGE_KEY = "suivi-travaux-celebrations";
 export default function App() {
   const { t } = useLang();
   const [maximized, setMaximized] = useState(false);
+
+  // ── Compagnon unique partagé (Dynamic Island + pet flottant du bureau) ──
+  const [petDna, setPetDna] = useState(() => getOrCreatePetDna());
+  const [petMood, setPetMood] = useState("normal");
+  const [petEnergy, setPetEnergy] = useState(96);
+  const [desktopPetEnabled, setDesktopPetEnabled] = useLocalStorageState(
+    "suivi-travaux-desktop-pet-enabled",
+    true,
+    {
+      read: (raw) => raw !== "0",
+      write: (v) => (v ? "1" : "0"),
+    }
+  );
+
+  // ── Chronomètre Pomodoro unifié (survit à la réduction de la fenêtre) ──
+  const pomodoro = usePomodoroSession({ onMoodChange: setPetMood });
+
+  const petState = useMemo(() => ({
+    petDna,
+    setPetDna,
+    petMood,
+    setPetMood,
+    petEnergy,
+    setPetEnergy,
+  }), [petDna, petMood, petEnergy]);
 
   // ── Filtres, tri et vue ──
   const [filterProjects, setFilterProjects] = useState([]);
@@ -122,11 +151,20 @@ export default function App() {
 
   // Mini célébration quand une tâche passe à « terminé », sauf si tout est
   // terminé (la grande célébration prend le relais).
-  const celebrateTaskDone = useCallback((statut, nextTasks) => {
+  const celebrateTaskDone = useCallback((statut, nextTasks, origin) => {
     if (!celebrationsOn) return;
     if (!isDoneStatus(statut)) return;
-    if (nextTasks.every(isTaskDone)) return;
-    setMiniCeleb(Date.now());
+    // Déclenchement sonore instantané (0 ms de latence, tampon PCM pré-rendu)
+    playTaskDoneSound();
+    if (nextTasks.length > 0 && nextTasks.every(isTaskDone)) {
+      setCelebration(pickCelebration());
+      return;
+    }
+    setMiniCeleb({
+      key: Date.now(),
+      x: origin?.x,
+      y: origin?.y,
+    });
   }, [celebrationsOn]);
 
   // ── Données et features ──
@@ -381,44 +419,51 @@ export default function App() {
   // ── Rendu ──
   return (
     <FocusProvider focusId={focus.focusId} focusStartedAt={focus.focusStartedAt}>
-    <div
-      className={
-        "trk-app" +
-        (maximized ? " trk-app-maximized" : "") +
-        (theme === "light" ? " light" : "") +
-        (theme === "random" ? " random" : "") +
-        (stickyMode ? " sticky" : "")
-      }
-      style={theme === "random" ? randomThemeVars(randomSeed) : undefined}
-      data-pattern={theme === "random" ? randomThemePattern(randomSeed) : undefined}
-    >
-      <TitleBar maximized={maximized} />
-      <DynamicIsland focusSession={focus} onEditTask={setEditing} />
-
-      <div className="trk-content">
-      {loading ? (
-        <div className="trk-loading">{t("loading")}</div>
-      ) : (
-        <>
-          <AppHeader
-            globalProgress={globalProgress}
-            doneCount={doneCount}
-            totalTasks={activeTasks.length}
-            onImport={backup.importData}
-            onExport={backup.exportData}
-            ioBusy={backup.ioBusy}
-            onOpenTutorial={() => setTutorialOpen(true)}
-            celebrationsOn={celebrationsOn}
-            onToggleCelebrations={toggleCelebrations}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            stickyMode={stickyMode}
-            onToggleStickyMode={toggleStickyMode}
-            canUndo={store.canUndo}
-            canRedo={store.canRedo}
-            onUndo={store.undo}
-            onRedo={store.redo}
+        <div
+          className={
+            "trk-app" +
+            (maximized ? " trk-app-maximized" : "") +
+            (theme === "light" ? " light" : "") +
+            (theme === "random" ? " random" : "") +
+            (stickyMode ? " sticky" : "")
+          }
+          style={theme === "random" ? randomThemeVars(randomSeed) : undefined}
+          data-pattern={theme === "random" ? randomThemePattern(randomSeed) : undefined}
+        >
+          <TitleBar maximized={maximized} />
+          <DynamicIsland
+            focusSession={focus}
+            onEditTask={setEditing}
+            pomodoroSession={pomodoro}
+            petState={petState}
+            desktopPetEnabled={desktopPetEnabled}
+            onToggleDesktopPet={() => setDesktopPetEnabled((prev) => !prev)}
           />
+
+          <div className="trk-content">
+          {loading ? (
+            <div className="trk-loading">{t("loading")}</div>
+          ) : (
+            <>
+              <AppHeader
+                globalProgress={globalProgress}
+                doneCount={doneCount}
+                totalTasks={activeTasks.length}
+                onImport={backup.importData}
+                onExport={backup.exportData}
+                ioBusy={backup.ioBusy}
+                onOpenTutorial={() => setTutorialOpen(true)}
+                celebrationsOn={celebrationsOn}
+                onToggleCelebrations={toggleCelebrations}
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                stickyMode={stickyMode}
+                onToggleStickyMode={toggleStickyMode}
+                canUndo={store.canUndo}
+                canRedo={store.canRedo}
+                onUndo={store.undo}
+                onRedo={store.redo}
+              />
 
           <div className="trk-layout">
             <ProjectSidebar
@@ -520,7 +565,11 @@ export default function App() {
           )}
 
           {miniCeleb && !celebration && celebrationsOn && (
-            <MiniCelebration key={miniCeleb} onDone={() => setMiniCeleb(null)} />
+            <MiniCelebration
+              key={miniCeleb.key || miniCeleb}
+              origin={miniCeleb}
+              onDone={() => setMiniCeleb(null)}
+            />
           )}
 
           <Toast toast={toast} />
@@ -541,6 +590,14 @@ export default function App() {
       )}
       </div>
     </div>
+    <DesktopPetSync
+      enabled={desktopPetEnabled}
+      focusTask={focus.focusTask}
+      focusStartedAt={focus.focusStartedAt}
+      pomodoro={pomodoro}
+      petDna={petDna}
+      theme={theme}
+    />
     </FocusProvider>
   );
 }

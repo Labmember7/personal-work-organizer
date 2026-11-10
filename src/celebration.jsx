@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useRef } from "react";
+import { getAudioContext, playTaskDoneSound } from "./lib/audioFx";
 
 // Célébration quand toutes les tâches sont terminées.
 // Variante aléatoire à chaque fois + variante légendaire (1/1000).
@@ -20,13 +21,8 @@ const GOLD = ["#FFD86B", "#F5B942", "#FFF3C4", "#E8A020", "#FFE9A8"];
 
 /* ---------------- Audio (Web Audio, tout est synthétisé) ---------------- */
 
-let sharedCtx = null;
 function getAudioCtx() {
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return null;
-  if (!sharedCtx) sharedCtx = new AC();
-  if (sharedCtx.state === "suspended") sharedCtx.resume();
-  return sharedCtx;
+  return getAudioContext();
 }
 
 // Bus master avec un écho discret pour donner de l'espace au son.
@@ -619,32 +615,27 @@ function stepParticle(p, dt, age) {
 
 /* ---------------- Mini célébration (une tâche terminée) ---------------- */
 
-const MINI_DURATION = 1700;
+const MINI_DURATION = 1200;
 
-function playMiniSound() {
+export function playMiniSound() {
   try {
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    const bus = makeBus(ctx, 0.25, 5000);
-    bell(ctx, bus, { freq: N.G5, at: 0, dur: 0.9, vol: 0.14 });
-    bell(ctx, bus, { freq: N.C6, at: 0.09, dur: 1.1, vol: 0.12 });
-    bell(ctx, bus, { freq: N.E6, at: 0.18, dur: 1.3, vol: 0.1 });
+    playTaskDoneSound();
   } catch (e) {
     // audio indisponible : l'effet reste visuel
   }
 }
 
-export function MiniCelebration({ onDone }) {
+export function MiniCelebration({ onDone, origin }) {
   const canvasRef = useRef(null);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
   const soundPlayed = useRef(false);
 
-  useEffect(() => {
-    // Idempotent : le son ne rejoue pas si l'effet est ré-exécuté (double montage).
+  useLayoutEffect(() => {
+    // Joue le carillon immédiatement et de façon synchrone sans délai React
     if (!soundPlayed.current) {
       soundPlayed.current = true;
-      playMiniSound();
+      playTaskDoneSound();
     }
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     let raf = 0;
@@ -653,36 +644,76 @@ export function MiniCelebration({ onDone }) {
       closed = true;
       cancelAnimationFrame(raf);
       onDoneRef.current?.();
-    }, reduced ? 400 : MINI_DURATION);
+    }, reduced ? 250 : MINI_DURATION);
 
     if (!reduced) {
       const canvas = canvasRef.current;
+      if (!canvas) return;
       const g = canvas.getContext("2d");
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = canvas.clientWidth * dpr;
-      canvas.height = canvas.clientHeight * dpr;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+
+      // Coordonnées du drop : l'explosion émane pile de la carte déposée
+      const ox = (origin && typeof origin.x === "number" && origin.x > 0) ? origin.x : w / 2;
+      const oy = (origin && typeof origin.y === "number" && origin.y > 0) ? origin.y : h * 0.35;
 
       const parts = [];
       const add = (p) => parts.push({ ...p, born: performance.now() });
-      burst(add, w / 2, h * 0.35, { count: 34, color: () => pick(PALETTE), speed: [0.08, 0.3], life: [700, 1300] });
-      for (let i = 0; i < 14; i++) {
+
+      // 1. Anneau onde de choc instantané (impact visuel frame 0)
+      add({
+        kind: "ring",
+        x: ox,
+        y: oy,
+        size: 8,
+        grow: 0.45,
+        color: "#00F5D4",
+        life: 380,
+      });
+      add({
+        kind: "ring",
+        x: ox,
+        y: oy,
+        size: 4,
+        grow: 0.35,
+        color: "#FFD86B",
+        life: 320,
+      });
+
+      // 2. Salve centrale de confettis vifs et étincelles dorées
+      burst(add, ox, oy, {
+        count: 42,
+        color: () => pick(PALETTE),
+        speed: [0.15, 0.55],
+        size: [2, 4],
+        life: [650, 1150],
+      });
+
+      // 3. Rectangles rubans virevoltants
+      for (let i = 0; i < 18; i++) {
         add({
           kind: "rect",
-          x: w / 2 + rand(-30, 30), y: h * 0.35,
-          vx: rand(-0.3, 0.3), vy: rand(-0.5, -0.15),
-          g: 0.0009, drag: 0.998,
-          rot: rand(0, 6.28), vr: rand(-0.01, 0.01),
-          size: rand(4, 8), color: pick(PALETTE),
-          life: rand(900, 1500),
+          x: ox + rand(-20, 20),
+          y: oy + rand(-15, 15),
+          vx: rand(-0.45, 0.45),
+          vy: rand(-0.75, -0.2),
+          g: 0.0012,
+          drag: 0.997,
+          rot: rand(0, 6.28),
+          vr: rand(-0.015, 0.015),
+          size: rand(5, 9),
+          color: pick(PALETTE),
+          life: rand(800, 1300),
         });
       }
 
       let last = performance.now();
       const frame = (now) => {
         if (closed) return;
-        const dt = Math.min(now - last, 50);
+        const dt = Math.min(now - last, 32);
         last = now;
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.clearRect(0, 0, w, h);

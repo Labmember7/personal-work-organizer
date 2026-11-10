@@ -1,0 +1,357 @@
+/* ══════════════════════════════════════════════════════════════════════
+   FLOATING DESKTOP PET (Sans fond / Without Background)
+   Bulle de pensée 2.5D Pixel Cloud au-dessus de la tête avec boutons morphés.
+   ══════════════════════════════════════════════════════════════════════ */
+
+html.pet-window-mode,
+html.pet-window-mode body,
+html.pet-window-mode #root {
+  background: transparent !important;
+  background-color: transparent !important;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 240px;
+  max-height: 180px;
+  overflow: hidden !important;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.trk-desktop-pet-window {
+  width: 240px;
+  height: 180px;
+  max-width: 240px;
+  max-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  background: transparent !important;
+  position: relative;
+  box-sizing: border-box;
+  padding-bottom: 4px;
+  overflow: hidden !important;
+  pointer-events: auto;
+}
+
+.trk-desktop-pet-window.trk-is-dragging,
+.trk-desktop-pet-window.trk-is-dragging * {
+  cursor: grabbing !important;
+}
+
+/* Conteneur principal du pet flottant */
+.trk-desktop-pet-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  pointer-events: auto;
+  cursor: grab;
+  width: 224px;
+}
+
+.trk-desktop-pet-container:active {
+  cursor: grabbing;
+}
+
+/* ── 2.5D PIXELATED THOUGHT CLOUD (Bulle de pensée pixel art compacte & translucide) ── */
+.trk-thought-stream {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  animation: trk-cloud-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes trk-cloud-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Structure du nuage en pixel-art : compacte épousant le contenu & translucide */
+.trk-pixel-cloud {
+  position: relative;
+  width: max-content;
+  min-width: 130px;
+  max-width: 216px;
+  margin: 0 auto;
+  background: rgba(10, 16, 30, 0.82);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1.5px solid rgba(56, 189, 248, 0.35);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.52);
+  padding: 6px 9px 6px 9px;
+  box-sizing: border-box;
+  color: #F8FAFC;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+  image-rendering: pixelated;
+}
+
+.light .trk-pixel-cloud {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(15, 23, 42, 0.25);
+  color: #0F172A;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.12),
+    0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Lobes supérieurs morphés du nuage (Oreilles / Boutons intégrés : Restore, Reduce, Close) */
+.trk-cloud-crest-row {
+  position: absolute;
+  top: -14px;
+  left: 6px;
+  right: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 2px;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+/* Boutons morphés dans les lobes du nuage */
+.trk-cloud-ear-btn {
+  pointer-events: auto;
+  width: 24px;
+  height: 15px;
+  border-radius: 7px 7px 0 0;
+  border: 1.5px solid rgba(56, 189, 248, 0.35);
+  border-bottom: none;
+  background: rgba(10, 16, 30, 0.84);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  color: #94A3B8;
+  transition: all 160ms cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+
+.light .trk-cloud-ear-btn {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(15, 23, 42, 0.25);
+  color: #64748B;
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.9);
+}
+
+.trk-cloud-ear-btn:hover {
+  transform: translateY(-2px);
+  color: #FFFFFF;
+}
+
+.trk-cloud-ear-btn.restore:hover {
+  color: #38BDF8;
+  border-color: #38BDF8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6), inset 0 1.5px 0 #FFFFFF;
+}
+
+.trk-cloud-ear-btn.reduce:hover {
+  color: #FBBF24;
+  border-color: #F59E0B;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6), inset 0 1.5px 0 #FFFFFF;
+}
+
+.trk-cloud-ear-btn.close:hover {
+  color: #FB7185;
+  border-color: #F43F5E;
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.6), inset 0 1.5px 0 #FFFFFF;
+}
+
+.trk-cloud-ear-btn:active {
+  transform: scale(0.92);
+}
+
+/* Lobe central de crête du nuage */
+.trk-cloud-center-puff {
+  width: 24px;
+  height: 9px;
+  border-radius: 5px 5px 0 0;
+  border: 1.5px solid rgba(56, 189, 248, 0.32);
+  border-bottom: none;
+  background: rgba(10, 16, 30, 0.76);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.25);
+}
+
+.light .trk-cloud-center-puff {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(15, 23, 42, 0.2);
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Contenu intérieur du nuage */
+.trk-cloud-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.trk-cloud-task-title {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #F1F5F9;
+  line-height: 1.25;
+  letter-spacing: 0.2px;
+}
+
+.light .trk-cloud-task-title {
+  color: #0F172A;
+}
+
+.trk-cloud-prompt-glyph {
+  color: #00F5D4;
+  margin-right: 4px;
+}
+
+/* Ligne des timers dans le nuage */
+.trk-cloud-timers {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.trk-cloud-timer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.light .trk-cloud-timer-chip {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.trk-cloud-timer-chip.focus {
+  color: #FBBF24;
+}
+
+.trk-cloud-timer-chip.pomo {
+  color: #2DD4BF;
+}
+
+.trk-cloud-pomo-play {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  cursor: pointer;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  margin-left: 4px;
+  pointer-events: auto;
+  transition: all 140ms cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+
+.trk-cloud-pomo-play:hover {
+  background: rgba(45, 212, 191, 0.35);
+  border-color: rgba(45, 212, 191, 0.5);
+  color: #FFFFFF;
+  transform: scale(1.15);
+}
+
+.trk-cloud-pomo-play:active {
+  transform: scale(0.9);
+}
+
+/* Petites bulles d'ascension de la pensée */
+.trk-thought-bubbles-trail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.trk-thought-bubble-dot {
+  background: rgba(10, 16, 30, 0.76);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(56, 189, 248, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.light .trk-thought-bubble-dot {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(15, 23, 42, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.trk-thought-bubble-dot.top {
+  width: 7px;
+  height: 5px;
+  border-radius: 4px;
+}
+
+.trk-thought-bubble-dot.bottom {
+  width: 4px;
+  height: 3px;
+  border-radius: 3px;
+  margin-left: -4px;
+}
+
+/* Avatar du pet complet */
+.trk-desktop-pet-avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms cubic-bezier(0.32, 1.25, 0.32, 1);
+  margin-top: 1px;
+  cursor: grab;
+  pointer-events: auto;
+  user-select: none;
+  border-radius: 14px;
+}
+
+.trk-desktop-pet-avatar:focus-visible {
+  outline: 2px solid #38BDF8;
+  outline-offset: 4px;
+}
+
+.trk-desktop-pet-avatar:hover {
+  transform: scale(1.08);
+}
+
+.trk-desktop-pet-avatar:active {
+  cursor: grabbing;
+  transform: scale(0.95);
+}

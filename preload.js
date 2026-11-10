@@ -40,3 +40,34 @@ contextBridge.exposeInMainWorld("windowControls", {
     return () => ipcRenderer.removeListener("window:maximized-changed", listener);
   },
 });
+
+contextBridge.exposeInMainWorld("petBridge", {
+  show: () => ipcRenderer.invoke("pet:show"),
+  hide: () => ipcRenderer.invoke("pet:hide"),
+  restoreMain: () => ipcRenderer.invoke("pet:restoreMain"),
+  moveBy: (dx, dy) => ipcRenderer.send("pet:moveBy", { dx, dy }),
+  sendState: (state) => ipcRenderer.send("pet:state", state),
+  getState: () => ipcRenderer.invoke("pet:getState"),
+  onState: (cb) => {
+    const listener = (_e, state) => cb(state);
+    ipcRenderer.on("pet:state", listener);
+    return () => ipcRenderer.removeListener("pet:state", listener);
+  },
+  sendAction: (action) => ipcRenderer.send("pet:action", action),
+  onAction: (cb) => {
+    const listener = (_e, action) => cb(action);
+    ipcRenderer.on("pet:action", listener);
+    return () => ipcRenderer.removeListener("pet:action", listener);
+  },
+  notifyReady: () => ipcRenderer.send("pet:ready"),
+  onReady: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on("pet:ready", listener);
+    return () => ipcRenderer.removeListener("pet:ready", listener);
+  },
+  onMainMinimizedChanged: (cb) => {
+    const listener = (_e, min) => cb(min);
+    ipcRenderer.on("main:minimized-changed", listener);
+    return () => ipcRenderer.removeListener("main:minimized-changed", listener);
+  },
+});

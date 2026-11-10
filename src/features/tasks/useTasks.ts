@@ -39,7 +39,7 @@ export interface TaskStore {
   deleteTask: (id: string) => void;
   archiveTask: (id: string) => void;
   unarchiveTask: (id: string) => void;
-  moveTask: (id: string, statut: string) => void;
+  moveTask: (id: string, statut: string, origin?: { x: number; y: number }) => void;
   addTimeLog: (taskId: string, minutes: number, note: string) => void;
   editTimeLog: (taskId: string, logId: string, minutes: number, note: string) => void;
   deleteTimeLog: (taskId: string, logId: string) => void;
@@ -51,7 +51,7 @@ export interface TaskStore {
 
 interface UseTasksOptions {
   /** Appelé quand une tâche vient d'être terminée (déclenche la célébration). */
-  onTaskDone?: (statut: string, nextTasks: Task[]) => void;
+  onTaskDone?: (statut: string, nextTasks: Task[], origin?: { x: number; y: number }) => void;
 }
 
 // Source de vérité des données : tâches + projets, chargés au démarrage et
@@ -116,17 +116,19 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     })();
   }, []);
 
-  const persist = useCallback(async (nextTasks: Task[], nextProjects: Project[]) => {
+  const persist = useCallback(async (nextTasks: Task[], nextProjects: Project[], syncConfig = false) => {
     try {
       const ok = await saveValue(STORAGE_KEY, { tasks: nextTasks, projects: nextProjects });
       setSaveError(!ok);
     } catch (e) {
       setSaveError(true);
     }
-    try {
-      await syncConfigProjects(nextProjects);
-    } catch (e) {
-      // la synchronisation du fichier de config a échoué, la sauvegarde principale reste valide
+    if (syncConfig) {
+      try {
+        await syncConfigProjects(nextProjects);
+      } catch (e) {
+        // la synchronisation du fichier de config a échoué, la sauvegarde principale reste valide
+      }
     }
   }, []);
 
@@ -144,7 +146,7 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
   const applySnapshot = useCallback((snap: Snapshot) => {
     setTasks(snap.tasks);
     setProjects(snap.projects);
-    persist(snap.tasks, snap.projects);
+    persist(snap.tasks, snap.projects, true);
   }, [persist]);
 
   // Les refs évitent toute capture périmée : saveTasks peut être appelé
@@ -153,20 +155,26 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
   const saveTasks = useCallback((next: Task[]) => {
     recordHistory();
     setTasks(next);
-    persist(next, projectsRef.current);
+    queueMicrotask(() => {
+      persist(next, projectsRef.current, false);
+    });
   }, [persist, recordHistory]);
 
   const saveProjects = useCallback((next: Project[]) => {
     recordHistory();
     setProjects(next);
-    persist(tasksRef.current, next);
+    queueMicrotask(() => {
+      persist(tasksRef.current, next, true);
+    });
   }, [persist, recordHistory]);
 
   const saveBoth = useCallback((nextTasks: Task[], nextProjects: Project[]) => {
     recordHistory();
     setTasks(nextTasks);
     setProjects(nextProjects);
-    persist(nextTasks, nextProjects);
+    queueMicrotask(() => {
+      persist(nextTasks, nextProjects, true);
+    });
   }, [persist, recordHistory]);
 
   // Undo/redo n'appellent jamais recordHistory : ils déplacent l'état
@@ -222,7 +230,7 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
 
   // Déposer une carte sur une colonne de l'autre tableau (workflow <-> simple)
   // convertit aussi le type de la tâche vers celui du statut cible.
-  const moveTask = useCallback((id: string, statut: string) => {
+  const moveTask = useCallback((id: string, statut: string, origin?: { x: number; y: number }) => {
     const task = tasksRef.current.find((t) => t.id === id);
     if (!task || task.statut === statut) return;
     let type: TaskType | undefined = task.type;
@@ -234,7 +242,7 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     }
     const next = tasksRef.current.map((t) => (t.id === id ? { ...t, type, statut } : t));
     saveTasks(next);
-    if (isTaskDone({ statut })) onTaskDoneRef.current?.(statut, next);
+    if (isTaskDone({ statut })) onTaskDoneRef.current?.(statut, next, origin);
   }, [saveTasks]);
 
   const addTimeLog = useCallback((taskId: string, minutes: number, note: string) => {

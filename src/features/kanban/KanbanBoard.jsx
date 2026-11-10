@@ -7,7 +7,21 @@ import { KanbanColumn } from "./KanbanColumn.jsx";
 const LANDING_MS = 550;
 
 // Tableau kanban : une colonne par statut, drag & drop entre colonnes.
-export function KanbanBoard({ tasks, statuses = STATUSES, onMove, ...cardProps }) {
+export const KanbanBoard = React.memo(function KanbanBoard({
+  tasks,
+  statuses = STATUSES,
+  onMove,
+  onEdit,
+  onDelete,
+  onArchive,
+  onUnarchive,
+  confirmId,
+  confirmAction,
+  onAskDelete,
+  onAskArchive,
+  onAskUnarchive,
+  onCancelConfirm,
+}) {
   const [dragId, setDragId] = useState(null);
   const [overCol, setOverCol] = useState(null);
   const [justMovedId, setJustMovedId] = useState(null);
@@ -20,14 +34,39 @@ export function KanbanBoard({ tasks, statuses = STATUSES, onMove, ...cardProps }
   }, []);
 
   const move = useCallback(
-    (id, statusId) => {
-      onMove(id, statusId);
+    (id, statusId, origin) => {
+      if (origin) onMove(id, statusId, origin);
+      else onMove(id, statusId);
       clearTimeout(landingTimer.current);
       setJustMovedId(id);
       landingTimer.current = setTimeout(() => setJustMovedId(null), LANDING_MS);
     },
     [onMove]
   );
+
+  const cardProps = useMemo(() => ({
+    onEdit,
+    onDelete,
+    onArchive,
+    onUnarchive,
+    confirmId,
+    confirmAction,
+    onAskDelete,
+    onAskArchive,
+    onAskUnarchive,
+    onCancelConfirm,
+  }), [
+    onEdit,
+    onDelete,
+    onArchive,
+    onUnarchive,
+    confirmId,
+    confirmAction,
+    onAskDelete,
+    onAskArchive,
+    onAskUnarchive,
+    onCancelConfirm,
+  ]);
 
   const prevTasksByStatusRef = useRef({});
   const tasksByStatus = useMemo(() => {
@@ -78,4 +117,4 @@ export function KanbanBoard({ tasks, statuses = STATUSES, onMove, ...cardProps }
       ))}
     </div>
   );
-}
+});

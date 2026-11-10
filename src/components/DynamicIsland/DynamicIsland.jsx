@@ -29,6 +29,7 @@ import { getOrCreatePetDna, regeneratePetDna } from "../../lib/petGenerator";
 import { DigitalClock } from "./DigitalClock.jsx";
 import { PixelHelper } from "./PixelHelper.jsx";
 import { PomodoroTimer, PRESETS } from "./PomodoroTimer.jsx";
+import { usePomodoroSession } from "../../hooks/usePomodoroSession";
 
 // Calcul du temps exact HH:MM:SS ou MM:SS pour le chronomètre de focus
 function formatElapsedExact(startedAt, now) {
@@ -43,7 +44,14 @@ function formatElapsedExact(startedAt, now) {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-export function DynamicIsland({ focusSession, onEditTask }) {
+export function DynamicIsland({
+  focusSession,
+  onEditTask,
+  pomodoroSession: externalPomo,
+  petState: externalPet,
+  desktopPetEnabled = true,
+  onToggleDesktopPet,
+}) {
   const { t } = useLang();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState("timer"); // "timer" | "pet" | "focus" | "debug"
@@ -52,19 +60,43 @@ export function DynamicIsland({ focusSession, onEditTask }) {
   const [now, setNow] = useState(() => Date.now());
 
   // ── Compagnon Unique Généré & Persistant ──
-  const [petDna, setPetDna] = useState(() => getOrCreatePetDna());
-  const [petMood, setPetMood] = useState("normal");
-  const [petEnergy, setPetEnergy] = useState(96);
+  const [localPetDna, setLocalPetDna] = useState(() => getOrCreatePetDna());
+  const [localPetMood, setLocalPetMood] = useState("normal");
+  const [localPetEnergy, setLocalPetEnergy] = useState(96);
   const [petBond, setPetBond] = useState(4);
 
+  const petDna = externalPet?.petDna || localPetDna;
+  const setPetDna = externalPet?.setPetDna || setLocalPetDna;
+  const petMood = externalPet?.petMood || localPetMood;
+  const setPetMood = externalPet?.setPetMood || setLocalPetMood;
+  const petEnergy = externalPet?.petEnergy ?? localPetEnergy;
+  const setPetEnergy = externalPet?.setPetEnergy || setLocalPetEnergy;
+
   // ── Chronomètre Pomodoro persistant en arrière-plan ──
-  const [timerSubTab, setTimerSubTab] = useState("pomodoro"); // "pomodoro" | "flipclock"
-  const [pomoPreset, setPomoPreset] = useState(PRESETS[0]);
-  const [pomoPhase, setPomoPhase] = useState("focus"); // "focus" | "rest"
-  const [pomoTimeLeft, setPomoTimeLeft] = useState(PRESETS[0].focus);
-  const [pomoRunning, setPomoRunning] = useState(false);
-  const [pomoSound, setPomoSound] = useState(true);
-  const [pomoCycle, setPomoCycle] = useState(1);
+  const internalPomo = usePomodoroSession({
+    onMoodChange: (mood) => {
+      // Une tâche en focus garde l'humeur concentrée quand le timer s'arrête.
+      setPetMood(mood === "normal" && focusSession?.focusTask ? "focused" : mood);
+    },
+  });
+
+  const pomo = externalPomo || internalPomo;
+  const timerSubTab = pomo.timerSubTab;
+  const setTimerSubTab = pomo.setTimerSubTab;
+  const pomoPreset = pomo.preset;
+  const pomoPhase = pomo.phase;
+  const pomoTimeLeft = pomo.timeLeft;
+  const pomoRunning = pomo.isRunning;
+  const pomoSound = pomo.soundEnabled;
+  const pomoCycle = pomo.cycleCount;
+  const pomoFormatted = pomo.timeFormatted;
+  const isPomoActive = pomo.isPomoActive;
+
+  const handleSelectPomoPreset = pomo.selectPreset;
+  const handleTogglePomoPlay = pomo.togglePlay;
+  const handleSkipPomoPhase = pomo.skipPhase;
+  const handleResetPomo = pomo.reset;
+  const handleTogglePomoSound = pomo.toggleSound;
 
   const handleMouseEnter = () => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -86,12 +118,14 @@ export function DynamicIsland({ focusSession, onEditTask }) {
   const islandRef = useRef(null);
   const lastLen = useRef(0);
 
-  // Latency & INP Perf state
-  const [perfState, setPerfState] = useState(() => getPerfState());
+  // Latency & INP Perf state (Dev Mode Only)
+  const isDev = Boolean(import.meta.env?.DEV);
+  const [perfState, setPerfState] = useState(() => (isDev ? getPerfState() : null));
 
   useEffect(() => {
+    if (!isDev) return;
     return subscribePerf(setPerfState);
-  }, []);
+  }, [isDev]);
 
   // Focus session props
   const {
@@ -102,88 +136,6 @@ export function DynamicIsland({ focusSession, onEditTask }) {
   } = focusSession || {};
 
   const isCooking = !!(focusTask && focusStartedAt);
-  const isPomoActive = pomoRunning || pomoTimeLeft < (pomoPhase === "focus" ? pomoPreset.focus : pomoPreset.rest);
-
-  // Décompte du chronomètre Pomodoro en arrière-plan (continue même quand l'îlot est fermé)
-  useEffect(() => {
-    if (!pomoRunning) return;
-
-    const interval = setInterval(() => {
-      setPomoTimeLeft((prev) => {
-        if (prev <= 1) {
-          const nextPhase = pomoPhase === "focus" ? "rest" : "focus";
-          const nextDuration = nextPhase === "focus" ? pomoPreset.focus : pomoPreset.rest;
-
-          if (pomoSound) {
-            if (nextPhase === "rest") {
-              playAppleChime();
-            } else {
-              playPhaseSwitchChime();
-            }
-          }
-
-          if (nextPhase === "focus") {
-            setPomoCycle((c) => c + 1);
-          }
-
-          setPomoPhase(nextPhase);
-          setPetMood(nextPhase === "focus" ? "focused" : "happy");
-          setPulse((p) => p + 1);
-          return nextDuration;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [pomoRunning, pomoPhase, pomoPreset, pomoSound]);
-
-  // Actions Pomodoro
-  const handleSelectPomoPreset = (p) => {
-    if (pomoSound) playHapticTick();
-    setPomoPreset(p);
-    setPomoPhase("focus");
-    setPomoTimeLeft(p.focus);
-    setPomoRunning(false);
-  };
-
-  const handleTogglePomoPlay = (e) => {
-    if (e) e.stopPropagation();
-    if (pomoSound) playHapticTick();
-    setPomoRunning((r) => {
-      const next = !r;
-      if (next) {
-        setPetMood(pomoPhase === "focus" ? "focused" : "happy");
-      } else if (!isCooking) {
-        setPetMood("normal");
-      }
-      return next;
-    });
-  };
-
-  const handleSkipPomoPhase = () => {
-    if (pomoSound) playHapticTick();
-    const nextPhase = pomoPhase === "focus" ? "rest" : "focus";
-    const nextDuration = nextPhase === "focus" ? pomoPreset.focus : pomoPreset.rest;
-    setPomoPhase(nextPhase);
-    setPomoTimeLeft(nextDuration);
-    if (nextPhase === "focus") {
-      setPomoCycle((c) => c + 1);
-    }
-    setPetMood(nextPhase === "focus" ? "focused" : "happy");
-  };
-
-  const handleResetPomo = () => {
-    if (pomoSound) playHapticTick();
-    setPomoRunning(false);
-    setPomoPhase("focus");
-    setPomoTimeLeft(pomoPreset.focus);
-    if (!isCooking) setPetMood("normal");
-  };
-
-  const pomoMins = Math.floor(pomoTimeLeft / 60);
-  const pomoSecs = pomoTimeLeft % 60;
-  const pomoFormatted = `${String(pomoMins).padStart(2, "0")}:${String(pomoSecs).padStart(2, "0")}`;
 
   // Capture et souscription console de log
   useEffect(() => {
@@ -527,20 +479,22 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                   {entries.length > 0 && <span className="trk-island-badge">{entries.length}</span>}
                 </button>
 
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === "perf"}
-                  className={"trk-island-tab perf-tab" + (mode === "perf" ? " active" : "")}
-                  onClick={() => setMode("perf")}
-                >
-                  <span className={"trk-island-mini-dot " + (perfState.rating === "fast" ? "ok" : perfState.rating === "good" ? "warn" : "error")} />
-                  <Activity size={12} />
-                  <span>Latency</span>
-                  <span className="trk-island-badge">
-                    {perfState.lastLatency !== null ? `${Math.round(perfState.lastLatency)}ms` : `${perfState.fps}fps`}
-                  </span>
-                </button>
+                {isDev && perfState && (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mode === "perf"}
+                    className={"trk-island-tab perf-tab" + (mode === "perf" ? " active" : "")}
+                    onClick={() => setMode("perf")}
+                  >
+                    <span className={"trk-island-mini-dot " + (perfState.rating === "fast" ? "ok" : perfState.rating === "good" ? "warn" : "error")} />
+                    <Activity size={12} />
+                    <span>Latency</span>
+                    <span className="trk-island-badge">
+                      {perfState.lastLatency !== null ? `${Math.round(perfState.lastLatency)}ms` : `${perfState.fps}fps`}
+                    </span>
+                  </button>
+                )}
               </div>
 
               <button
@@ -574,7 +528,7 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                   onTogglePlay={() => handleTogglePomoPlay()}
                   onSkipPhase={handleSkipPomoPhase}
                   onReset={handleResetPomo}
-                  onToggleSound={() => setPomoSound((s) => !s)}
+                  onToggleSound={handleTogglePomoSound}
                 />
               )}
 
@@ -732,6 +686,29 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                         </div>
                       </button>
                     </div>
+
+                    {/* Option d'activation du compagnon flottant au-dessus de la barre des tâches */}
+                    <div className="trk-island-pet-option-row">
+                      <div className="trk-pet-option-info">
+                        <div className="trk-pet-option-title">
+                          <Sparkles size={13} style={{ color: "#38BDF8" }} />
+                          <span>Floating Companion on Minimize</span>
+                        </div>
+                        <span className="trk-pet-option-sub">
+                          Displays the transparent floating companion over taskbar during focus
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={desktopPetEnabled}
+                        className={"trk-pet-toggle-switch" + (desktopPetEnabled ? " active" : "")}
+                        onClick={onToggleDesktopPet}
+                        title={desktopPetEnabled ? "Disable floating companion" : "Enable floating companion"}
+                      >
+                        <span className="trk-pet-toggle-handle" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -860,8 +837,8 @@ export function DynamicIsland({ focusSession, onEditTask }) {
                 </div>
               )}
 
-              {/* ── 5. ONGLET LATENCE & INP PERFORMANCE ── */}
-              {mode === "perf" && (
+              {/* ── 5. ONGLET LATENCE & INP PERFORMANCE (Mode Dev Uniquement) ── */}
+              {isDev && mode === "perf" && perfState && (
                 <div className="trk-island-perf-panel">
                   <div className="trk-perf-header">
                     <div className="trk-perf-stat-card">

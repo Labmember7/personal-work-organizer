@@ -324,6 +324,87 @@ ipcMain.handle("data:import", async (e) => {
 // fenêtres Linux (barre de titre GTK) par une barre de titre custom dessinée
 // dans le renderer, cohérente avec le thème sombre de l'app.
 
+let mainWindow = null;
+let petWindow = null;
+
+function getOrCreatePetWindow() {
+  if (petWindow && !petWindow.isDestroyed()) {
+    return petWindow;
+  }
+
+  const { screen } = require("electron");
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { workArea } = primaryDisplay;
+
+  const petWidth = 240;
+  const petHeight = 180;
+  // Positionné juste au-dessus de la barre des tâches dans le coin inférieur droit
+  const x = Math.round(workArea.x + workArea.width - petWidth - 16);
+  const y = Math.round(workArea.y + workArea.height - petHeight - 8);
+
+  petWindow = new BrowserWindow({
+    width: petWidth,
+    height: petHeight,
+    minWidth: petWidth,
+    maxWidth: petWidth,
+    minHeight: petHeight,
+    maxHeight: petHeight,
+    x,
+    y,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    thickFrame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      backgroundThrottling: false, // Empêche le gel/ralentissement des timers et animations en arrière-plan ou hors focus
+    },
+  });
+
+  petWindow.setMaximizable(false);
+  petWindow.setResizable(false);
+  petWindow.setFullScreenable(false);
+  petWindow.on("will-resize", (e) => e.preventDefault());
+  petWindow.on("resize", () => petWindow.setSize(petWidth, petHeight));
+  petWindow.on("maximize", (e) => {
+    e.preventDefault();
+    petWindow.unmaximize();
+    petWindow.setSize(petWidth, petHeight);
+  });
+
+  petWindow.setAlwaysOnTop(true, "floating");
+  try {
+    petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  } catch {
+    // Non supporté sur certains gestionnaires de fenêtres Linux/Windows
+  }
+
+  petWindow.loadFile(path.join(__dirname, "dist", "index.html"), { hash: "pet" });
+
+  petWindow.webContents.on("did-finish-load", () => {
+    if (lastPetState) {
+      petWindow.webContents.send("pet:state", lastPetState);
+    }
+  });
+
+  petWindow.on("closed", () => {
+    petWindow = null;
+  });
+
+  return petWindow;
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -338,8 +419,11 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false, // Maintient les chronomètres Pomodoro et Focus actifs même si l'app est hors focus
     },
   });
+
+  mainWindow = win;
 
   win.loadFile(path.join(__dirname, "dist", "index.html"));
 
@@ -357,10 +441,26 @@ function createWindow() {
 
   win.on("maximize", () => win.webContents.send("window:maximized-changed", true));
   win.on("unmaximize", () => win.webContents.send("window:maximized-changed", false));
+
+  win.on("minimize", () => win.webContents.send("main:minimized-changed", true));
+  win.on("restore", () => win.webContents.send("main:minimized-changed", false));
+  win.on("show", () => win.webContents.send("main:minimized-changed", false));
+  win.on("focus", () => win.webContents.send("main:minimized-changed", false));
+
+  win.on("closed", () => {
+    mainWindow = null;
+    if (petWindow && !petWindow.isDestroyed()) {
+      petWindow.close();
+    }
+  });
 }
 
 ipcMain.handle("window:minimize", (e) => {
-  BrowserWindow.fromWebContents(e.sender)?.minimize();
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (w) {
+    w.minimize();
+    w.webContents.send("main:minimized-changed", true);
+  }
 });
 ipcMain.handle("window:toggleMaximize", (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
@@ -373,6 +473,70 @@ ipcMain.handle("window:close", (e) => {
 });
 ipcMain.handle("window:isMaximized", (e) => {
   return BrowserWindow.fromWebContents(e.sender)?.isMaximized() ?? false;
+});
+
+// Ponts Pet Flottant de bureau
+ipcMain.handle("pet:show", () => {
+  const pw = getOrCreatePetWindow();
+  pw.showInactive();
+});
+ipcMain.handle("pet:hide", () => {
+  if (petWindow && !petWindow.isDestroyed()) {
+    petWindow.hide();
+  }
+});
+ipcMain.handle("pet:restoreMain", () => {
+  if (petWindow && !petWindow.isDestroyed()) {
+    petWindow.hide();
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send("main:minimized-changed", false);
+  }
+});
+ipcMain.on("pet:moveBy", (_e, { dx, dy }) => {
+  if (petWindow && !petWindow.isDestroyed()) {
+    const [currX, currY] = petWindow.getPosition();
+    const petWidth = 240;
+    const petHeight = 180;
+    const { screen } = require("electron");
+    const display = screen.getDisplayNearestPoint({ x: currX, y: currY });
+    const workArea = display ? display.workArea : { x: 0, y: 0, width: 1920, height: 1080 };
+    // Évite la zone haute extrême (4px) pour ne jamais déclencher Aero Snap / Snap Layouts Windows
+    const minX = workArea.x;
+    const maxX = workArea.x + workArea.width - petWidth;
+    const minY = workArea.y + 4;
+    const maxY = workArea.y + workArea.height - petHeight;
+    const nextX = Math.round(Math.max(minX, Math.min(maxX, currX + dx)));
+    const nextY = Math.round(Math.max(minY, Math.min(maxY, currY + dy)));
+    petWindow.setPosition(nextX, nextY);
+    petWindow.setSize(petWidth, petHeight);
+  }
+});
+let lastPetState = null;
+
+ipcMain.on("pet:state", (_e, state) => {
+  lastPetState = state;
+  if (petWindow && !petWindow.isDestroyed()) {
+    petWindow.webContents.send("pet:state", state);
+  }
+});
+ipcMain.handle("pet:getState", () => {
+  return lastPetState;
+});
+ipcMain.on("pet:action", (_e, action) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("pet:action", action);
+  }
+});
+ipcMain.on("pet:ready", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("pet:ready");
+  }
 });
 
 app.whenReady().then(() => {

@@ -13,6 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
+        "label": "main",
         "title": "Suivi des travaux",
         "width": 1280,
         "height": 860,
@@ -23,6 +24,21 @@
         "shadow": true,
         "dragDropEnabled": false,
         "backgroundColor": "#10141A"
+      },
+      {
+        "label": "pet",
+        "title": "Companion",
+        "url": "index.html#pet",
+        "width": 240,
+        "height": 180,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "resizable": false,
+        "maximizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false
       }
     ],
     "security": {

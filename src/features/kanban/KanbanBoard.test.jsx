@@ -52,4 +52,17 @@ describe("KanbanBoard (déplacement par drop)", () => {
     expect(columns[2].textContent).toContain("Tâche t1");
     expect(columns[0].textContent).not.toContain("Tâche t1");
   });
+
+  it("transmet les coordonnées d'origine du drop pour déclencher la célébration instantanée au bon endroit", () => {
+    const { onMove, container } = renderBoard([task("t1", "analyser")]);
+    const columns = container.querySelectorAll(".trk-kanban-col");
+    const dropEvent = new Event("drop", { bubbles: true, cancelable: true });
+    Object.assign(dropEvent, {
+      clientX: 420,
+      clientY: 280,
+      dataTransfer: { getData: () => "t1", dropEffect: "move" },
+    });
+    columns[5].dispatchEvent(dropEvent);
+    expect(onMove).toHaveBeenCalledWith("t1", "termine", { x: 420, y: 280 });
+  });
 });

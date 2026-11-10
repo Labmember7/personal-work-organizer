@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Columns3, Zap } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
 import { SIMPLE_STATUSES, isSimpleTask } from "../../utils";
@@ -8,15 +8,15 @@ import { KanbanBoard } from "./KanbanBoard.jsx";
 // Vue kanban complète : un tableau pour les tâches workflow (6 statuts) et
 // un pour les tâches simples (3 statuts), avec libellés quand les deux
 // familles coexistent.
-export function KanbanSection({ tasks, onNewTask, boardProps }) {
+export const KanbanSection = React.memo(function KanbanSection({ tasks, onNewTask, boardProps }) {
   const { t } = useLang();
+
+  const standardTasks = useMemo(() => tasks.filter((tk) => !isSimpleTask(tk)), [tasks]);
+  const simpleTasks = useMemo(() => tasks.filter(isSimpleTask), [tasks]);
 
   if (tasks.length === 0) {
     return <EmptyState label={t("empty_task_list")} actionLabel={t("new_task")} onAction={onNewTask} />;
   }
-
-  const standardTasks = tasks.filter((tk) => !isSimpleTask(tk));
-  const simpleTasks = tasks.filter(isSimpleTask);
 
   return (
     <>
@@ -42,4 +42,4 @@ export function KanbanSection({ tasks, onNewTask, boardProps }) {
       )}
     </>
   );
-}
+});

@@ -99,8 +99,8 @@
 
 /* Mode ouvert : feuille modale complète épousant le contenu */
 .trk-dynamic-island.open .trk-island-container {
-  width: 560px;
-  max-width: 94vw;
+  width: 680px;
+  max-width: 96vw;
   border-radius: 24px;
   overflow: hidden;
   background: #07090D;
@@ -111,23 +111,27 @@
 }
 
 .trk-dynamic-island.open.mode-timer.subtab-pomodoro .trk-island-container {
-  height: 358px;
+  height: 380px;
 }
 
 .trk-dynamic-island.open.mode-timer.subtab-flipclock .trk-island-container {
-  height: 256px;
+  height: 280px;
 }
 
 .trk-dynamic-island.open.mode-pet .trk-island-container {
-  height: 340px;
+  height: 450px;
 }
 
 .trk-dynamic-island.open.mode-focus .trk-island-container {
-  height: 278px;
+  height: 310px;
 }
 
 .trk-dynamic-island.open.mode-debug .trk-island-container {
-  height: 360px;
+  height: 395px;
+}
+
+.trk-dynamic-island.open.mode-perf .trk-island-container {
+  height: 395px;
 }
 
 /* Rebond jelly dynamique lors des pulses */
@@ -867,8 +871,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px 14px;
+  gap: 10px;
+  padding: 10px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.02);
   flex-shrink: 0;
@@ -897,12 +901,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 2.5px;
+  padding: 2.5px 6px;
   border-radius: 13px;
   min-width: 0;
+  flex: 1;
+  max-width: 530px;
 }
 
 .trk-island-tab {
@@ -910,7 +916,7 @@
   align-items: center;
   gap: 4px;
   height: 25px;
-  padding: 0 8.5px;
+  padding: 0 7.5px;
   border-radius: 9.5px;
   background: transparent;
   border: none;
@@ -1392,8 +1398,9 @@
 .trk-island-pet-deck {
   display: flex;
   flex-direction: column;
-  padding: 14px 18px 18px;
-  gap: 12px;
+  padding: 12px 18px 20px;
+  gap: 10px;
+  box-sizing: border-box;
 }
 
 .trk-island-pet-stage-box {
@@ -1643,6 +1650,90 @@
   font-size: 9px;
   color: rgba(255, 255, 255, 0.5);
   line-height: 1.2;
+}
+
+/* Option Pet Flottant Réduit */
+.trk-island-pet-option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  margin-top: 4px;
+  box-sizing: border-box;
+  transition: all 0.18s ease;
+}
+
+.trk-island-pet-option-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.trk-pet-option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trk-pet-option-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #F8FAFC;
+}
+
+.light .trk-pet-option-title {
+  color: #0F172A;
+}
+
+.trk-pet-option-sub {
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.3;
+}
+
+.light .trk-pet-option-sub {
+  color: #64748B;
+}
+
+.trk-pet-toggle-switch {
+  width: 36px;
+  height: 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.2s cubic-bezier(0.32, 1.25, 0.32, 1), border-color 0.2s ease;
+}
+
+.trk-pet-toggle-switch.active {
+  background: #00F5D4;
+  border-color: #00F5D4;
+}
+
+.trk-pet-toggle-handle {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+
+.trk-pet-toggle-switch.active .trk-pet-toggle-handle {
+  transform: translateX(16px);
 }
 
 /* ═══════════════════════════════════════════════════════
