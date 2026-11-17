@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Flame, Maximize2, Minus, Pause, Play, X } from "lucide-react";
+import { Coffee, Flame, Maximize2, Minus, Pause, Play, X } from "lucide-react";
 import { desktopPet } from "../../services/desktopPet";
 import { FullBodyPet } from "../../components/DynamicIsland/FullBodyPet.jsx";
 import { createUnthrottledInterval } from "../../lib/timerWorker.js";
@@ -16,20 +16,131 @@ function formatSeconds(totalSec) {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
+/**
+ * Actions flottantes du compagnon, ordonnées comme une barre système
+ * (réduire, restaurer, fermer) et révélées uniquement au survol / focus.
+ */
+function PetControls({ isHeadDock = false, cloudReduced, onToggleCloud, onRestore, onClose }) {
+  const controls = [
+    {
+      key: "reduce",
+      className: "reduce",
+      label: "Réduire la pensée",
+      pressed: cloudReduced,
+      onClick: onToggleCloud,
+      icon: <Minus size={10} strokeWidth={2.5} />,
+    },
+    {
+      key: "restore",
+      className: "restore",
+      label: "Agrandir la fenêtre principale",
+      onClick: onRestore,
+      icon: <Maximize2 size={9.5} strokeWidth={2.4} />,
+    },
+    {
+      key: "close",
+      className: "close",
+      label: "Fermer le compagnon",
+      onClick: onClose,
+      icon: <X size={10} strokeWidth={2.5} />,
+    },
+  ];
+
+  return (
+    <div className={"trk-cloud-controls" + (isHeadDock ? " is-head-dock" : "")}>
+      {controls.map((ctrl) => (
+        <button
+          key={ctrl.key}
+          type="button"
+          className={"trk-cloud-ear-btn " + ctrl.className}
+          onMouseUp={(e) => {
+            e.currentTarget.blur();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.currentTarget.blur();
+            ctrl.onClick();
+          }}
+          aria-label={ctrl.label}
+          aria-pressed={ctrl.pressed}
+        >
+          {ctrl.icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function DesktopPetWindow() {
   const [petState, setPetState] = useState(null);
   const [now, setNow] = useState(() => Date.now());
   const [cloudReduced, setCloudReduced] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const suppressClickUntilRef = useRef(0);
   const cleanupDragRef = useRef(null);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     return () => {
       cleanupDragRef.current?.();
     };
   }, []);
+
+  useEffect(() => {
+    const clearHover = () => {
+      setIsHovered(false);
+      if (document.activeElement?.closest?.(".trk-cloud-controls")) {
+        document.activeElement.blur();
+      }
+    };
+    const onMouseOut = (e) => {
+      if (!e.relatedTarget) clearHover();
+    };
+    const onVisibility = () => {
+      if (document.hidden) clearHover();
+    };
+    window.addEventListener("blur", clearHover);
+    window.addEventListener("mouseout", onMouseOut);
+    document.addEventListener("mouseleave", clearHover);
+    document.documentElement.addEventListener("mouseleave", clearHover);
+    document.documentElement.addEventListener("pointerleave", clearHover);
+    document.addEventListener("visibilitychange", onVisibility);
+    const unlistenPointerLeft = desktopPet.onPointerLeft?.(clearHover);
+    return () => {
+      window.removeEventListener("blur", clearHover);
+      window.removeEventListener("mouseout", onMouseOut);
+      document.removeEventListener("mouseleave", clearHover);
+      document.documentElement.removeEventListener("mouseleave", clearHover);
+      document.documentElement.removeEventListener("pointerleave", clearHover);
+      document.removeEventListener("visibilitychange", onVisibility);
+      unlistenPointerLeft?.();
+    };
+  }, []);
+
+  // Filet de sécurité OS : interroge la fenêtre sous le curseur tant que le survol est actif
+  useEffect(() => {
+    if (!isHovered || !desktopPet.isCursorInside) return undefined;
+    let active = true;
+    const timer = setInterval(() => {
+      desktopPet
+        .isCursorInside()
+        .then((inside) => {
+          if (active && !inside) {
+            setIsHovered(false);
+            if (document.activeElement?.closest?.(".trk-cloud-controls")) {
+              document.activeElement.blur();
+            }
+          }
+        })
+        .catch(() => {});
+    }, 80);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [isHovered]);
 
   useEffect(() => {
     const unlisten = desktopPet.onState((incomingState) => {
@@ -44,6 +155,28 @@ export function DesktopPetWindow() {
     const ticker = createUnthrottledInterval(() => setNow(Date.now()), 500);
     return () => ticker.clear();
   }, []);
+
+  // Synchronise la fenêtre native avec la hitbox utile pour permettre d'atteindre les bords de l'écran
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        desktopPet.syncBounds?.(Math.ceil(rect.width), Math.ceil(rect.height));
+      }
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === "function") {
+      const ro = new ResizeObserver(measure);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    return undefined;
+  }, [petState, cloudReduced]);
 
   const elapsedStr = useMemo(() => {
     if (!petState?.focusStartedAt) return null;
@@ -79,24 +212,28 @@ export function DesktopPetWindow() {
     const cleanup = () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("blur", onWindowBlur);
       cleanupDragRef.current = null;
       setIsDragging(false);
     };
     cleanupDragRef.current = cleanup;
 
     const onMouseMove = (moveEvt) => {
-      const dist = Math.hypot(moveEvt.screenX - startX, moveEvt.screenY - startY);
-      if (!hasMoved && dist > 4) {
+      if (!hasMoved) {
+        const dist = Math.hypot(moveEvt.screenX - startX, moveEvt.screenY - startY);
+        if (dist <= 4) return;
         hasMoved = true;
         setIsDragging(true);
-        if (desktopPet.startNativeDrag()) {
-          suppressClickUntilRef.current = performance.now() + 350;
-          cleanup();
-        }
+        setIsHovered(false);
+        desktopPet.startNativeDrag(startX, startY);
       }
+      desktopPet.updateDrag?.(moveEvt.screenX, moveEvt.screenY);
     };
 
     const onMouseUp = (upEvt) => {
+      if (hasMoved) {
+        desktopPet.endDrag?.();
+      }
       cleanup();
 
       const duration = performance.now() - startTime;
@@ -109,8 +246,16 @@ export function DesktopPetWindow() {
       }
     };
 
+    const onWindowBlur = () => {
+      if (hasMoved) {
+        desktopPet.endDrag?.();
+      }
+      cleanup();
+    };
+
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("blur", onWindowBlur);
   };
 
   const handleToggleHud = (e) => {
@@ -138,16 +283,21 @@ export function DesktopPetWindow() {
     }
   };
 
-  const pomoPhase = petState?.pomo?.phase || "focus";
-  const pomoRunning = Boolean(petState?.pomo?.isRunning);
-  const headerLabel = petState?.focus
-    ? `>_ ${petState.focus.title}`
-    : petState?.pomo
-      ? `>_ ${pomoPhase === "rest" ? "Rest" : "Focus"}`
-      : `>_ ${petState?.petDna?.name || "Nova"}`;
-
+  const pomoPhase = pomo?.phase || "focus";
+  const pomoRunning = Boolean(pomo?.isRunning);
+  const hasFocusTask = Boolean(petState?.focus);
   const hasTimers = Boolean(elapsedStr) || Boolean(pomoRemainingStr);
-  const showReducedLivePill = cloudReduced && (Boolean(elapsedStr) || (pomoRunning && Boolean(pomoRemainingStr)));
+  const isCompactTimerPill = !hasFocusTask && Boolean(pomoRemainingStr);
+  const isStandbyPill = !hasFocusTask && !pomoRemainingStr;
+  const showReducedLivePill =
+    cloudReduced && (Boolean(elapsedStr) || (pomoRunning && Boolean(pomoRemainingStr)));
+
+  const petAccent = petState?.petDna?.palette?.neon || "#00F5D4";
+  const petGlow = petState?.petDna?.palette?.glow || "#5EEAD4";
+
+  const toggleCloud = () => setCloudReduced((prev) => !prev);
+  const restoreMainWindow = () => desktopPet.restoreMain();
+  const dismissCompanion = () => desktopPet.sendAction({ type: "dismiss" });
 
   return (
     <div
@@ -156,96 +306,123 @@ export function DesktopPetWindow() {
         (petState?.theme === "light" ? "light" : "dark") +
         (isDragging ? " trk-is-dragging" : "")
       }
+      style={{ "--pet-accent": petAccent, "--pet-glow": petGlow }}
       data-testid="desktop-pet-window"
     >
       <div
-        className="trk-desktop-pet-container"
+        ref={containerRef}
+        className={
+          "trk-desktop-pet-container" +
+          (cloudReduced ? " is-reduced" : "") +
+          (isHovered && !isDragging ? " is-hovered" : "")
+        }
+        onMouseEnter={() => {
+          if (!isDragging) setIsHovered(true);
+        }}
+        onMouseMove={() => {
+          if (!isDragging && !isHovered) setIsHovered(true);
+        }}
+        onMouseLeave={() => setIsHovered(false)}
+        onPointerLeave={() => setIsHovered(false)}
         onMouseDown={handleMouseDown}
       >
-        {/* HUD glassmorphique compact au-dessus du compagnon */}
+        {/* Bulle adaptative au-dessus du compagnon */}
         {!cloudReduced && (
           <div className="trk-thought-stream">
-            <div className="trk-pixel-cloud">
-              <div className="trk-cloud-header">
-                <div
-                  className="trk-cloud-task-title"
-                  title={petState?.focus?.title || (petState?.pomo ? "Pomodoro" : petState?.petDna?.name || "Nova")}
-                >
-                  <span className="trk-cloud-task-full">{headerLabel}</span>
-                </div>
+            <div
+              className={
+                "trk-pixel-cloud" +
+                (isCompactTimerPill
+                  ? " is-compact-pill " + pomoPhase + (pomoRunning ? " running" : "")
+                  : hasFocusTask
+                    ? " is-task-card"
+                    : " is-standby")
+              }
+            >
+              <PetControls
+                cloudReduced={cloudReduced}
+                onToggleCloud={toggleCloud}
+                onRestore={restoreMainWindow}
+                onClose={dismissCompanion}
+              />
 
-                <div className="trk-cloud-controls">
-                  <button
-                    type="button"
-                    className="trk-cloud-ear-btn restore"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      desktopPet.restoreMain();
-                    }}
-                    title="Restore window"
-                    aria-label="Agrandir la fenêtre principale"
-                  >
-                    <Maximize2 size={9} strokeWidth={2.4} />
-                  </button>
+              {/* Cas 1 : Pomodoro seul -> capsule horizontale parfaitement ajustée */}
+              {isCompactTimerPill && (
+                <div className="trk-cloud-compact-row">
+                  <span className={"trk-cloud-phase-chip " + pomoPhase}>
+                    {pomoPhase === "rest" ? <Coffee size={10} /> : <Flame size={10} />}
+                    <span>{pomoPhase === "rest" ? "Rest" : "Focus"}</span>
+                  </span>
 
-                  <button
-                    type="button"
-                    className="trk-cloud-ear-btn reduce"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCloudReduced(true);
-                    }}
-                    title="Collapse HUD"
-                    aria-label="Réduire la pensée"
-                  >
-                    <Minus size={9} strokeWidth={2.5} />
-                  </button>
+                  <span className="trk-cloud-pomo-time trk-mono">{pomoRemainingStr}</span>
 
                   <button
                     type="button"
-                    className="trk-cloud-ear-btn close"
+                    className={"trk-cloud-pomo-play " + pomoPhase + (pomoRunning ? " running" : "")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      desktopPet.sendAction({ type: "dismiss" });
+                      desktopPet.sendAction({ type: "togglePomo" });
                     }}
-                    title="Hide companion"
-                    aria-label="Fermer le compagnon"
+                    aria-label={pomoRunning ? "Pause Pomodoro" : "Reprendre Pomodoro"}
                   >
-                    <X size={9} strokeWidth={2.5} />
+                    {pomoRunning ? <Pause size={9} /> : <Play size={9} />}
                   </button>
                 </div>
-              </div>
+              )}
 
-              {hasTimers && (
-                <div className="trk-cloud-timers">
-                  {elapsedStr && (
-                    <span className="trk-cloud-timer-chip focus" title="Focus elapsed">
-                      <Flame size={10} />
-                      <span>{elapsedStr}</span>
+              {/* Cas 2 : Tâche en focus -> carte centrée en 2 niveaux */}
+              {hasFocusTask && (
+                <>
+                  <div className="trk-cloud-task-title">
+                    <span className="trk-cloud-task-full">
+                      &gt;_ {petState.focus.title}
                     </span>
-                  )}
+                  </div>
 
-                  {pomoRemainingStr && (
-                    <span
-                      className={"trk-cloud-timer-chip pomo " + pomoPhase + (pomoRunning ? " running" : "")}
-                      title="Pomodoro"
-                    >
-                      <span className="trk-cloud-pomo-dot" aria-hidden="true" />
-                      <span>{pomoRemainingStr}</span>
-                      <button
-                        type="button"
-                        className="trk-cloud-pomo-play"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          desktopPet.sendAction({ type: "togglePomo" });
-                        }}
-                        title={pomoRunning ? "Pause" : "Start"}
-                        aria-label={pomoRunning ? "Pause Pomodoro" : "Reprendre Pomodoro"}
-                      >
-                        {pomoRunning ? <Pause size={8} /> : <Play size={8} />}
-                      </button>
-                    </span>
+                  {hasTimers && (
+                    <div className="trk-cloud-timers">
+                      {elapsedStr && (
+                        <span className="trk-cloud-timer-chip focus">
+                          <Flame size={10} />
+                          <span>{elapsedStr}</span>
+                        </span>
+                      )}
+
+                      {pomoRemainingStr && (
+                        <span
+                          className={
+                            "trk-cloud-timer-chip pomo " +
+                            pomoPhase +
+                            (pomoRunning ? " running" : "")
+                          }
+                        >
+                          <span className="trk-cloud-pomo-dot" aria-hidden="true" />
+                          <span>{pomoRemainingStr}</span>
+                          <button
+                            type="button"
+                            className="trk-cloud-pomo-play"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              desktopPet.sendAction({ type: "togglePomo" });
+                            }}
+                            aria-label={pomoRunning ? "Pause Pomodoro" : "Reprendre Pomodoro"}
+                          >
+                            {pomoRunning ? <Pause size={8} /> : <Play size={8} />}
+                          </button>
+                        </span>
+                      )}
+                    </div>
                   )}
+                </>
+              )}
+
+              {/* Cas 3 : Veille -> micro-capsule nommée */}
+              {isStandbyPill && (
+                <div className="trk-cloud-standby-row">
+                  <span className="trk-cloud-standby-dot" aria-hidden="true" />
+                  <span className="trk-cloud-task-full">
+                    &gt;_ {petState?.petDna?.name || "Nova"}
+                  </span>
                 </div>
               )}
             </div>
@@ -257,6 +434,17 @@ export function DesktopPetWindow() {
           </div>
         )}
 
+        {/* Contrôles au-dessus de la tête quand la bulle de pensée est réduite */}
+        {cloudReduced && (
+          <PetControls
+            isHeadDock
+            cloudReduced={cloudReduced}
+            onToggleCloud={toggleCloud}
+            onRestore={restoreMainWindow}
+            onClose={dismissCompanion}
+          />
+        )}
+
         {/* Mini-pilule discrète quand le HUD est réduit mais un timer tourne */}
         {showReducedLivePill && (
           <div
@@ -265,7 +453,7 @@ export function DesktopPetWindow() {
             role="button"
             tabIndex={0}
             onKeyDown={handleAvatarKeyDown}
-            title="Show controls"
+            aria-label="Afficher la pensée"
           >
             <span className="trk-cloud-mini-dot" aria-hidden="true" />
             <span className="trk-mono">
@@ -274,20 +462,21 @@ export function DesktopPetWindow() {
           </div>
         )}
 
-        {/* Compagnon flottant transparent */}
+        {/* Compagnon flottant fidèle à la Dynamic Island, sans tooltip natif */}
         <div
           className="trk-desktop-pet-avatar"
           onClick={handleToggleHud}
           onDoubleClick={handleAvatarDoubleClick}
           onKeyDown={handleAvatarKeyDown}
-          title="Double-clic : agrandir l'application · Clic : afficher/masquer la pensée · Glisser pour déplacer"
+          aria-label="Double-clic : agrandir l'application · Clic : afficher/masquer la pensée · Glisser pour déplacer"
           role="button"
           tabIndex={0}
         >
           <FullBodyPet
             dna={petState?.petDna}
             mood={petState?.mood || "normal"}
-            size={74}
+            size={72}
+            showNativeTooltip={false}
           />
         </div>
       </div>

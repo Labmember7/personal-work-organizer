@@ -32,6 +32,11 @@ const injectCsp = () => ({
 export default defineConfig({
   plugins: [react(), injectCsp()],
   base: "./",
+  optimizeDeps: {
+    // Limite la pré-analyse Vite à l'entrée principale (évite de scanner
+    // plugins/**/index.html dont l'importmap "trk:sdk" est servi à l'exécution).
+    entries: ["index.html"],
+  },
   build: {
     rollupOptions: {
       output: {

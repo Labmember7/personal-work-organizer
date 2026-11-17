@@ -119,11 +119,80 @@ fn data_import(app: AppHandle) -> data_io::ImportResult {
 }
 
 use window::{
-    pet_hide, pet_restore_main, pet_show, window_close, window_is_maximized, window_minimize,
-    window_toggle_maximize,
+    enforce_pet_topmost, pet_end_drag, pet_hide, pet_is_cursor_inside, pet_restore_main,
+    pet_show, pet_start_drag, pet_sync_bounds, pet_update_drag, window_close,
+    window_is_maximized, window_minimize, window_toggle_maximize,
 };
 
+#[cfg(target_os = "linux")]
+fn sanitize_linux_env() {
+    let in_snap = std::env::var_os("SNAP").is_some();
+
+    // Supprime les variables GTK/GIO/GSettings injectées par un conteneur Snap
+    // (ex. terminal intégré VS Code Snap) pour éviter des conflits de schémas
+    // GLib/WebKitGTK avec l'environnement système hôte.
+    for key in [
+        "GSETTINGS_SCHEMA_DIR",
+        "GTK_PATH",
+        "GTK_EXE_PREFIX",
+        "GIO_MODULE_DIR",
+        "GTK_IM_MODULE_FILE",
+        "LOCPATH",
+    ] {
+        if let Ok(val) = std::env::var(key) {
+            if in_snap || val.contains("/snap/") {
+                std::env::remove_var(key);
+            }
+        }
+    }
+
+    if let Ok(orig) = std::env::var("XDG_DATA_DIRS_VSCODE_SNAP_ORIG") {
+        if !orig.is_empty() {
+            std::env::set_var("XDG_DATA_DIRS", orig);
+        }
+    } else if let Ok(xdg) = std::env::var("XDG_DATA_DIRS") {
+        let mut filtered: Vec<&str> = xdg
+            .split(':')
+            .filter(|p| !p.is_empty() && !p.contains("/snap"))
+            .collect();
+        for sys_dir in ["/usr/local/share", "/usr/share"] {
+            if !filtered.iter().any(|p| p.trim_end_matches('/') == sys_dir) {
+                filtered.insert(0, sys_dir);
+            }
+        }
+        std::env::set_var("XDG_DATA_DIRS", filtered.join(":"));
+    }
+
+    let host_schemas = std::path::Path::new("/usr/share/glib-2.0/schemas");
+    if host_schemas.join("gschemas.compiled").exists() {
+        std::env::set_var("GSETTINGS_SCHEMA_DIR", host_schemas);
+    }
+
+    if let Ok(mods) = std::env::var("GTK_MODULES") {
+        let cleaned: Vec<&str> = mods
+            .split(':')
+            .filter(|m| !m.is_empty() && *m != "appmenu-gtk-module")
+            .collect();
+        if cleaned.is_empty() {
+            std::env::remove_var("GTK_MODULES");
+        } else {
+            std::env::set_var("GTK_MODULES", cleaned.join(":"));
+        }
+    }
+
+    if std::env::var_os("GDK_BACKEND").map_or(true, |v| v.is_empty())
+        && std::env::var_os("DISPLAY").is_some_and(|v| !v.is_empty())
+    {
+        // Sous GTK3 Wayland natif, alwaysOnTop / stick / skipTaskbar / move_ sont
+        // ignorés ; on privilégie X11/XWayland quand DISPLAY est actif.
+        std::env::set_var("GDK_BACKEND", "x11,wayland");
+    }
+}
+
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    sanitize_linux_env();
+
     let store_file = get_store_file(None);
     let app_store = store::Store::new(store_file);
 
@@ -137,10 +206,32 @@ pub fn run() {
         .manage(app_state)
         .on_window_event(|window, event| {
             if window.label() == "main" {
-                if let tauri::WindowEvent::Focused(focused) = event {
-                    if *focused {
+                match event {
+                    tauri::WindowEvent::Focused(true) => {
                         let _ = window.emit("main:minimized-changed", false);
                     }
+                    tauri::WindowEvent::Focused(false) | tauri::WindowEvent::Resized(_) => {
+                        if window.is_minimized().unwrap_or(false) {
+                            let _ = window.emit("main:minimized-changed", true);
+                            if let Some(pet_win) = window.app_handle().get_webview_window("pet") {
+                                if pet_win.is_visible().unwrap_or(false) {
+                                    enforce_pet_topmost(&pet_win);
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            } else if window.label() == "pet" {
+                match event {
+                    tauri::WindowEvent::Focused(_)
+                    | tauri::WindowEvent::Moved(_)
+                    | tauri::WindowEvent::Resized(_) => {
+                        if window.is_visible().unwrap_or(false) {
+                            let _ = window.set_always_on_top(true);
+                        }
+                    }
+                    _ => {}
                 }
             }
         })
@@ -171,6 +262,11 @@ pub fn run() {
             pet_show,
             pet_hide,
             pet_restore_main,
+            pet_sync_bounds,
+            pet_start_drag,
+            pet_update_drag,
+            pet_end_drag,
+            pet_is_cursor_inside,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

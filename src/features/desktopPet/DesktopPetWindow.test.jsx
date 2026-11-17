@@ -16,7 +16,12 @@ vi.mock("../../services/desktopPet", () => {
       notifyReady: vi.fn(),
       restoreMain: vi.fn(),
       sendAction: vi.fn(),
+      syncBounds: vi.fn(),
       startNativeDrag: vi.fn(() => true),
+      updateDrag: vi.fn(),
+      endDrag: vi.fn(),
+      isCursorInside: vi.fn(() => Promise.resolve(true)),
+      onPointerLeft: vi.fn(() => () => {}),
       __triggerState: (st) => stateListener?.(st),
     },
     isPetWindow: () => true,
@@ -127,13 +132,17 @@ describe("DesktopPetWindow", () => {
     // Mouvement de la souris > 4px déclenche le drag
     fireEvent.mouseMove(window, { screenX: 125, screenY: 140 });
     expect(desktopPet.startNativeDrag).toHaveBeenCalledTimes(1);
+    expect(desktopPet.startNativeDrag).toHaveBeenCalledWith(100, 100);
+    expect(desktopPet.updateDrag).toHaveBeenCalledWith(125, 140);
 
     // Mouvement continu
     fireEvent.mouseMove(window, { screenX: 130, screenY: 145 });
     expect(desktopPet.startNativeDrag).toHaveBeenCalledTimes(1);
+    expect(desktopPet.updateDrag).toHaveBeenCalledWith(130, 145);
 
     // Relâchement de la souris
     fireEvent.mouseUp(window, { screenX: 130, screenY: 145 });
+    expect(desktopPet.endDrag).toHaveBeenCalledTimes(1);
 
     // Le clic suivant (émis par le navigateur à la fin d'un drag) est supprimé
     fireEvent.click(avatar);
@@ -287,6 +296,117 @@ describe("DesktopPetWindow", () => {
 
     fireEvent.click(miniPill);
     expect(screen.getByText(">_ Review PR")).toBeTruthy();
+  });
+
+  it("renders compact single-row Pomodoro capsule without focus task and applies pet DNA accent color", () => {
+    const { container } = render(<DesktopPetWindow />);
+
+    act(() => {
+      desktopPet.__triggerState({
+        theme: "dark",
+        mood: "focused",
+        petDna: {
+          name: "Neo",
+          archetype: "Pulse Druid",
+          palette: { neon: "#F43F5E", glow: "#FB7185" },
+        },
+        focus: null,
+        pomo: {
+          phase: "focus",
+          timeLeft: 1321,
+          total: 1500,
+          isRunning: true,
+          endsAt: Date.now() + 1321000,
+        },
+      });
+    });
+
+    const cloud = container.querySelector(".trk-pixel-cloud.is-compact-pill");
+    expect(cloud).toBeTruthy();
+    expect(cloud.textContent).toContain("Focus");
+    expect(screen.queryByText(">_ Focus")).toBeNull();
+
+    const winEl = container.querySelector(".trk-desktop-pet-window");
+    expect(winEl.style.getPropertyValue("--pet-accent")).toBe("#F43F5E");
+
+    const avatar = screen.getByRole("button", { name: /Double-clic/i });
+    expect(avatar.getAttribute("title")).toBeNull();
+  });
+
+  it("renders floating control buttons in standard order above the cloud and head dock", () => {
+    const { container } = render(<DesktopPetWindow />);
+
+    act(() => {
+      desktopPet.__triggerState({
+        theme: "dark",
+        mood: "normal",
+        focus: { title: "Review PR", project: "Frontend" },
+      });
+    });
+
+    const getControlLabels = () =>
+      Array.from(container.querySelectorAll(".trk-cloud-controls button")).map((btn) =>
+        btn.getAttribute("aria-label")
+      );
+
+    expect(getControlLabels()).toEqual([
+      "Réduire la pensée",
+      "Agrandir la fenêtre principale",
+      "Fermer le compagnon",
+    ]);
+    expect(container.querySelector(".trk-cloud-controls.is-head-dock")).toBeNull();
+
+    // Réduit la bulle -> les contrôles restent disponibles au-dessus de la tête du compagnon
+    fireEvent.click(screen.getByLabelText("Réduire la pensée"));
+    expect(container.querySelector(".trk-cloud-controls.is-head-dock")).toBeTruthy();
+    expect(getControlLabels()).toEqual([
+      "Réduire la pensée",
+      "Agrandir la fenêtre principale",
+      "Fermer le compagnon",
+    ]);
+
+    // Un clic sur le bouton de réduction quand la pensée est réduite la réouvre
+    fireEvent.click(screen.getByLabelText("Réduire la pensée"));
+    expect(screen.getByText(">_ Review PR")).toBeTruthy();
+  });
+
+  it("shows hover controls only while pointer is hovered over the container", async () => {
+    const { container } = render(<DesktopPetWindow />);
+
+    act(() => {
+      desktopPet.__triggerState({
+        theme: "dark",
+        mood: "normal",
+        focus: { title: "Hover Test", project: "Frontend" },
+      });
+    });
+
+    const petContainer = container.querySelector(".trk-desktop-pet-container");
+    expect(petContainer.classList.contains("is-hovered")).toBe(false);
+
+    fireEvent.mouseEnter(petContainer);
+    expect(petContainer.classList.contains("is-hovered")).toBe(true);
+
+    const reduceBtn = screen.getByLabelText("Réduire la pensée");
+    reduceBtn.focus();
+    expect(document.activeElement).toBe(reduceBtn);
+    fireEvent.click(reduceBtn);
+    expect(document.activeElement).not.toBe(reduceBtn);
+
+    fireEvent.mouseLeave(petContainer);
+    expect(petContainer.classList.contains("is-hovered")).toBe(false);
+
+    // Vérifie le filet de sécurité quand mouseleave est manqué mais le curseur OS est sorti
+    vi.useFakeTimers();
+    desktopPet.isCursorInside.mockResolvedValueOnce(false);
+    fireEvent.mouseEnter(petContainer);
+    expect(petContainer.classList.contains("is-hovered")).toBe(true);
+    await act(async () => {
+      vi.advanceTimersByTime(130);
+      await Promise.resolve();
+    });
+    expect(petContainer.classList.contains("is-hovered")).toBe(false);
+    vi.useRealTimers();
   });
 });
 

@@ -6,7 +6,6 @@
 // (pas de seconde fenêtre possible).
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauri } from "./tauriBridge";
 
 export interface PetFocusInfo {
@@ -106,13 +105,39 @@ export const desktopPet = {
     if (isTauri()) return tauriListen<boolean>("main:minimized-changed", cb);
     return noop;
   },
-  /** Démarre le déplacement natif de la fenêtre du pet sous Tauri. */
-  startNativeDrag(): boolean {
+  /** Adapte la fenêtre du pet à sa hitbox réelle sans décaler l'ancrage au sol. */
+  syncBounds(width: number, height: number): void {
     if (isTauri()) {
-      getCurrentWindow().startDragging().catch(() => {});
+      invoke<void>("pet_sync_bounds", { width, height }).catch(() => {});
+    }
+  },
+  /** Démarre le déplacement manuel du pet (évite les aperçus d'ancrage aux bords de l'écran). */
+  startNativeDrag(screenX = 0, screenY = 0): boolean {
+    if (isTauri()) {
+      invoke<void>("pet_start_drag", { screenX, screenY }).catch(() => {});
       return true;
     }
     return false;
+  },
+  updateDrag(screenX: number, screenY: number): void {
+    if (isTauri()) {
+      invoke<void>("pet_update_drag", { screenX, screenY }).catch(() => {});
+    }
+  },
+  endDrag(): void {
+    if (isTauri()) {
+      invoke<void>("pet_end_drag").catch(() => {});
+    }
+  },
+  isCursorInside(): Promise<boolean> {
+    if (isTauri()) {
+      return invoke<boolean>("pet_is_cursor_inside").catch(() => false);
+    }
+    return Promise.resolve(true);
+  },
+  onPointerLeft(cb: () => void): Unlisten {
+    if (isTauri()) return tauriListen<null>("pet:pointer-left", () => cb());
+    return noop;
   },
 };
 
