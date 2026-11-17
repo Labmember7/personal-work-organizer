@@ -10,6 +10,9 @@ export function createUnthrottledInterval(callback, intervalMs = 250) {
 
   // Tentative d'instanciation d'un Web Worker inline autonome via Blob URL
   try {
+    if (typeof Worker === "undefined" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+      throw new Error("Web Worker unavailable");
+    }
     const workerCode = `
       let timer = null;
       onmessage = function(e) {

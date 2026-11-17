@@ -24,14 +24,13 @@ import { formatDuration } from "../../utils";
 import { projectColor } from "../../lib/colors";
 import { clearLog, installHostConsoleCapture, subscribeLog } from "../../lib/debugLog";
 import { clearPerfMetrics, getPerfState, subscribePerf } from "../../lib/performanceMonitor";
-import { playAppleChime, playHapticTick, playPhaseSwitchChime } from "../../lib/audioFx";
+import { playAppleChime, playHapticTick } from "../../lib/audioFx";
 import { getOrCreatePetDna, regeneratePetDna } from "../../lib/petGenerator";
 import { DigitalClock } from "./DigitalClock.jsx";
 import { PixelHelper } from "./PixelHelper.jsx";
-import { PomodoroTimer, PRESETS } from "./PomodoroTimer.jsx";
+import { PomodoroTimer } from "./PomodoroTimer.jsx";
 import { usePomodoroSession } from "../../hooks/usePomodoroSession";
 
-// Calcul du temps exact HH:MM:SS ou MM:SS pour le chronomètre de focus
 function formatElapsedExact(startedAt, now) {
   if (!startedAt) return "00:00";
   const totalSec = Math.max(0, Math.floor((now - startedAt) / 1000));
@@ -44,6 +43,15 @@ function formatElapsedExact(startedAt, now) {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
+function onButtonKey(fn) {
+  return (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fn(e);
+    }
+  };
+}
+
 export function DynamicIsland({
   focusSession,
   onEditTask,
@@ -54,9 +62,10 @@ export function DynamicIsland({
 }) {
   const { t } = useLang();
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState("timer"); // "timer" | "pet" | "focus" | "debug"
+  const [mode, setMode] = useState("timer"); // "timer" | "pet" | "focus" | "debug" | "perf"
   const [hovered, setHovered] = useState(false);
   const hoverTimerRef = useRef(null);
+  const moodTimerRef = useRef(null);
   const [now, setNow] = useState(() => Date.now());
 
   // ── Compagnon Unique Généré & Persistant ──
@@ -75,7 +84,6 @@ export function DynamicIsland({
   // ── Chronomètre Pomodoro persistant en arrière-plan ──
   const internalPomo = usePomodoroSession({
     onMoodChange: (mood) => {
-      // Une tâche en focus garde l'humeur concentrée quand le timer s'arrête.
       setPetMood(mood === "normal" && focusSession?.focusTask ? "focused" : mood);
     },
   });
@@ -98,6 +106,18 @@ export function DynamicIsland({
   const handleResetPomo = pomo.reset;
   const handleTogglePomoSound = pomo.toggleSound;
 
+  // Revenir automatiquement au timer démarré lors de la réouverture ou du changement d'onglet
+  const isPomoActiveRef = useRef(isPomoActive);
+  isPomoActiveRef.current = isPomoActive;
+  const returnToActiveRef = useRef(pomo.returnToActivePreset);
+  returnToActiveRef.current = pomo.returnToActivePreset;
+
+  useEffect(() => {
+    if (open && mode === "timer" && isPomoActiveRef.current) {
+      returnToActiveRef.current?.();
+    }
+  }, [open, mode]);
+
   const handleMouseEnter = () => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     setHovered(true);
@@ -109,6 +129,13 @@ export function DynamicIsland({
       setHovered(false);
     }, 140);
   };
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      if (moodTimerRef.current) clearTimeout(moodTimerRef.current);
+    };
+  }, []);
 
   // Debug state
   const [entries, setEntries] = useState([]);
@@ -127,7 +154,6 @@ export function DynamicIsland({
     return subscribePerf(setPerfState);
   }, [isDev]);
 
-  // Focus session props
   const {
     focusTask,
     focusStartedAt,
@@ -137,38 +163,33 @@ export function DynamicIsland({
 
   const isCooking = !!(focusTask && focusStartedAt);
 
-  // Capture et souscription console de log
   useEffect(() => {
     installHostConsoleCapture();
     return subscribeLog(setEntries);
   }, []);
 
-  // Pulse quand un nouveau log arrive en mode compact
   useEffect(() => {
     if (entries.length > lastLen.current && !open) {
       setPulse(1);
-      const t = setTimeout(() => setPulse(0), 450);
+      const timer = setTimeout(() => setPulse(0), 450);
       lastLen.current = entries.length;
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
     lastLen.current = entries.length;
   }, [entries, open]);
 
-  // Scroll automatique des logs
   useEffect(() => {
     if (open && mode === "debug" && bodyRef.current) {
       bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
     }
   }, [entries, open, mode]);
 
-  // Tick chaque seconde si une tâche est en focus ou si l'îlot est ouvert
   useEffect(() => {
     if (!isCooking && !open) return;
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, [isCooking, open]);
 
-  // Si une tâche entre en focus, basculer petMood
   useEffect(() => {
     if (isCooking || (pomoRunning && pomoPhase === "focus")) {
       setPetMood("focused");
@@ -177,9 +198,8 @@ export function DynamicIsland({
     } else {
       setPetMood("normal");
     }
-  }, [isCooking, pomoRunning, pomoPhase]);
+  }, [isCooking, pomoRunning, pomoPhase, setPetMood]);
 
-  // Fermeture par Escape
   useEffect(() => {
     if (!open && !hovered) return;
     const onKey = (e) => {
@@ -192,7 +212,6 @@ export function DynamicIsland({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, hovered]);
 
-  // Fermeture au clic en dehors
   useOutsideClick(
     islandRef,
     () => {
@@ -202,7 +221,6 @@ export function DynamicIsland({
     open || hovered
   );
 
-  // Filtrage logs debug
   const needle = filter.trim().toLowerCase();
   const shownLogs = needle
     ? entries.filter(
@@ -217,35 +235,73 @@ export function DynamicIsland({
 
   const elapsedTimer = formatElapsedExact(focusStartedAt, now);
 
-  // Actions d'interaction avec le compagnon cybernétique
+  const defaultMood = isCooking
+    ? "focused"
+    : pomoRunning
+      ? pomoPhase === "rest"
+        ? "happy"
+        : "focused"
+      : "normal";
+
   const handlePetAction = (action) => {
+    if (moodTimerRef.current) {
+      clearTimeout(moodTimerRef.current);
+      moodTimerRef.current = null;
+    }
     if (action === "pet") {
+      playHapticTick();
       setPetMood("love");
       setPetBond((b) => b + 1);
-      setTimeout(() => setPetMood(isCooking || pomoRunning ? "focused" : "normal"), 2000);
+      moodTimerRef.current = setTimeout(() => setPetMood(defaultMood), 1800);
     } else if (action === "feed") {
+      playHapticTick();
       setPetMood("eating");
       setPetEnergy(100);
-      setTimeout(() => setPetMood("happy"), 1500);
-      setTimeout(() => setPetMood(isCooking || pomoRunning ? "focused" : "normal"), 3200);
+      moodTimerRef.current = setTimeout(() => {
+        setPetMood("happy");
+        moodTimerRef.current = setTimeout(() => setPetMood(defaultMood), 1400);
+      }, 1400);
     } else if (action === "visor") {
-      setPetMood("visor");
+      playHapticTick();
+      setPetMood((m) => (m === "visor" ? defaultMood : "visor"));
     } else if (action === "radar") {
-      setPetMood("radar");
+      playHapticTick();
+      setPetMood((m) => (m === "radar" ? defaultMood : "radar"));
     } else if (action === "sleep") {
-      setPetMood("sleepy");
+      playHapticTick();
+      setPetMood((m) => (m === "sleepy" ? defaultMood : "sleepy"));
     } else if (action === "reroll") {
       const newDna = regeneratePetDna();
       setPetDna(newDna);
       playAppleChime();
       setPetMood("happy");
-      setTimeout(() => setPetMood(isCooking || pomoRunning ? "focused" : "normal"), 2200);
-    } else if (action === "track") {
-      setPetMood("normal");
+      moodTimerRef.current = setTimeout(() => setPetMood(defaultMood), 2000);
     }
   };
 
   const hasLiveRight = isCooking || isPomoActive;
+
+  const openFlipClock = () => {
+    setMode("timer");
+    setTimerSubTab("flipclock");
+    setOpen(true);
+  };
+
+  const openPomodoro = () => {
+    setMode("timer");
+    setTimerSubTab("pomodoro");
+    setOpen(true);
+  };
+
+  const openFocus = () => {
+    setMode("focus");
+    setOpen(true);
+  };
+
+  const openDebug = () => {
+    setMode("debug");
+    setOpen(true);
+  };
 
   return (
     <div
@@ -262,36 +318,24 @@ export function DynamicIsland({
       onMouseLeave={handleMouseLeave}
     >
       <div className={"trk-island-container" + (pulse ? " pulse" : "")}>
-        {/* ═══════════════════════════════════════════════════════
-           ÉTAT FERMÉ UNIFIÉ (!open) : COMPACT ET SURVOL PROGRESSIF
-           - Spatialement stable : zéro saut ni téléportation d'éléments au survol
-           - Horloge TOUJOURS à gauche (clic -> flipclock & timer)
-           - Nova TOUJOURS au centre exact (clic -> pet deck)
-           - Droite : Activités en direct (Pomodoro / Tâche Focus) + Debug
-           - Au survol : élargissement fluide avec maintien des contrôles (Play/Pause intact)
-           ═══════════════════════════════════════════════════════ */}
+        {/* ── ÉTAT COMPACT (!open) ── */}
         {!open && (
           <div className="trk-island-compact-view">
             <div className="trk-island-compact-triad">
-              {/* GAUCHE : Horloge mécanique flip */}
               <div
                 className="trk-island-triad-left"
-                onClick={() => {
-                  setMode("timer");
-                  setTimerSubTab("flipclock");
-                  setOpen(true);
-                }}
+                onClick={openFlipClock}
+                onKeyDown={onButtonKey(openFlipClock)}
                 role="button"
                 tabIndex={0}
-                title="Open Flip Clock & Timer"
+                title="Flip Clock"
               >
                 <DigitalClock className="trk-island-clock-mini" />
               </div>
 
-              {/* CENTRE : Bot TOUJOURS AU MILIEU PARFAIT (50% absolu) */}
               <div className="trk-island-center-bot">
                 <PixelHelper
-                  size={34}
+                  size={32}
                   bubbleOut
                   mood={petMood}
                   dna={petDna}
@@ -303,9 +347,7 @@ export function DynamicIsland({
                 />
               </div>
 
-              {/* DROITE : Live Activities (Timer / Focus) + Contrôles & Diagnostics */}
               <div className="trk-island-triad-right">
-                {/* Raccourci Quick Timer si aucun timer n'est actif, uniquement au survol */}
                 {!isPomoActive && !isCooking && (
                   <button
                     type="button"
@@ -313,12 +355,8 @@ export function DynamicIsland({
                       "trk-island-compact-action" +
                       (!hovered ? " collapsed" : "")
                     }
-                    onClick={() => {
-                      setMode("timer");
-                      setTimerSubTab("pomodoro");
-                      setOpen(true);
-                    }}
-                    title="Start Pomodoro Timer"
+                    onClick={openPomodoro}
+                    title="Timer"
                     tabIndex={hovered ? 0 : -1}
                   >
                     <Clock size={11} />
@@ -326,7 +364,6 @@ export function DynamicIsland({
                   </button>
                 )}
 
-                {/* Pilule Pomodoro en direct : Reste STRICTEMENT à droite, avec play/pause toujours accessible */}
                 {isPomoActive && (
                   <div
                     className={
@@ -334,20 +371,17 @@ export function DynamicIsland({
                       pomoPhase +
                       (pomoRunning ? " running" : " paused")
                     }
-                    onClick={() => {
-                      setMode("timer");
-                      setTimerSubTab("pomodoro");
-                      setOpen(true);
-                    }}
+                    onClick={openPomodoro}
+                    onKeyDown={onButtonKey(openPomodoro)}
                     role="button"
                     tabIndex={0}
-                    title={`${pomoPhase === "focus" ? "Focus" : "Rest"} Timer · ${pomoFormatted}`}
+                    title={`${pomoPhase === "focus" ? "Focus" : "Rest"} · ${pomoFormatted}`}
                   >
                     <button
                       type="button"
                       className="trk-island-pomo-mini-toggle"
                       onClick={handleTogglePomoPlay}
-                      title={pomoRunning ? "Pause timer" : "Resume timer"}
+                      title={pomoRunning ? "Pause" : "Resume"}
                       aria-label={pomoRunning ? "Pause timer" : "Resume timer"}
                     >
                       {pomoRunning ? <Pause size={9} /> : <Play size={9} />}
@@ -356,14 +390,11 @@ export function DynamicIsland({
                   </div>
                 )}
 
-                {/* Pilule Focus Task : Reste à droite, titre animé continûment en CSS */}
                 {isCooking && (
                   <div
                     className="trk-island-focus-pill"
-                    onClick={() => {
-                      setMode("focus");
-                      setOpen(true);
-                    }}
+                    onClick={openFocus}
+                    onKeyDown={onButtonKey(openFocus)}
                     role="button"
                     tabIndex={0}
                     title={`${focusTask.titre} · ${elapsedTimer}`}
@@ -376,19 +407,16 @@ export function DynamicIsland({
                   </div>
                 )}
 
-                {/* Console Debug : toujours présente dans le DOM pour transition CSS sans à-coup */}
                 <div
                   className={
                     "trk-island-compact-debug" +
                     (hasLiveRight && !hovered ? " collapsed" : "")
                   }
-                  onClick={() => {
-                    setMode("debug");
-                    setOpen(true);
-                  }}
+                  onClick={openDebug}
+                  onKeyDown={onButtonKey(openDebug)}
                   role="button"
                   tabIndex={hasLiveRight && !hovered ? -1 : 0}
-                  title="Open Debug Console"
+                  title="Debug"
                 >
                   <span className={"trk-island-mini-dot " + debugLevel} />
                   <Bug size={11} className="trk-bug-mini" />
@@ -401,14 +429,9 @@ export function DynamicIsland({
           </div>
         )}
 
-        {/* ═══════════════════════════════════════════════════════
-           3. ÉTAT PLEIN ÉCRAN / FEUILLE OUVERTE (open === true)
-           - Barre de navigation supérieure épurée (zéro retour à la ligne)
-           - Contenu riche : Pomodoro / Nova / Focus / Debug
-           ═══════════════════════════════════════════════════════ */}
+        {/* ── ÉTAT OUVERT (open === true) ── */}
         {open && (
           <div className="trk-island-expanded-view">
-            {/* Barre supérieure centrée de l'encoche */}
             <div className="trk-island-nav">
               <div
                 className="trk-island-nav-clock"
@@ -416,6 +439,10 @@ export function DynamicIsland({
                   setMode("timer");
                   setTimerSubTab("flipclock");
                 }}
+                onKeyDown={onButtonKey(() => {
+                  setMode("timer");
+                  setTimerSubTab("flipclock");
+                })}
                 role="button"
                 tabIndex={0}
                 title="Flip Clock"
@@ -487,11 +514,22 @@ export function DynamicIsland({
                     className={"trk-island-tab perf-tab" + (mode === "perf" ? " active" : "")}
                     onClick={() => setMode("perf")}
                   >
-                    <span className={"trk-island-mini-dot " + (perfState.rating === "fast" ? "ok" : perfState.rating === "good" ? "warn" : "error")} />
+                    <span
+                      className={
+                        "trk-island-mini-dot " +
+                        (perfState.rating === "fast"
+                          ? "ok"
+                          : perfState.rating === "good"
+                            ? "warn"
+                            : "error")
+                      }
+                    />
                     <Activity size={12} />
-                    <span>Latency</span>
+                    <span>Perf</span>
                     <span className="trk-island-badge">
-                      {perfState.lastLatency !== null ? `${Math.round(perfState.lastLatency)}ms` : `${perfState.fps}fps`}
+                      {perfState.lastLatency !== null
+                        ? `${Math.round(perfState.lastLatency)}ms`
+                        : `${perfState.fps}fps`}
                     </span>
                   </button>
                 )}
@@ -504,27 +542,31 @@ export function DynamicIsland({
                   setOpen(false);
                   setHovered(false);
                 }}
-                title="Collapse Island (Esc)"
+                title="Collapse (Esc)"
                 aria-label="Collapse Island"
               >
                 <ChevronUp size={14} />
               </button>
             </div>
 
-            {/* Contenu selon l'onglet actif */}
             <div className="trk-island-sheet">
-              {/* ── 1. ONGLET TIMER & FOCUS POMODORO ── */}
+              {/* ── 1. TIMER ── */}
               {mode === "timer" && (
                 <PomodoroTimer
                   subTab={timerSubTab}
                   onSubTabChange={setTimerSubTab}
                   preset={pomoPreset}
+                  activePreset={pomo.activePreset}
+                  isViewingOtherPreset={pomo.isViewingOtherPreset}
+                  isPomoActive={isPomoActive}
                   phase={pomoPhase}
                   timeLeft={pomoTimeLeft}
                   isRunning={pomoRunning}
                   soundEnabled={pomoSound}
                   cycleCount={pomoCycle}
                   onSelectPreset={handleSelectPomoPreset}
+                  onReturnToActive={pomo.returnToActivePreset}
+                  onStartViewed={pomo.startViewedPreset}
                   onTogglePlay={() => handleTogglePomoPlay()}
                   onSkipPhase={handleSkipPomoPhase}
                   onReset={handleResetPomo}
@@ -532,25 +574,23 @@ export function DynamicIsland({
                 />
               )}
 
-              {/* ── 2. ONGLET CYBER COMPANION PET DECK ── */}
+              {/* ── 2. COMPANION DECK (ÉPURÉ) ── */}
               {mode === "pet" && (
                 <div className="trk-island-pet-deck">
-                  {/* Zone Avatar 2.5D & Télémétrie */}
                   <div className="trk-island-pet-stage-box">
                     <div className="trk-island-pet-hero-avatar">
                       <PixelHelper
-                        size={72}
+                        size={60}
                         mood={petMood}
                         dna={petDna}
                         onClick={() => handlePetAction("pet")}
                       />
                     </div>
+
                     <div className="trk-island-pet-hero-info">
                       <div className="trk-island-pet-hero-title">
                         <h3>{petDna.name}</h3>
-                        <span className="trk-island-pet-status-pill">
-                          <span className="trk-island-pulse-dot" /> Online
-                        </span>
+                        <span className="trk-island-pulse-dot" title="Online" />
                         <button
                           type="button"
                           className="trk-island-pet-dna-btn"
@@ -558,162 +598,110 @@ export function DynamicIsland({
                           title="Synthesize new unique companion DNA & traits"
                         >
                           <Dna size={12} />
-                          <span>Re-roll DNA</span>
+                          <span>DNA</span>
                         </button>
                       </div>
-                      <p className="trk-island-pet-subtitle">
-                        {petDna.archetype} · {petDna.personality}
-                      </p>
+
+                      <p className="trk-island-pet-subtitle">{petDna.archetype}</p>
 
                       <div className="trk-island-pet-telemetry">
-                        <div className="trk-island-telemetry-item">
-                          <span className="trk-telemetry-label">Palette</span>
+                        <span className="trk-telemetry-chip">
                           <span
-                            className="trk-telemetry-val trk-mono"
-                            style={{ color: petDna.palette?.neon || "#00F5D4" }}
-                          >
-                            {petDna.palette?.name || "Cyber"}
+                            className="trk-telemetry-swatch"
+                            style={{ background: petDna.palette?.neon || "#00F5D4" }}
+                          />
+                          <span>Palette · {petDna.palette?.name || "Cyber"}</span>
+                        </span>
+
+                        <span className="trk-telemetry-chip trk-mono">
+                          <span>LVL {petBond}</span>
+                          <span className="trk-telemetry-sep">·</span>
+                          <span>{petEnergy}%</span>
+                          <span className="trk-telemetry-bar">
+                            <span className="trk-telemetry-fill" style={{ width: `${petEnergy}%` }} />
                           </span>
-                        </div>
-                        <div className="trk-island-telemetry-item">
-                          <span className="trk-telemetry-label">Core</span>
-                          <div className="trk-telemetry-bar">
-                            <div className="trk-telemetry-fill" style={{ width: `${petEnergy}%` }} />
-                          </div>
-                          <span className="trk-telemetry-val trk-mono">{petEnergy}%</span>
-                        </div>
-                        <div className="trk-island-telemetry-item">
-                          <span className="trk-telemetry-label">Bond</span>
-                          <span className="trk-telemetry-val trk-mono">LVL {petBond}</span>
-                        </div>
-                        <div className="trk-island-telemetry-item">
-                          <span className="trk-telemetry-label">Sync</span>
-                          <span className="trk-telemetry-val synced">
-                            <span className="trk-island-pulse-dot" style={{ width: 5, height: 5 }} />{" "}
-                            Active
-                          </span>
-                        </div>
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Console de commandes tactiles */}
-                  <div className="trk-island-interaction-deck">
-                    <span className="trk-deck-label">Tactile Command Matrix</span>
-                    <div className="trk-pet-command-grid">
-                      <button
-                        type="button"
-                        className={"trk-pet-command-btn" + (petMood === "love" ? " active" : "")}
-                        onClick={() => handlePetAction("pet")}
-                      >
-                        <div className="trk-command-icon-box">
-                          <Sparkles size={15} />
-                        </div>
-                        <div className="trk-command-texts">
-                          <span className="trk-command-title">Pet & Bond</span>
-                          <span className="trk-command-sub">Heart Sparks</span>
-                        </div>
-                      </button>
+                  <div className="trk-pet-command-grid">
+                    <button
+                      type="button"
+                      className={"trk-pet-command-btn" + (petMood === "love" ? " active" : "")}
+                      onClick={() => handlePetAction("pet")}
+                    >
+                      <span className="trk-command-icon-box">
+                        <Sparkles size={14} />
+                      </span>
+                      <span className="trk-command-title">Love</span>
+                    </button>
 
-                      <button
-                        type="button"
-                        className={"trk-pet-command-btn" + (petMood === "eating" ? " active" : "")}
-                        onClick={() => handlePetAction("feed")}
-                      >
-                        <div className="trk-command-icon-box zap">
-                          <Zap size={15} />
-                        </div>
-                        <div className="trk-command-texts">
-                          <span className="trk-command-title">Power Feed</span>
-                          <span className="trk-command-sub">100% Core</span>
-                        </div>
-                      </button>
+                    <button
+                      type="button"
+                      className={"trk-pet-command-btn" + (petMood === "eating" ? " active" : "")}
+                      onClick={() => handlePetAction("feed")}
+                    >
+                      <span className="trk-command-icon-box zap">
+                        <Zap size={14} />
+                      </span>
+                      <span className="trk-command-title">Feed</span>
+                    </button>
 
-                      <button
-                        type="button"
-                        className={"trk-pet-command-btn" + (petMood === "visor" ? " active" : "")}
-                        onClick={() => handlePetAction("visor")}
-                      >
-                        <div className="trk-command-icon-box visor">
-                          <Shield size={15} />
-                        </div>
-                        <div className="trk-command-texts">
-                          <span className="trk-command-title">Focus Visor</span>
-                          <span className="trk-command-sub">Laser Mode</span>
-                        </div>
-                      </button>
+                    <button
+                      type="button"
+                      className={"trk-pet-command-btn" + (petMood === "visor" ? " active" : "")}
+                      onClick={() => handlePetAction("visor")}
+                    >
+                      <span className="trk-command-icon-box visor">
+                        <Shield size={14} />
+                      </span>
+                      <span className="trk-command-title">Visor</span>
+                    </button>
 
-                      <button
-                        type="button"
-                        className={"trk-pet-command-btn" + (petMood === "radar" ? " active" : "")}
-                        onClick={() => handlePetAction("radar")}
-                      >
-                        <div className="trk-command-icon-box radar">
-                          <Compass size={15} />
-                        </div>
-                        <div className="trk-command-texts">
-                          <span className="trk-command-title">Cursor Radar</span>
-                          <span className="trk-command-sub">Lock-On</span>
-                        </div>
-                      </button>
+                    <button
+                      type="button"
+                      className={"trk-pet-command-btn" + (petMood === "radar" ? " active" : "")}
+                      onClick={() => handlePetAction("radar")}
+                    >
+                      <span className="trk-command-icon-box radar">
+                        <Compass size={14} />
+                      </span>
+                      <span className="trk-command-title">Radar</span>
+                    </button>
 
-                      <button
-                        type="button"
-                        className={"trk-pet-command-btn" + (petMood === "sleepy" ? " active" : "")}
-                        onClick={() => handlePetAction("sleep")}
-                      >
-                        <div className="trk-command-icon-box moon">
-                          <Moon size={15} />
-                        </div>
-                        <div className="trk-command-texts">
-                          <span className="trk-command-title">Standby</span>
-                          <span className="trk-command-sub">Sleep Mode</span>
-                        </div>
-                      </button>
+                    <button
+                      type="button"
+                      className={"trk-pet-command-btn" + (petMood === "sleepy" ? " active" : "")}
+                      onClick={() => handlePetAction("sleep")}
+                    >
+                      <span className="trk-command-icon-box moon">
+                        <Moon size={14} />
+                      </span>
+                      <span className="trk-command-title">Sleep</span>
+                    </button>
+                  </div>
 
-                      <button
-                        type="button"
-                        className="trk-pet-command-btn dna-command-btn"
-                        onClick={() => handlePetAction("reroll")}
-                        title="Re-synthesize unique cyber pet DNA"
-                      >
-                        <div className="trk-command-icon-box dna">
-                          <Dna size={15} />
-                        </div>
-                        <div className="trk-command-texts">
-                          <span className="trk-command-title">New DNA</span>
-                          <span className="trk-command-sub">Re-roll</span>
-                        </div>
-                      </button>
+                  <div className="trk-island-pet-option-row">
+                    <div className="trk-pet-option-title">
+                      <Sparkles size={13} style={{ color: "#38BDF8" }} />
+                      <span>Floating Pet on Minimize</span>
                     </div>
-
-                    {/* Option d'activation du compagnon flottant au-dessus de la barre des tâches */}
-                    <div className="trk-island-pet-option-row">
-                      <div className="trk-pet-option-info">
-                        <div className="trk-pet-option-title">
-                          <Sparkles size={13} style={{ color: "#38BDF8" }} />
-                          <span>Floating Companion on Minimize</span>
-                        </div>
-                        <span className="trk-pet-option-sub">
-                          Displays the transparent floating companion over taskbar during focus
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={desktopPetEnabled}
-                        className={"trk-pet-toggle-switch" + (desktopPetEnabled ? " active" : "")}
-                        onClick={onToggleDesktopPet}
-                        title={desktopPetEnabled ? "Disable floating companion" : "Enable floating companion"}
-                      >
-                        <span className="trk-pet-toggle-handle" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={desktopPetEnabled}
+                      className={"trk-pet-toggle-switch" + (desktopPetEnabled ? " active" : "")}
+                      onClick={onToggleDesktopPet}
+                      title={desktopPetEnabled ? "Disable floating pet" : "Enable floating pet"}
+                    >
+                      <span className="trk-pet-toggle-handle" />
+                    </button>
                   </div>
                 </div>
               )}
 
-              {/* ── 3. ONGLET FOCUS LIVE ACTIVITY ── */}
+              {/* ── 3. FOCUS ── */}
               {mode === "focus" && isCooking && (
                 <div className="trk-island-focus-panel">
                   <div className="trk-island-focus-card">
@@ -735,8 +723,8 @@ export function DynamicIsland({
                       </div>
 
                       <div className="trk-island-focus-flame-badge">
-                        <Flame size={13} className="trk-island-flame-icon" />
-                        <span>Live Session</span>
+                        <Flame size={12} className="trk-island-flame-icon" />
+                        <span>Live</span>
                       </div>
                     </div>
 
@@ -744,11 +732,11 @@ export function DynamicIsland({
 
                     <div className="trk-island-focus-stats">
                       <div className="trk-island-stat-box">
-                        <span className="trk-island-stat-label">Session Elapsed</span>
+                        <span className="trk-island-stat-label">Elapsed</span>
                         <span className="trk-island-stat-val trk-mono">{elapsedTimer}</span>
                       </div>
                       <div className="trk-island-stat-box">
-                        <span className="trk-island-stat-label">Total Logged</span>
+                        <span className="trk-island-stat-label">Total</span>
                         <span className="trk-island-stat-val trk-mono">
                           {formatDuration(
                             focusTask.timeLogs?.reduce((acc, l) => acc + (l.minutes || 0), 0) || 0
@@ -767,7 +755,7 @@ export function DynamicIsland({
                         }}
                       >
                         <Check size={14} />
-                        <span>Advance / Done</span>
+                        <span>Done</span>
                       </button>
 
                       {onEditTask && (
@@ -780,7 +768,7 @@ export function DynamicIsland({
                           }}
                         >
                           <ExternalLink size={13} />
-                          <span>Edit Task</span>
+                          <span>Edit</span>
                         </button>
                       )}
 
@@ -800,7 +788,7 @@ export function DynamicIsland({
                 </div>
               )}
 
-              {/* ── 4. ONGLET DEBUG CONSOLE ── */}
+              {/* ── 4. DEBUG ── */}
               {mode === "debug" && (
                 <div className="trk-island-debug-panel">
                   <div className="trk-debug-toolbar">
@@ -837,24 +825,24 @@ export function DynamicIsland({
                 </div>
               )}
 
-              {/* ── 5. ONGLET LATENCE & INP PERFORMANCE (Mode Dev Uniquement) ── */}
+              {/* ── 5. PERF (DEV ONLY) ── */}
               {isDev && mode === "perf" && perfState && (
                 <div className="trk-island-perf-panel">
                   <div className="trk-perf-header">
                     <div className="trk-perf-stat-card">
-                      <span className="trk-perf-label">INP (Last)</span>
+                      <span className="trk-perf-label">INP</span>
                       <span className={"trk-perf-val " + perfState.rating}>
                         {perfState.lastLatency !== null ? `${perfState.lastLatency}ms` : "—"}
                       </span>
                     </div>
                     <div className="trk-perf-stat-card">
-                      <span className="trk-perf-label">Avg Latency</span>
+                      <span className="trk-perf-label">Avg</span>
                       <span className="trk-perf-val">
                         {perfState.avgLatency ? `${perfState.avgLatency}ms` : "0ms"}
                       </span>
                     </div>
                     <div className="trk-perf-stat-card">
-                      <span className="trk-perf-label">Max Spike</span>
+                      <span className="trk-perf-label">Peak</span>
                       <span className={"trk-perf-val " + (perfState.maxLatency > 50 ? "warn" : "ok")}>
                         {perfState.maxLatency ? `${perfState.maxLatency}ms` : "0ms"}
                       </span>
@@ -868,16 +856,16 @@ export function DynamicIsland({
                   <div className="trk-perf-toolbar">
                     <span className="trk-perf-rating-badge">
                       {perfState.rating === "fast"
-                        ? "⚡ 60/120fps Instant (<16ms)"
+                        ? "< 16ms"
                         : perfState.rating === "good"
-                          ? "✨ Smooth (<50ms)"
-                          : "⚠️ Main thread lag (>50ms)"}
+                          ? "< 50ms"
+                          : "> 50ms"}
                     </span>
                     <button
                       type="button"
                       className="trk-island-btn"
                       onClick={clearPerfMetrics}
-                      title="Clear Latency History"
+                      title="Clear"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -885,7 +873,7 @@ export function DynamicIsland({
 
                   <div className="trk-perf-list">
                     {perfState.interactions.length === 0 ? (
-                      <div className="trk-perf-empty">No interactions recorded yet. Click or drag to inspect latency.</div>
+                      <div className="trk-perf-empty">No interactions yet.</div>
                     ) : (
                       perfState.interactions.map((it) => (
                         <div key={it.id} className={"trk-perf-row " + it.status}>

@@ -151,5 +151,43 @@ describe("DesktopPetSync", () => {
     // Le pet réapparaît correctement !
     expect(desktopPet.show).toHaveBeenCalledTimes(2);
   });
+
+  it("shows pet window when minimized even without active task or running timer, syncing pomodoro controls", () => {
+    const pomodoro = {
+      phase: "focus",
+      timeLeft: 1500,
+      totalPhaseSec: 1500,
+      isRunning: false,
+      isPomoActive: false,
+      endsAt: null,
+    };
+
+    render(
+      <DesktopPetSync
+        enabled={true}
+        focusTask={null}
+        focusStartedAt={null}
+        pomodoro={pomodoro}
+        petDna={{ name: "Nova" }}
+        theme="dark"
+      />
+    );
+
+    act(() => {
+      desktopPet.__triggerMinimized(true);
+    });
+
+    expect(desktopPet.show).toHaveBeenCalled();
+    expect(desktopPet.sendState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pomo: expect.objectContaining({
+          phase: "focus",
+          timeLeft: 1500,
+          isRunning: false,
+          isPomoActive: false,
+        }),
+      })
+    );
+  });
 });
 

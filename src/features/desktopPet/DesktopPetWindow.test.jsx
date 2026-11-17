@@ -260,5 +260,34 @@ describe("DesktopPetWindow", () => {
     fireEvent.click(pomoToggleBtn);
     expect(desktopPet.sendAction).toHaveBeenCalledWith({ type: "togglePomo" });
   });
+
+  it("shows minimal live timer mini-pill when HUD is reduced during an active session and expands on click", () => {
+    const { container } = render(<DesktopPetWindow />);
+
+    act(() => {
+      desktopPet.__triggerState({
+        theme: "dark",
+        mood: "focused",
+        focus: { title: "Review PR", project: "Frontend" },
+        focusStartedAt: Date.now() - 12000,
+        pomo: {
+          phase: "focus",
+          timeLeft: 900,
+          total: 1500,
+          isRunning: true,
+          endsAt: Date.now() + 900000,
+        },
+      });
+    });
+
+    fireEvent.click(screen.getByLabelText("Réduire la pensée"));
+    expect(screen.queryByText(">_ Review PR")).toBeNull();
+
+    const miniPill = container.querySelector(".trk-cloud-mini-pill");
+    expect(miniPill).toBeTruthy();
+
+    fireEvent.click(miniPill);
+    expect(screen.getByText(">_ Review PR")).toBeTruthy();
+  });
 });
 

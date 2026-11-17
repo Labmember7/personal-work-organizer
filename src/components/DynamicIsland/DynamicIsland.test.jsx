@@ -246,4 +246,37 @@ describe("DynamicIsland", () => {
     fireEvent.click(soundBtn);
     expect(screen.getByText("Sounds On")).toBeTruthy();
   });
+
+  it("keeps Pomodoro timer running across preset changes and snaps back to started timer on return or tab switch", () => {
+    const { container } = renderIsland();
+
+    // Open island via clock and switch to Focus & Rest
+    fireEvent.click(container.querySelector(".trk-island-triad-left"));
+    fireEvent.click(screen.getByText("Focus & Rest"));
+
+    // Start 25 / 5 timer and advance 5s
+    fireEvent.click(screen.getByText("Start Focus"));
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(screen.getAllByText("24:55").length).toBeGreaterThan(0);
+
+    // Click 50 / 10 preset while running -> dial previews 50:00, started timer stays running
+    fireEvent.click(screen.getByText("50 / 10"));
+    expect(container.querySelector(".trk-pomo-digits").textContent).toBe("50:00");
+
+    // Advance 5 more seconds -> return pill and tab badge show 24:50
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    const returnPill = container.querySelector(".trk-pomo-active-return");
+    expect(returnPill).toBeTruthy();
+    expect(returnPill.textContent).toContain("24:50");
+
+    // Switch to pet tab and back to timer tab -> snaps back to active 25 / 5 timer automatically
+    fireEvent.click(screen.getByRole("tab", { name: /%/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /Timer/i }));
+    expect(container.querySelector(".trk-pomo-digits").textContent).toBe("24:50");
+    expect(container.querySelector(".trk-pomo-active-return")).toBeNull();
+  });
 });

@@ -70,5 +70,83 @@ describe("usePomodoroSession", () => {
     expect(result.current.timeLeft).toBe(50 * 60);
     expect(result.current.isRunning).toBe(false);
   });
+
+  it("keeps started timer running when switching preset options and returns seamlessly to active preset", () => {
+    const { result } = renderHook(() => usePomodoroSession());
+
+    // Start 25/5 timer
+    act(() => {
+      result.current.togglePlay();
+    });
+    expect(result.current.isRunning).toBe(true);
+    expect(result.current.activePreset.id).toBe("25-5");
+
+    // Advance 10 seconds -> 24:50
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    expect(result.current.timeFormatted).toBe("24:50");
+
+    // Switch option to 50/10 while timer is running
+    act(() => {
+      result.current.selectPreset(PRESETS[1]);
+    });
+    expect(result.current.preset.id).toBe("50-10");
+    expect(result.current.activePreset.id).toBe("25-5");
+    expect(result.current.isViewingOtherPreset).toBe(true);
+    expect(result.current.isRunning).toBe(true);
+
+    // Advance another 10 seconds -> started 25/5 timer keeps ticking!
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    expect(result.current.timeFormatted).toBe("24:40");
+    expect(result.current.isRunning).toBe(true);
+
+    // Return to started 25/5 preset
+    act(() => {
+      result.current.selectPreset(PRESETS[0]);
+    });
+    expect(result.current.isViewingOtherPreset).toBe(false);
+    expect(result.current.preset.id).toBe("25-5");
+    expect(result.current.timeFormatted).toBe("24:40");
+    expect(result.current.isRunning).toBe(true);
+
+    // Preview 15/3 then snap back via returnToActivePreset
+    act(() => {
+      result.current.selectPreset(PRESETS[2]);
+    });
+    expect(result.current.isViewingOtherPreset).toBe(true);
+
+    act(() => {
+      result.current.returnToActivePreset();
+    });
+    expect(result.current.isViewingOtherPreset).toBe(false);
+    expect(result.current.preset.id).toBe("25-5");
+    expect(result.current.isRunning).toBe(true);
+  });
+
+  it("switches active timer only when explicitly starting the previewed preset", () => {
+    const { result } = renderHook(() => usePomodoroSession());
+
+    act(() => {
+      result.current.togglePlay();
+    });
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    act(() => {
+      result.current.selectPreset(PRESETS[1]); // Preview 50/10
+    });
+    expect(result.current.activePreset.id).toBe("25-5");
+
+    act(() => {
+      result.current.startViewedPreset();
+    });
+    expect(result.current.activePreset.id).toBe("50-10");
+    expect(result.current.isViewingOtherPreset).toBe(false);
+    expect(result.current.isRunning).toBe(true);
+    expect(result.current.timeFormatted).toBe("50:00");
+  });
 });
 

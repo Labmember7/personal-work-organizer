@@ -1,6 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════
-   FLOATING DESKTOP PET (Sans fond / Without Background)
-   Bulle de pensée 2.5D Pixel Cloud au-dessus de la tête avec boutons morphés.
+   FLOATING DESKTOP PET (Transparent Window · Apple / Linear HUD Polish)
    ══════════════════════════════════════════════════════════════════════ */
 
 html.pet-window-mode,
@@ -31,7 +30,7 @@ html.pet-window-mode #root {
   background: transparent !important;
   position: relative;
   box-sizing: border-box;
-  padding-bottom: 4px;
+  padding: 4px 8px 4px;
   overflow: hidden !important;
   pointer-events: auto;
 }
@@ -41,7 +40,6 @@ html.pet-window-mode #root {
   cursor: grabbing !important;
 }
 
-/* Conteneur principal du pet flottant */
 .trk-desktop-pet-container {
   display: flex;
   flex-direction: column;
@@ -49,26 +47,26 @@ html.pet-window-mode #root {
   position: relative;
   pointer-events: auto;
   cursor: grab;
-  width: 224px;
+  width: 100%;
 }
 
 .trk-desktop-pet-container:active {
   cursor: grabbing;
 }
 
-/* ── 2.5D PIXELATED THOUGHT CLOUD (Bulle de pensée pixel art compacte & translucide) ── */
+/* ── Glassmorphic Floating HUD Card ── */
 .trk-thought-stream {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  animation: trk-cloud-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: trk-cloud-pop 0.24s cubic-bezier(0.32, 1.25, 0.32, 1) both;
 }
 
 @keyframes trk-cloud-pop {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.92);
+    transform: translateY(6px) scale(0.94);
   }
   to {
     opacity: 1;
@@ -76,156 +74,151 @@ html.pet-window-mode #root {
   }
 }
 
-/* Structure du nuage en pixel-art : compacte épousant le contenu & translucide */
 .trk-pixel-cloud {
   position: relative;
   width: max-content;
-  min-width: 130px;
+  min-width: 148px;
   max-width: 216px;
   margin: 0 auto;
-  background: rgba(10, 16, 30, 0.82);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  border: 1.5px solid rgba(56, 189, 248, 0.35);
+  background: linear-gradient(165deg, rgba(16, 22, 36, 0.90) 0%, rgba(9, 13, 24, 0.94) 100%);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.25),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.5),
-    0 8px 24px rgba(0, 0, 0, 0.52);
-  padding: 6px 9px 6px 9px;
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.2),
+    0 10px 24px rgba(0, 0, 0, 0.48),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+  padding: 8px 10px;
   box-sizing: border-box;
   color: #F8FAFC;
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
-  image-rendering: pixelated;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .light .trk-pixel-cloud {
-  background: rgba(255, 255, 255, 0.88);
-  border-color: rgba(15, 23, 42, 0.25);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.94) 0%, rgba(244, 247, 252, 0.96) 100%);
+  border-color: rgba(15, 23, 42, 0.14);
   color: #0F172A;
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.12),
-    0 8px 20px rgba(0, 0, 0, 0.15);
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 22px rgba(15, 23, 42, 0.15),
+    0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
-/* Lobes supérieurs morphés du nuage (Oreilles / Boutons intégrés : Restore, Reduce, Close) */
-.trk-cloud-crest-row {
-  position: absolute;
-  top: -14px;
-  left: 6px;
-  right: 6px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 0 2px;
-  pointer-events: auto;
-  z-index: 10;
-}
-
-/* Boutons morphés dans les lobes du nuage */
-.trk-cloud-ear-btn {
-  pointer-events: auto;
-  width: 24px;
-  height: 15px;
-  border-radius: 7px 7px 0 0;
-  border: 1.5px solid rgba(56, 189, 248, 0.35);
-  border-bottom: none;
-  background: rgba(10, 16, 30, 0.84);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.3);
+/* Header Row: Status prompt + inline micro-controls */
+.trk-cloud-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  color: #94A3B8;
-  transition: all 160ms cubic-bezier(0.32, 1.25, 0.32, 1);
-}
-
-.light .trk-cloud-ear-btn {
-  background: rgba(255, 255, 255, 0.88);
-  border-color: rgba(15, 23, 42, 0.25);
-  color: #64748B;
-  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.9);
-}
-
-.trk-cloud-ear-btn:hover {
-  transform: translateY(-2px);
-  color: #FFFFFF;
-}
-
-.trk-cloud-ear-btn.restore:hover {
-  color: #38BDF8;
-  border-color: #38BDF8;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6), inset 0 1.5px 0 #FFFFFF;
-}
-
-.trk-cloud-ear-btn.reduce:hover {
-  color: #FBBF24;
-  border-color: #F59E0B;
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6), inset 0 1.5px 0 #FFFFFF;
-}
-
-.trk-cloud-ear-btn.close:hover {
-  color: #FB7185;
-  border-color: #F43F5E;
-  box-shadow: 0 0 8px rgba(244, 63, 94, 0.6), inset 0 1.5px 0 #FFFFFF;
-}
-
-.trk-cloud-ear-btn:active {
-  transform: scale(0.92);
-}
-
-/* Lobe central de crête du nuage */
-.trk-cloud-center-puff {
-  width: 24px;
-  height: 9px;
-  border-radius: 5px 5px 0 0;
-  border: 1.5px solid rgba(56, 189, 248, 0.32);
-  border-bottom: none;
-  background: rgba(10, 16, 30, 0.76);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.25);
-}
-
-.light .trk-cloud-center-puff {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(15, 23, 42, 0.2);
-  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.9);
-}
-
-/* Contenu intérieur du nuage */
-.trk-cloud-body {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  justify-content: space-between;
+  gap: 8px;
   min-width: 0;
 }
 
 .trk-cloud-task-title {
+  flex: 1;
+  min-width: 0;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: #F1F5F9;
   line-height: 1.25;
-  letter-spacing: 0.2px;
+  letter-spacing: -0.01em;
 }
 
 .light .trk-cloud-task-title {
   color: #0F172A;
 }
 
-.trk-cloud-prompt-glyph {
-  color: #00F5D4;
-  margin-right: 4px;
+.trk-cloud-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
-/* Ligne des timers dans le nuage */
+.trk-cloud-ear-btn {
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  color: #CBD5E1;
+  transition:
+    transform 160ms cubic-bezier(0.32, 1.25, 0.32, 1),
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.light .trk-cloud-ear-btn {
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.1);
+  color: #475569;
+}
+
+.trk-cloud-ear-btn:hover {
+  transform: scale(1.08);
+}
+
+.trk-cloud-ear-btn.restore:hover {
+  color: #38BDF8;
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.light .trk-cloud-ear-btn.restore:hover {
+  color: #0284C7;
+  background: rgba(2, 132, 199, 0.12);
+  border-color: rgba(2, 132, 199, 0.35);
+}
+
+.trk-cloud-ear-btn.reduce:hover {
+  color: #FBBF24;
+  background: rgba(251, 191, 36, 0.16);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.light .trk-cloud-ear-btn.reduce:hover {
+  color: #B45309;
+  background: rgba(217, 119, 6, 0.12);
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+.trk-cloud-ear-btn.close:hover {
+  color: #FB7185;
+  background: rgba(244, 63, 94, 0.18);
+  border-color: rgba(244, 63, 94, 0.45);
+}
+
+.light .trk-cloud-ear-btn.close:hover {
+  color: #BE123C;
+  background: rgba(225, 29, 72, 0.12);
+  border-color: rgba(225, 29, 72, 0.35);
+}
+
+.trk-cloud-ear-btn:active {
+  transform: scale(0.92);
+}
+
+.trk-cloud-ear-btn:focus-visible,
+.trk-cloud-pomo-play:focus-visible,
+.trk-cloud-mini-pill:focus-visible {
+  outline: 2px solid #38BDF8;
+  outline-offset: 1px;
+}
+
+/* Telemetry Pill Row */
 .trk-cloud-timers {
   display: flex;
   align-items: center;
@@ -239,103 +232,212 @@ html.pet-window-mode #root {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  height: 22px;
   font-family: 'IBM Plex Mono', monospace;
   font-variant-numeric: tabular-nums;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.08);
+  padding: 0 7px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
 }
 
 .light .trk-cloud-timer-chip {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.1);
 }
 
 .trk-cloud-timer-chip.focus {
   color: #FBBF24;
+  border-color: rgba(251, 191, 36, 0.25);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.light .trk-cloud-timer-chip.focus {
+  color: #B45309;
+  border-color: rgba(180, 83, 9, 0.25);
+  background: rgba(245, 158, 11, 0.12);
 }
 
 .trk-cloud-timer-chip.pomo {
+  padding-right: 3px;
+  margin-left: auto;
+}
+
+.trk-cloud-timer-chip.pomo.focus {
+  color: #FBBF24;
+  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.light .trk-cloud-timer-chip.pomo.focus {
+  color: #B45309;
+  border-color: rgba(180, 83, 9, 0.25);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.trk-cloud-timer-chip.pomo.rest {
   color: #2DD4BF;
+  border-color: rgba(45, 212, 191, 0.28);
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.light .trk-cloud-timer-chip.pomo.rest {
+  color: #0F766E;
+  border-color: rgba(15, 118, 110, 0.25);
+  background: rgba(20, 184, 166, 0.12);
+}
+
+.trk-cloud-pomo-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+.trk-cloud-timer-chip.pomo.running .trk-cloud-pomo-dot {
+  opacity: 1;
+  box-shadow: 0 0 6px currentColor;
+  animation: trk-pet-dot-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes trk-pet-dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
 }
 
 .trk-cloud-pomo-play {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
   cursor: pointer;
   color: inherit;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
   padding: 0;
-  margin-left: 4px;
+  margin-left: 2px;
   pointer-events: auto;
-  transition: all 140ms cubic-bezier(0.32, 1.25, 0.32, 1);
+  transition: transform 140ms cubic-bezier(0.32, 1.25, 0.32, 1), background-color 140ms ease;
+}
+
+.light .trk-cloud-pomo-play {
+  background: rgba(15, 23, 42, 0.08);
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 .trk-cloud-pomo-play:hover {
-  background: rgba(45, 212, 191, 0.35);
-  border-color: rgba(45, 212, 191, 0.5);
-  color: #FFFFFF;
-  transform: scale(1.15);
+  background: rgba(255, 255, 255, 0.24);
+  transform: scale(1.1);
+}
+
+.light .trk-cloud-pomo-play:hover {
+  background: rgba(15, 23, 42, 0.16);
 }
 
 .trk-cloud-pomo-play:active {
   transform: scale(0.9);
 }
 
-/* Petites bulles d'ascension de la pensée */
+/* Thought Connector Dots */
 .trk-thought-bubbles-trail {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .trk-thought-bubble-dot {
-  background: rgba(10, 16, 30, 0.76);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1.5px solid rgba(56, 189, 248, 0.32);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 2px 4px rgba(0, 0, 0, 0.4);
+  background: rgba(16, 22, 36, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .light .trk-thought-bubble-dot {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(15, 23, 42, 0.2);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 2px 4px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(15, 23, 42, 0.14);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1);
 }
 
 .trk-thought-bubble-dot.top {
-  width: 7px;
+  width: 6px;
   height: 5px;
-  border-radius: 4px;
+  border-radius: 999px;
 }
 
 .trk-thought-bubble-dot.bottom {
   width: 4px;
-  height: 3px;
-  border-radius: 3px;
-  margin-left: -4px;
+  height: 4px;
+  border-radius: 50%;
 }
 
-/* Avatar du pet complet */
+/* Minimal Reduced Mini-Pill (shown only when HUD collapsed + timer running) */
+.trk-cloud-mini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  margin-bottom: 4px;
+  border-radius: 999px;
+  background: rgba(12, 17, 29, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #FBBF24;
+  cursor: pointer;
+  animation: trk-cloud-pop 0.2s cubic-bezier(0.32, 1.25, 0.32, 1) both;
+  transition: transform 160ms cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+
+.trk-cloud-mini-pill.rest {
+  color: #2DD4BF;
+  border-color: rgba(45, 212, 191, 0.35);
+}
+
+.light .trk-cloud-mini-pill {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(15, 23, 42, 0.15);
+  color: #B45309;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+}
+
+.light .trk-cloud-mini-pill.rest {
+  color: #0F766E;
+}
+
+.trk-cloud-mini-pill:hover {
+  transform: translateY(-1px) scale(1.04);
+}
+
+.trk-cloud-mini-pill:active {
+  transform: scale(0.96);
+}
+
+.trk-cloud-mini-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: trk-pet-dot-pulse 1.5s ease-in-out infinite;
+}
+
+/* Companion Avatar */
 .trk-desktop-pet-avatar {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 180ms cubic-bezier(0.32, 1.25, 0.32, 1);
-  margin-top: 1px;
+  transition: transform 200ms cubic-bezier(0.32, 1.25, 0.32, 1);
+  margin-top: 2px;
   cursor: grab;
   pointer-events: auto;
   user-select: none;
@@ -344,14 +446,30 @@ html.pet-window-mode #root {
 
 .trk-desktop-pet-avatar:focus-visible {
   outline: 2px solid #38BDF8;
-  outline-offset: 4px;
+  outline-offset: 3px;
 }
 
 .trk-desktop-pet-avatar:hover {
-  transform: scale(1.08);
+  transform: scale(1.06);
 }
 
 .trk-desktop-pet-avatar:active {
   cursor: grabbing;
-  transform: scale(0.95);
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trk-thought-stream,
+  .trk-cloud-mini-pill,
+  .trk-cloud-pomo-dot,
+  .trk-cloud-mini-dot {
+    animation: none !important;
+  }
+
+  .trk-cloud-ear-btn,
+  .trk-cloud-pomo-play,
+  .trk-desktop-pet-avatar,
+  .trk-cloud-mini-pill {
+    transition: none !important;
+  }
 }

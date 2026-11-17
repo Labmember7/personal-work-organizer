@@ -1,22 +1,41 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getOrCreatePetDna } from "../../lib/petGenerator";
-import { playAppleChime, playHapticTick } from "../../lib/audioFx";
+import { playHapticTick } from "../../lib/audioFx";
 
 // Compagnon Cyber-Agent 2.5D Pixel-Art Cloud Mascot (Full-Body).
-// Modèle inspiré de l'agent Codex / Antigravity :
-// - Tête en forme de nuage 2.5D avec lobes supérieurs et latéraux bien définis
-// - Visière écran sombre avec yeux pixels cyan expressifs (> -, ˘ ˘, > _, ^ ^)
-// - Torse bleu doux avec glyphe de terminal >_ lumineux sur la poitrine
-// - Bras articulés et jambes/pieds mignons posés au sol avec ombre portée
-// - Suivi du regard souris en temps réel, clignements naturels et rebond tactile au clic.
+// Silhouette sculptée rangée par rangée pour des courbes propres sans crénelage,
+// visière OLED encastrée avec reflet verre, et ombrage 3 tons harmonieux.
 
 const VIRTUAL_W = 52;
 const VIRTUAL_H = 64;
 
+const CHIBI_BODY_TONES = {
+  "cyber-cyan": { outline: "#0B1124", body: "#5179F6", highlight: "#82A4FF", shadow: "#3456C5" },
+  "solar-amber": { outline: "#1C1006", body: "#F59E0B", highlight: "#FCD34D", shadow: "#B45309" },
+  "void-phantom": { outline: "#140A24", body: "#8B5CF6", highlight: "#C4B5FD", shadow: "#6D28D9" },
+  "matrix-emerald": { outline: "#051B11", body: "#10B981", highlight: "#6EE7B7", shadow: "#047857" },
+  "glacier-frost": { outline: "#071728", body: "#38BDF8", highlight: "#BAE6FD", shadow: "#0284C7" },
+  "crimson-ruby": { outline: "#1E070D", body: "#F43F5E", highlight: "#FDA4AF", shadow: "#BE123C" },
+  "sunset-synthwave": { outline: "#180A26", body: "#EC4899", highlight: "#F9A8D4", shadow: "#BE185D" },
+  "quantum-ghost": { outline: "#081C21", body: "#14B8A6", highlight: "#99F6E4", shadow: "#0F766E" },
+};
+
+function resolveBodyTones(pal) {
+  if (pal?.id && CHIBI_BODY_TONES[pal.id]) {
+    return CHIBI_BODY_TONES[pal.id];
+  }
+  return {
+    outline: pal?.chassisDark || "#0B1124",
+    body: pal?.accentLight || "#5179F6",
+    highlight: pal?.rim || "#82A4FF",
+    shadow: pal?.accentDark || "#3456C5",
+  };
+}
+
 export function FullBodyPet({
   size = 110,
   className = "",
-  mood = "normal", // "normal" | "happy" | "focused" | "love" | "sleepy" | "visor"
+  mood = "normal", // "normal" | "happy" | "focused" | "love" | "sleepy" | "visor" | "radar" | "eating"
   onClick,
   dna = null,
 }) {
@@ -65,7 +84,7 @@ export function FullBodyPet({
       const rect = canvas.getBoundingClientRect();
       cachedCenter = {
         x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 3, // Regard ancré au niveau de la tête
+        y: rect.top + rect.height / 3,
       };
     };
 
@@ -127,6 +146,10 @@ export function FullBodyPet({
     const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
 
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+
     let rafId;
 
     const render = (time) => {
@@ -151,12 +174,12 @@ export function FullBodyPet({
       s.currentGazeX += (s.targetGazeX - s.currentGazeX) * 0.16;
       s.currentGazeY += (s.targetGazeY - s.currentGazeY) * 0.16;
 
-      // Gestion du rebond interactif au clic
+      // Rebond interactif au clic
       if (s.bouncing) {
         const bounceElapsed = Date.now() - s.bounceStartTime;
-        if (bounceElapsed < 320) {
-          const p = bounceElapsed / 320;
-          s.bounceProgress = Math.sin(p * Math.PI) * -6;
+        if (bounceElapsed < 300) {
+          const p = bounceElapsed / 300;
+          s.bounceProgress = Math.sin(p * Math.PI) * -5;
         } else {
           s.bouncing = false;
           s.bounceProgress = 0;
@@ -184,10 +207,9 @@ export function FullBodyPet({
         }
       }
 
-      // Physique de respiration douce
-      const hoverSpeed = currentMood === "focused" ? 0.005 : 0.0035;
-      const hoverAmp = currentMood === "sleepy" ? 1.0 : 1.5;
-      const hoverY = Math.sin(time * hoverSpeed) * hoverAmp + s.bounceProgress;
+      const hoverSpeed = currentMood === "focused" ? 0.0038 : 0.0026;
+      const hoverAmp = reduceMotion ? 0 : currentMood === "sleepy" ? 0.6 : 1.15;
+      const hoverY = Math.sin(time * hoverSpeed) * hoverAmp + (reduceMotion ? 0 : s.bounceProgress);
 
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, physicalW, physicalH);
@@ -212,239 +234,234 @@ export function FullBodyPet({
         );
       };
 
-      // Palette dérivée de l'ADN ou palette officielle Codex Mascot
       const pal = petDna?.palette || {};
-      const COLOR_OUTLINE = pal.chassisDark || "#0E152D";
-      const COLOR_BODY = pal.chassisLight && pal.id !== "cyber-cyan" ? pal.chassisLight : "#5179F6";
-      const COLOR_HIGHLIGHT = pal.rim && pal.id !== "cyber-cyan" ? pal.rim : "#7498FC";
-      const COLOR_SHADOW = pal.chassisMid && pal.id !== "cyber-cyan" ? pal.chassisMid : "#3759C8";
-      const COLOR_VISOR_BG = "#0D1328";
-      const COLOR_CYAN = pal.neon || "#00F5FF";
+      const tones = resolveBodyTones(pal);
+      const COLOR_OUTLINE = tones.outline;
+      const COLOR_BODY = tones.body;
+      const COLOR_HIGHLIGHT = tones.highlight;
+      const COLOR_SHADOW = tones.shadow;
+      const COLOR_VISOR_BG = "#070B18";
+      const COLOR_EYE = pal.neon || "#00F5FF";
       const COLOR_CHEST_GLYPH = "#FFFFFF";
-      const COLOR_CHEEK = pal.cheek || "#FF3385";
+      const COLOR_CHEEK = pal.cheek || "#FF4D8D";
 
       // ── 0. Ombre portée douce au sol ──
       const shadowY = 58;
-      const shadowScale = 1 - (hoverY + 2.0) * 0.05;
-      const shadowW = Math.max(16, Math.round(24 * shadowScale));
-      const shadowH = 3;
+      const shadowScale = 1 - (hoverY + 1.5) * 0.045;
+      const shadowW = Math.max(16, Math.round(22 * shadowScale));
       const shadowX = 26 - Math.round(shadowW / 2);
-      fillBox(shadowX, shadowY, shadowW, shadowH, "rgba(0, 0, 0, 0.40)");
-      fillBox(shadowX + 2, shadowY + 1, Math.max(10, shadowW - 4), 1, "rgba(0, 0, 0, 0.65)");
+      fillBox(shadowX, shadowY + 1, shadowW, 2, "rgba(0, 0, 0, 0.28)");
+      fillBox(shadowX + 3, shadowY + 1, Math.max(10, shadowW - 6), 2, "rgba(0, 0, 0, 0.42)");
 
-      // Origine verticale animée du corps
-      const baseY = Math.round(6 + hoverY);
+      const baseY = Math.round(7 + hoverY);
 
-      // ── 1. Jambes & Pieds posés au sol ──
-      // Jambe gauche
-      fillBox(17, baseY + 38, 7, 12, COLOR_OUTLINE);
-      fillBox(18, baseY + 39, 5, 10, COLOR_BODY);
-      fillBox(18, baseY + 39, 5, 2, COLOR_HIGHLIGHT);
-      fillBox(18, baseY + 46, 5, 3, COLOR_SHADOW);
+      // ── 1. Jambes & Pieds arrondis ──
+      const drawFoot = (fx) => {
+        fillBox(fx, baseY + 38, 6, 9, COLOR_OUTLINE);
+        fillBox(fx + 1, baseY + 47, 4, 1, COLOR_OUTLINE);
+        fillBox(fx + 1, baseY + 39, 4, 7, COLOR_BODY);
+        fillBox(fx + 1, baseY + 39, 4, 2, COLOR_SHADOW);
+        fillBox(fx + 1, baseY + 45, 4, 1, COLOR_HIGHLIGHT);
+      };
+      drawFoot(18);
+      drawFoot(28);
 
-      // Jambe droite
-      fillBox(28, baseY + 38, 7, 12, COLOR_OUTLINE);
-      fillBox(29, baseY + 39, 5, 10, COLOR_BODY);
-      fillBox(29, baseY + 39, 5, 2, COLOR_HIGHLIGHT);
-      fillBox(29, baseY + 46, 5, 3, COLOR_SHADOW);
-
-      // Entrejambe
-      fillBox(24, baseY + 44, 4, 6, "rgba(0, 0, 0, 0.15)");
-
-      // ── 2. Torse arrondi bleu ──
-      fillBox(15, baseY + 27, 22, 13, COLOR_OUTLINE);
-      fillBox(16, baseY + 26, 20, 15, COLOR_OUTLINE);
-
-      fillBox(16, baseY + 28, 20, 11, COLOR_BODY);
-      fillBox(17, baseY + 27, 18, 13, COLOR_BODY);
-
-      // Reflet supérieur du torse
-      fillBox(18, baseY + 27, 16, 2, COLOR_HIGHLIGHT);
-      // Ombre inférieure du torse
-      fillBox(18, baseY + 38, 16, 2, COLOR_SHADOW);
+      // ── 2. Torse compact arrondi ──
+      fillBox(17, baseY + 26, 18, 14, COLOR_OUTLINE);
+      fillBox(16, baseY + 27, 20, 12, COLOR_OUTLINE);
+      fillBox(17, baseY + 27, 18, 12, COLOR_BODY);
+      fillBox(18, baseY + 27, 16, 1, COLOR_SHADOW); // Ombre portée sous la tête
+      fillBox(18, baseY + 37, 16, 2, COLOR_SHADOW);
+      fillBox(18, baseY + 28, 16, 1, COLOR_HIGHLIGHT);
 
       // ── 3. Glyphe Terminal >_ sur la poitrine ──
-      // Glyphe > (flèche de commande)
       px(22, baseY + 31, COLOR_CHEST_GLYPH);
       px(23, baseY + 32, COLOR_CHEST_GLYPH);
       px(24, baseY + 33, COLOR_CHEST_GLYPH);
       px(23, baseY + 34, COLOR_CHEST_GLYPH);
       px(22, baseY + 35, COLOR_CHEST_GLYPH);
-
-      // Glyphe _ (curseur horizontal)
       fillBox(26, baseY + 35, 4, 1, COLOR_CHEST_GLYPH);
-      fillBox(26, baseY + 34, 4, 1, "rgba(0, 245, 255, 0.5)");
+      fillBox(26, baseY + 34, 4, 1, COLOR_EYE);
 
-      // ── 4. Bras articulés mignons ──
-      const armSway = Math.sin(time * 0.004) * 1.5;
+      // ── 4. Bras articulés doux ──
+      const armSway = reduceMotion ? 0 : Math.sin(time * 0.0028) * 1.1;
+
+      const drawArm = (ax, ay, raised = false, glowTip = false) => {
+        fillBox(ax + 1, ay, 4, 10, COLOR_OUTLINE);
+        fillBox(ax, ay + 1, 6, 8, COLOR_OUTLINE);
+        fillBox(ax + 1, ay + 1, 4, 8, COLOR_BODY);
+        fillBox(ax + 1, raised ? ay + 1 : ay + 2, 4, 1, COLOR_HIGHLIGHT);
+        fillBox(ax + 1, ay + 7, 4, 2, glowTip ? COLOR_EYE : COLOR_SHADOW);
+      };
 
       if (currentMood === "happy" || bounceActive) {
-        // Bras levés en signe de victoire / joie
-        fillBox(9, baseY + 20, 7, 10, COLOR_OUTLINE);
-        fillBox(10, baseY + 21, 5, 8, COLOR_BODY);
-        fillBox(10, baseY + 20, 5, 3, COLOR_HIGHLIGHT);
-
-        fillBox(36, baseY + 20, 7, 10, COLOR_OUTLINE);
-        fillBox(37, baseY + 21, 5, 8, COLOR_BODY);
-        fillBox(37, baseY + 20, 5, 3, COLOR_HIGHLIGHT);
+        drawArm(10, baseY + 21, true);
+        drawArm(36, baseY + 21, true);
       } else if (currentMood === "focused") {
-        // Bras en position de frappe au clavier / opération
-        const typeOffset = Math.sin(time * 0.02) * 1.2;
-        fillBox(10, baseY + 28 + Math.round(typeOffset), 6, 9, COLOR_OUTLINE);
-        fillBox(11, baseY + 29 + Math.round(typeOffset), 4, 7, COLOR_BODY);
-        fillBox(13, baseY + 33 + Math.round(typeOffset), 3, 3, COLOR_CYAN);
-
-        fillBox(36, baseY + 28 - Math.round(typeOffset), 6, 9, COLOR_OUTLINE);
-        fillBox(37, baseY + 29 - Math.round(typeOffset), 4, 7, COLOR_BODY);
-        fillBox(36, baseY + 33 - Math.round(typeOffset), 3, 3, COLOR_CYAN);
+        const typeOffset = reduceMotion ? 0 : Math.round(Math.sin(time * 0.014) * 0.9);
+        drawArm(10, baseY + 27 + typeOffset, false, true);
+        drawArm(36, baseY + 27 - typeOffset, false, true);
       } else {
-        // Bras détendus aux côtés avec léger balancement
-        fillBox(9, baseY + 27 + Math.round(armSway), 7, 11, COLOR_OUTLINE);
-        fillBox(10, baseY + 28 + Math.round(armSway), 5, 9, COLOR_BODY);
-        fillBox(10, baseY + 34 + Math.round(armSway), 5, 3, COLOR_SHADOW);
-
-        fillBox(36, baseY + 27 - Math.round(armSway), 7, 11, COLOR_OUTLINE);
-        fillBox(37, baseY + 28 - Math.round(armSway), 5, 9, COLOR_BODY);
-        fillBox(37, baseY + 34 - Math.round(armSway), 5, 3, COLOR_SHADOW);
+        drawArm(10, baseY + 27 + Math.round(armSway));
+        drawArm(36, baseY + 27 - Math.round(armSway));
       }
 
-      // ── 5. Tête en Nuage 2.5D (Cloud Silhouette) ──
-      // Silhouette extérieure (Contour noir/marine)
-      // Dôme central supérieur
-      fillBox(19, baseY + 2, 14, 18, COLOR_OUTLINE);
-      fillBox(21, baseY, 10, 20, COLOR_OUTLINE);
+      // ── 5. Tête Nuage Sculptée (silhouette symétrique rangée par rangée) ──
+      // Contour externe lisse
+      const headOutlineRows = [
+        [0, 21, 30],
+        [1, 18, 33],
+        [2, 13, 38],
+        [3, 11, 40],
+        [4, 10, 41],
+        [5, 9, 42],
+        [6, 9, 42],
+        [7, 9, 42],
+        [8, 8, 43],
+        [9, 8, 43],
+        [10, 8, 43],
+        [11, 8, 43],
+        [12, 8, 43],
+        [13, 8, 43],
+        [14, 8, 43],
+        [15, 8, 43],
+        [16, 8, 43],
+        [17, 8, 43],
+        [18, 8, 43],
+        [19, 9, 42],
+        [20, 9, 42],
+        [21, 10, 41],
+        [22, 11, 40],
+        [23, 13, 38],
+        [24, 16, 35],
+      ];
+      for (const [dy, x1, x2] of headOutlineRows) {
+        fillBox(x1, baseY + dy, x2 - x1 + 1, 1, COLOR_OUTLINE);
+      }
 
-      // Dôme supérieur gauche
-      fillBox(11, baseY + 4, 12, 16, COLOR_OUTLINE);
-      fillBox(13, baseY + 2, 8, 18, COLOR_OUTLINE);
+      // Remplissage intérieur avec courbes lisses
+      const headBodyRows = [
+        [1, 21, 30, COLOR_HIGHLIGHT],
+        [2, 18, 33, COLOR_HIGHLIGHT],
+        [3, 13, 38, COLOR_HIGHLIGHT],
+        [4, 12, 39, COLOR_BODY],
+        [5, 11, 40, COLOR_BODY],
+        [6, 10, 41, COLOR_BODY],
+        [7, 10, 41, COLOR_BODY],
+        [8, 9, 42, COLOR_BODY],
+        [9, 9, 42, COLOR_BODY],
+        [10, 9, 42, COLOR_BODY],
+        [11, 9, 42, COLOR_BODY],
+        [12, 9, 42, COLOR_BODY],
+        [13, 9, 42, COLOR_BODY],
+        [14, 9, 42, COLOR_BODY],
+        [15, 9, 42, COLOR_BODY],
+        [16, 9, 42, COLOR_BODY],
+        [17, 9, 42, COLOR_BODY],
+        [18, 9, 42, COLOR_BODY],
+        [19, 10, 41, COLOR_BODY],
+        [20, 10, 41, COLOR_BODY],
+        [21, 11, 40, COLOR_BODY],
+        [22, 12, 39, COLOR_SHADOW],
+        [23, 16, 35, COLOR_SHADOW],
+      ];
+      for (const [dy, x1, x2, col] of headBodyRows) {
+        fillBox(x1, baseY + dy, x2 - x1 + 1, 1, col);
+      }
+      // Reflets latéraux doux sur les joues
+      fillBox(10, baseY + 10, 1, 6, COLOR_HIGHLIGHT);
+      fillBox(41, baseY + 10, 1, 6, COLOR_HIGHLIGHT);
 
-      // Dôme supérieur droit
-      fillBox(29, baseY + 4, 12, 16, COLOR_OUTLINE);
-      fillBox(31, baseY + 2, 8, 18, COLOR_OUTLINE);
+      // ── 6. Visière OLED Encastrée aux coins chanfreinés ──
+      const vx = 13;
+      const vy = baseY + 8;
+      const vw = 26;
+      const vh = 13;
 
-      // Joue gauche
-      fillBox(7, baseY + 10, 14, 14, COLOR_OUTLINE);
-      fillBox(9, baseY + 8, 10, 16, COLOR_OUTLINE);
+      // Cadre externe de visière
+      fillBox(vx + 1, vy - 1, vw - 2, vh + 2, COLOR_OUTLINE);
+      fillBox(vx - 1, vy + 1, vw + 2, vh - 2, COLOR_OUTLINE);
+      fillBox(vx, vy, vw, vh, COLOR_OUTLINE);
 
-      // Joue droite
-      fillBox(31, baseY + 10, 14, 14, COLOR_OUTLINE);
-      fillBox(33, baseY + 8, 10, 16, COLOR_OUTLINE);
+      // Écran OLED interne (coins arrondis 1px)
+      fillBox(vx + 1, vy, vw - 2, vh, COLOR_VISOR_BG);
+      fillBox(vx, vy + 1, vw, vh - 2, COLOR_VISOR_BG);
 
-      // Menton / Base de tête
-      fillBox(14, baseY + 22, 24, 5, COLOR_OUTLINE);
+      // Reflet supérieur discret & liseré inférieur
+      fillBox(vx + 2, vy, vw - 4, 1, "rgba(255, 255, 255, 0.16)");
+      fillBox(vx + 2, vy + vh - 1, vw - 4, 1, "rgba(255, 255, 255, 0.06)");
 
-      // ── Remplissage intérieur bleu nuage ──
-      // Corps principal du nuage
-      fillBox(12, baseY + 6, 28, 18, COLOR_BODY);
-      fillBox(15, baseY + 3, 22, 22, COLOR_BODY);
-      fillBox(20, baseY + 1, 12, 24, COLOR_BODY);
-      fillBox(8, baseY + 11, 36, 12, COLOR_BODY);
-
-      // Reflets supérieurs sur les lobes du nuage
-      fillBox(21, baseY + 1, 10, 2, COLOR_HIGHLIGHT);
-      fillBox(13, baseY + 3, 7, 2, COLOR_HIGHLIGHT);
-      fillBox(32, baseY + 3, 7, 2, COLOR_HIGHLIGHT);
-      fillBox(8, baseY + 11, 2, 6, COLOR_HIGHLIGHT);
-      fillBox(42, baseY + 11, 2, 6, COLOR_HIGHLIGHT);
-
-      // Ombres inférieures sur les lobes du nuage
-      fillBox(16, baseY + 24, 20, 2, COLOR_SHADOW);
-      fillBox(9, baseY + 21, 6, 2, COLOR_SHADOW);
-      fillBox(37, baseY + 21, 6, 2, COLOR_SHADOW);
-
-      // ── 6. Visière Écran Sombre OLED ──
-      const vx = 14;
-      const vy = baseY + 9;
-      const vw = 24;
-      const vh = 14;
-
-      // Contour de la visière
-      fillBox(vx - 1, vy, vw + 2, vh, COLOR_OUTLINE);
-      fillBox(vx, vy - 1, vw, vh + 2, COLOR_OUTLINE);
-
-      // Écran OLED
-      fillBox(vx, vy, vw, vh, COLOR_VISOR_BG);
-
-      // Reflet brillant sur le verre supérieur
-      fillBox(vx + 2, vy, vw - 4, 1, "rgba(255, 255, 255, 0.22)");
-
-      // ── 7. Expressions d'Yeux Pixels Cyan ──
-      const eyeX = s.currentGazeX;
-      const eyeY = s.currentGazeY;
-      const lx = Math.round(17 + eyeX);
-      const ly = Math.round(vy + 4 + eyeY);
-      const rx = Math.round(27 + eyeX);
-      const ry = Math.round(vy + 4 + eyeY);
+      // ── 7. Expressions d'Yeux Pixels Lumineux ──
+      const eyeX = Math.round(s.currentGazeX);
+      const eyeY = Math.round(s.currentGazeY);
+      const lx = 17 + eyeX;
+      const ly = vy + 4 + eyeY;
+      const rx = 28 + eyeX;
+      const ry = vy + 4 + eyeY;
 
       if (currentMood === "sleepy") {
-        // Yeux fermés courbés zen ˘ ˘ (comme sur la Capture 1 de l'utilisateur)
-        // Oeil gauche
-        px(lx, ly + 2, COLOR_CYAN);
-        px(lx + 1, ly + 3, COLOR_CYAN);
-        px(lx + 2, ly + 3, COLOR_CYAN);
-        px(lx + 3, ly + 2, COLOR_CYAN);
-        px(lx + 4, ly + 1, COLOR_CYAN);
+        // Yeux fermés zen ˘ ˘
+        px(lx, ly + 1, COLOR_EYE);
+        px(lx + 1, ly + 2, COLOR_EYE);
+        px(lx + 2, ly + 2, COLOR_EYE);
+        px(lx + 3, ly + 1, COLOR_EYE);
 
-        // Oeil droit
-        px(rx, ly + 1, COLOR_CYAN);
-        px(rx + 1, ly + 2, COLOR_CYAN);
-        px(rx + 2, ly + 3, COLOR_CYAN);
-        px(rx + 3, ly + 3, COLOR_CYAN);
-        px(rx + 4, ly + 2, COLOR_CYAN);
+        px(rx, ry + 1, COLOR_EYE);
+        px(rx + 1, ry + 2, COLOR_EYE);
+        px(rx + 2, ry + 2, COLOR_EYE);
+        px(rx + 3, ry + 1, COLOR_EYE);
 
-        // Zzz de sommeil occasionnels
-        const zProg = (time * 0.001) % 2.5;
-        if (zProg < 1.4) {
-          px(37, Math.floor(baseY - zProg * 4), COLOR_HIGHLIGHT);
-          px(38, Math.floor(baseY - 1 - zProg * 4), COLOR_HIGHLIGHT);
+        if (!reduceMotion) {
+          const zProg = (time * 0.001) % 2.4;
+          if (zProg < 1.3) {
+            px(38, Math.floor(baseY - zProg * 3), COLOR_HIGHLIGHT);
+            px(39, Math.floor(baseY - 1 - zProg * 3), COLOR_HIGHLIGHT);
+          }
         }
       } else if (s.blinkProgress > 0.3) {
-        // Clignement d'yeux naturel (- -)
-        fillBox(lx, ly + 2, 5, 2, COLOR_CYAN);
-        fillBox(rx, ry + 2, 5, 2, COLOR_CYAN);
-      } else if (currentMood === "happy" || bounceActive) {
+        fillBox(lx, ly + 2, 4, 1, COLOR_EYE);
+        fillBox(rx, ry + 2, 4, 1, COLOR_EYE);
+      } else if (currentMood === "happy" || bounceActive || isHovered) {
         // Yeux joyeux en arc (^ ^)
-        px(lx + 1, ly + 1, COLOR_CYAN);
-        px(lx + 2, ly + 1, COLOR_CYAN);
-        px(lx, ly + 2, COLOR_CYAN);
-        px(lx + 3, ly + 2, COLOR_CYAN);
+        px(lx + 1, ly + 1, COLOR_EYE);
+        px(lx + 2, ly + 1, COLOR_EYE);
+        px(lx, ly + 2, COLOR_EYE);
+        px(lx + 3, ly + 2, COLOR_EYE);
 
-        px(rx + 1, ry + 1, COLOR_CYAN);
-        px(rx + 2, ry + 1, COLOR_CYAN);
-        px(rx, ry + 2, COLOR_CYAN);
-        px(rx + 3, ry + 2, COLOR_CYAN);
+        px(rx + 1, ry + 1, COLOR_EYE);
+        px(rx + 2, ry + 1, COLOR_EYE);
+        px(rx, ry + 2, COLOR_EYE);
+        px(rx + 3, ry + 2, COLOR_EYE);
 
-        // Pommettes roses LED
         fillBox(lx, ly + 4, 3, 1, COLOR_CHEEK);
         fillBox(rx + 1, ry + 4, 3, 1, COLOR_CHEEK);
+      } else if (currentMood === "love") {
+        fillBox(lx, ly + 1, 2, 2, COLOR_CHEEK);
+        fillBox(lx + 2, ly + 1, 2, 2, COLOR_CHEEK);
+        fillBox(lx + 1, ly + 3, 2, 1, COLOR_CHEEK);
+        fillBox(rx, ry + 1, 2, 2, COLOR_CHEEK);
+        fillBox(rx + 2, ry + 1, 2, 2, COLOR_CHEEK);
+        fillBox(rx + 1, ry + 3, 2, 1, COLOR_CHEEK);
       } else if (currentMood === "focused") {
-        // Mode focus : > _ avec curseur clignotant
-        // Oeil gauche : >
-        px(lx, ly, COLOR_CYAN);
-        px(lx + 1, ly + 1, COLOR_CYAN);
+        // Mode focus : > _ avec curseur doux
+        px(lx, ly, COLOR_EYE);
+        px(lx + 1, ly + 1, COLOR_EYE);
         px(lx + 2, ly + 2, "#FFFFFF");
-        px(lx + 1, ly + 3, COLOR_CYAN);
-        px(lx, ly + 4, COLOR_CYAN);
+        px(lx + 1, ly + 3, COLOR_EYE);
+        px(lx, ly + 4, COLOR_EYE);
 
-        // Oeil droit : curseur _ pulsant
-        const cursorPulse = Math.sin(time * 0.01) > 0;
-        if (cursorPulse) {
-          fillBox(rx, ry + 3, 5, 2, COLOR_CYAN);
-          fillBox(rx + 1, ry + 3, 3, 1, "#FFFFFF");
-        } else {
-          fillBox(rx, ry + 3, 5, 1, "rgba(0, 245, 255, 0.4)");
-        }
+        const cursorPulse = reduceMotion || Math.sin(time * 0.006) > -0.35;
+        fillBox(rx, ry + 3, 5, 2, cursorPulse ? COLOR_EYE : "rgba(0, 245, 255, 0.35)");
+        if (cursorPulse) fillBox(rx + 1, ry + 3, 3, 1, "#FFFFFF");
       } else {
-        // Mode normal : > - (comme sur la Capture 2 de l'utilisateur)
-        // Oeil gauche : >
-        px(lx, ly, COLOR_CYAN);
-        px(lx + 1, ly + 1, COLOR_CYAN);
+        // Mode normal : > -
+        px(lx, ly, COLOR_EYE);
+        px(lx + 1, ly + 1, COLOR_EYE);
         px(lx + 2, ly + 2, "#FFFFFF");
-        px(lx + 1, ly + 3, COLOR_CYAN);
-        px(lx, ly + 4, COLOR_CYAN);
+        px(lx + 1, ly + 3, COLOR_EYE);
+        px(lx, ly + 4, COLOR_EYE);
 
-        // Oeil droit : -
-        fillBox(rx, ry + 2, 5, 2, COLOR_CYAN);
+        fillBox(rx, ry + 2, 5, 2, COLOR_EYE);
         fillBox(rx + 1, ry + 2, 3, 1, "#FFFFFF");
       }
 
@@ -461,7 +478,6 @@ export function FullBodyPet({
     animState.current.bounceStartTime = Date.now();
     setBounceActive(true);
     playHapticTick();
-    if (Math.random() > 0.5) playAppleChime();
     onClick?.(e);
   };
 

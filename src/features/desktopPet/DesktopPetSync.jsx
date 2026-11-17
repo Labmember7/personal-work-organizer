@@ -4,8 +4,8 @@ import { desktopPet, desktopPetSupported } from "../../services/desktopPet";
 /**
  * Composant monté dans la fenêtre principale (`App.jsx`).
  * Il surveille l'état de minimisation de la fenêtre principale.
- * Si l'app est minimisée ET qu'une tâche est en focus ou un timer tourne,
- * il affiche la fenêtre transparente du pet de bureau au-dessus de la barre des tâches
+ * Si l'app est minimisée et le compagnon flottant activé, il affiche
+ * la fenêtre transparente du pet de bureau au-dessus de la barre des tâches
  * et synchronise en temps réel les données de tâche et de timer.
  */
 export function DesktopPetSync({
@@ -26,22 +26,30 @@ export function DesktopPetSync({
   const currentState = {
     petDna,
     theme: theme || "dark",
-    mood: focusTask ? (pomodoro?.isRunning ? "focused" : "normal") : (pomodoro?.isRunning ? "focused" : "normal"),
+    mood: pomodoro?.isRunning
+      ? pomodoro.phase === "rest"
+        ? "happy"
+        : "focused"
+      : focusTask
+        ? "focused"
+        : "normal",
     focus: focusTask ? { title: focusTask.titre, project: focusTask.projet } : null,
     focusStartedAt: focusStartedAt || null,
-    pomo: pomodoro && pomodoro.isPomoActive ? {
-      phase: pomodoro.phase,
-      timeLeft: pomodoro.timeLeft,
-      total: pomodoro.totalPhaseSec || 1500,
-      isRunning: pomodoro.isRunning,
-      endsAt: pomodoro.endsAt || null,
-    } : null,
+    pomo: pomodoro
+      ? {
+          phase: pomodoro.phase || "focus",
+          timeLeft: pomodoro.timeLeft ?? 1500,
+          total: pomodoro.totalPhaseSec || 1500,
+          isRunning: Boolean(pomodoro.isRunning),
+          isPomoActive: Boolean(pomodoro.isPomoActive),
+          endsAt: pomodoro.endsAt || null,
+        }
+      : null,
   };
   stateRef.current = currentState;
 
-  // Détection du besoin d'affichage : activé par l'utilisateur ET minimisé ET (tâche en focus OU timer actif) ET non rejeté
-  const hasActivity = Boolean(focusTask) || Boolean(pomodoro?.isPomoActive);
-  const shouldShow = enabled && isMainMinimized && hasActivity && !isDismissed;
+  // Affichage dès que l'app est réduite, que le compagnon est activé et non fermé manuellement
+  const shouldShow = enabled && isMainMinimized && !isDismissed;
 
   // Réinitialisation robuste de l'état de rejet dès que la fenêtre principale reprend le focus ou redevient visible
   useEffect(() => {
@@ -105,7 +113,7 @@ export function DesktopPetSync({
 
     if (shouldShow) {
       desktopPet.show();
-      desktopPet.sendState(currentState);
+      if (stateRef.current) desktopPet.sendState(stateRef.current);
     } else {
       desktopPet.hide();
     }
@@ -114,7 +122,7 @@ export function DesktopPetSync({
   // Diffusion continue de l'état quand le pet est affiché
   useEffect(() => {
     if (!desktopPetSupported() || !shouldShow) return;
-    desktopPet.sendState(currentState);
+    if (stateRef.current) desktopPet.sendState(stateRef.current);
   }, [
     shouldShow,
     focusTask?.titre,
@@ -123,6 +131,8 @@ export function DesktopPetSync({
     pomodoro?.phase,
     pomodoro?.timeLeft,
     pomodoro?.isRunning,
+    pomodoro?.isPomoActive,
+    pomodoro?.totalPhaseSec,
     pomodoro?.endsAt,
     petDna,
     theme,
