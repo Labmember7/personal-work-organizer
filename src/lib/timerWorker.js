@@ -1,5 +1,5 @@
 // Utilitaire d'horloge haute précision insensible à la mise en arrière-plan
-// Les navigateurs et Electron brident les setInterval de la fenêtre inactive.
+// Les navigateurs et les webviews brident les setInterval de la fenêtre inactive.
 // Un Web Worker dédié tourne sur son propre fil d'exécution et n'est JAMAIS bridé.
 
 export function createUnthrottledInterval(callback, intervalMs = 250) {

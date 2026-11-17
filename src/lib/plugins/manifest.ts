@@ -8,15 +8,15 @@
 //     { "id": "mindmap", "version": "1.0.0", "apiVersion": 1, ... }
 //   </script>
 //
-// La validation vit ici et NULLE PART ailleurs : le processus principal ne fait
-// qu'extraire le bloc et le transmettre tel quel (cf. electron/plugins.js).
+// La validation vit ici et NULLE PART ailleurs : le backend Rust ne fait
+// qu'extraire le bloc et le transmettre tel quel (cf. src-tauri/src/plugins.rs).
 
 import {
   PLUGIN_API_VERSION, PLUGIN_CAPABILITIES,
   type LocalizedText, type PluginCapability, type PluginManifest, type PluginScopeKind,
 } from "./types";
 
-/** Balise qui porte le manifeste. Doit rester alignée avec electron/plugins.js. */
+/** Balise qui porte le manifeste. Doit rester alignée avec src-tauri/src/plugins.rs. */
 export const MANIFEST_TAG_ID = "trk-plugin";
 
 const MANIFEST_RE =

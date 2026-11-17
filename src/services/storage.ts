@@ -1,5 +1,5 @@
-// Accès au stockage : IPC Electron (window.storage / window.config) quand
-// l'app tourne dans Electron, repli localStorage pour `vite dev` dans un
+// Accès au stockage : pont IPC Tauri (window.storage / window.config) quand
+// l'app tourne dans Tauri, repli localStorage pour `vite dev` dans un
 // navigateur. Toutes les fonctions sont asynchrones et tolérantes : une
 // erreur de lecture rend null, une erreur d'écriture rend false.
 
@@ -116,8 +116,8 @@ export async function deleteValue(key: string): Promise<boolean> {
 }
 
 // Supprime les images collées qui ne sont plus référencées par aucune
-// description (voir images:prune dans main.js). Hors Electron : sans accès
-// disque, il n'y a pas de fichier à nettoyer.
+// description (voir images_prune dans src-tauri/src/images.rs). Hors Tauri :
+// sans accès disque, il n'y a pas de fichier à nettoyer.
 export async function pruneUnusedImages(usedFiles: string[]): Promise<void> {
   if (typeof window === "undefined" || !window.images?.prune) return;
   await window.images.prune(usedFiles);

@@ -301,7 +301,7 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
   }, [editor, t]);
 
   pasteImageRef.current = (event) => {
-    if (!window.images) return false; // hors Electron (vite dev) : collage natif
+    if (!window.images) return false; // hors Tauri (vite dev) : collage natif
     const file = imageFileFrom(event.clipboardData);
     if (!file) return false;
     uploadImage(file);

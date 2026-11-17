@@ -1,6 +1,6 @@
 // Découverte des plugins et export de fichiers plugin (JSON, PNG…).
 //
-// Deux chemins, comme le reste de `services/` : IPC Electron quand `window.plugins`
+// Deux chemins, comme le reste de `services/` : pont IPC Tauri quand `window.plugins`
 // existe, repli navigateur pour `npm run dev` (pas d'IPC, pas de CSP en dev).
 // La validation du manifeste (schéma, apiVersion, capacités) est déléguée à
 // `lib/plugins/manifest.ts` dans les deux cas : ce module ne fait que
@@ -197,7 +197,7 @@ export async function discoverPlugins(): Promise<{ plugins: PluginSource[]; erro
     return { plugins: [...byId.values()], errors: found.errors };
   }
 
-  // Hors Electron : Vite sert la racine du projet, `plugins/*.html` y est
+  // Hors Tauri : Vite sert la racine du projet, `plugins/*.html` y est
   // accessible directement. Pas de dossier "user" distinct en dev.
   const modules = import.meta.glob("/plugins/*.html", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
   const candidates: RawPluginEntry[] = Object.entries(modules).map(([modulePath, html]) => {

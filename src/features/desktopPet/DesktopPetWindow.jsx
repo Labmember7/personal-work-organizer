@@ -32,10 +32,6 @@ export function DesktopPetWindow() {
   }, []);
 
   useEffect(() => {
-    desktopPet.getState?.().then((cached) => {
-      if (cached) setPetState(cached);
-    });
-
     const unlisten = desktopPet.onState((incomingState) => {
       setPetState(incomingState);
     });
@@ -79,8 +75,6 @@ export function DesktopPetWindow() {
     const startY = e.screenY;
     const startTime = performance.now();
     let hasMoved = false;
-    let lastX = startX;
-    let lastY = startY;
 
     const cleanup = () => {
       window.removeEventListener("mousemove", onMouseMove);
@@ -92,24 +86,14 @@ export function DesktopPetWindow() {
 
     const onMouseMove = (moveEvt) => {
       const dist = Math.hypot(moveEvt.screenX - startX, moveEvt.screenY - startY);
-      if (!hasMoved) {
-        if (dist > 4) {
-          hasMoved = true;
-          setIsDragging(true);
-          if (desktopPet.startNativeDrag()) {
-            cleanup();
-            return;
-          }
-        } else {
-          return;
+      if (!hasMoved && dist > 4) {
+        hasMoved = true;
+        setIsDragging(true);
+        if (desktopPet.startNativeDrag()) {
+          suppressClickUntilRef.current = performance.now() + 350;
+          cleanup();
         }
       }
-
-      const dx = moveEvt.screenX - lastX;
-      const dy = moveEvt.screenY - lastY;
-      lastX = moveEvt.screenX;
-      lastY = moveEvt.screenY;
-      desktopPet.moveBy(dx, dy);
     };
 
     const onMouseUp = (upEvt) => {

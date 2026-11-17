@@ -6,7 +6,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
 
 export default tseslint.config(
-  { ignores: ["dist/", "release/", "node_modules/", "scripts/tutorial-encode.mjs"] },
+  { ignores: ["dist/", "release/", "src-tauri/", "node_modules/", "scripts/tutorial-encode.mjs"] },
 
   // Renderer (React) : JS/JSX/TS/TSX de src/.
   {
@@ -43,27 +43,6 @@ export default tseslint.config(
       "react-hooks/preserve-manual-memoization": "warn",
       "react-hooks/static-components": "warn",
       "react-hooks/incompatible-library": "warn",
-    },
-  },
-
-  // Processus principal Electron : CommonJS + Node.
-  {
-    files: ["main.js", "preload.js", "electron/**/*.js"],
-    ignores: ["electron/**/*.test.js"],
-    extends: [js.configs.recommended],
-    languageOptions: {
-      sourceType: "commonjs",
-      globals: globals.node,
-    },
-  },
-
-  // Tests du processus principal : ESM (exécutés par Vitest).
-  {
-    files: ["electron/**/*.test.js"],
-    extends: [js.configs.recommended],
-    languageOptions: {
-      sourceType: "module",
-      globals: globals.node,
     },
   },
 

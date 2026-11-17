@@ -16,8 +16,7 @@ vi.mock("../../services/desktopPet", () => {
       notifyReady: vi.fn(),
       restoreMain: vi.fn(),
       sendAction: vi.fn(),
-      startNativeDrag: vi.fn(() => false),
-      moveBy: vi.fn(),
+      startNativeDrag: vi.fn(() => true),
       __triggerState: (st) => stateListener?.(st),
     },
     isPetWindow: () => true,
@@ -127,11 +126,11 @@ describe("DesktopPetWindow", () => {
 
     // Mouvement de la souris > 4px déclenche le drag
     fireEvent.mouseMove(window, { screenX: 125, screenY: 140 });
-    expect(desktopPet.moveBy).toHaveBeenCalledWith(25, 40);
+    expect(desktopPet.startNativeDrag).toHaveBeenCalledTimes(1);
 
     // Mouvement continu
     fireEvent.mouseMove(window, { screenX: 130, screenY: 145 });
-    expect(desktopPet.moveBy).toHaveBeenCalledWith(5, 5);
+    expect(desktopPet.startNativeDrag).toHaveBeenCalledTimes(1);
 
     // Relâchement de la souris
     fireEvent.mouseUp(window, { screenX: 130, screenY: 145 });

@@ -28,7 +28,7 @@ export function createEditorExtensions({ placeholder, resizeHint }: EditorExtens
 
   return [
     StarterKit.configure({
-      // Un lien cliquable ouvrirait la cible dans la fenêtre Electron
+      // Un lien cliquable ouvrirait la cible dans la webview Tauri
       // elle-même : en édition, un clic doit seulement placer le curseur.
       link: { openOnClick: false },
       // On désactive les raccourcis de titres natifs (Mod-Alt-1..6) qui
