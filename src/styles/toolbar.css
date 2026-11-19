@@ -3,7 +3,15 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.trk-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 180px;
+  min-width: 0;
   flex-wrap: wrap;
 }
 .trk-search {
@@ -15,8 +23,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 0 10px;
-  flex: 1;
-  min-width: 160px;
+  flex: 1 1 120px;
+  min-width: 110px;
 }
 .trk-search input {
   background: none;
@@ -105,14 +113,14 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-}
-.trk-add-btn {
-  transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+  margin-left: auto;
+  white-space: nowrap;
+  transition: filter 0.15s, transform 0.18s cubic-bezier(0.32, 1.25, 0.32, 1), box-shadow 0.15s;
 }
 .trk-add-btn:hover {
   filter: brightness(1.08);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
 }
-.trk-add-btn:active { transform: none; }
+.trk-add-btn:active { transform: scale(0.97); }
 

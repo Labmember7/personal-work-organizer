@@ -101,6 +101,6 @@
   margin: 14px 0 8px;
 }
 .trk-board-label:first-child { margin-top: 0; }
-.trk-task-row[draggable="true"] { cursor: grab; }
+.trk-task-row[draggable="true"] { cursor: pointer; }
 .trk-task-row[draggable="true"]:active { cursor: grabbing; }
 

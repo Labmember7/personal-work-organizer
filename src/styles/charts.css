@@ -2,7 +2,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: var(--space-4);
-  margin-top: var(--space-5);
+  margin-top: 0;
   content-visibility: auto;
   contain-intrinsic-size: 1px 300px;
 }
@@ -12,8 +12,8 @@
 .trk-chart-card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: 16px;
+  padding: 16px;
 }
 .trk-chart-head {
   display: flex;

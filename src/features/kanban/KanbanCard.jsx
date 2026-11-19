@@ -36,6 +36,10 @@ export const KanbanCard = React.memo(function KanbanCard({
       draggable
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
+      onClick={(e) => {
+        if (confirmId === task.id || e.target.closest("button, a, input")) return;
+        onEdit(task);
+      }}
       style={{ "--rail-color": pr.color, "--note-color": pc }}
     >
       {isFocused && (
@@ -65,7 +69,7 @@ export const KanbanCard = React.memo(function KanbanCard({
             </span>
           )}
         </span>
-        <span className="trk-kanban-card-actions">
+        <span className={"trk-kanban-card-actions" + (confirmId === task.id ? " confirming" : "")}>
           {confirmId === task.id ? (
             <>
               <span className="trk-confirm-label">
@@ -75,6 +79,7 @@ export const KanbanCard = React.memo(function KanbanCard({
                 className={"trk-icon-btn" + (confirmAction === "delete" ? " trk-icon-danger" : "")}
                 onClick={() => (confirmAction === "archive" ? onArchive(task.id) : confirmAction === "unarchive" ? onUnarchive(task.id) : onDelete(task.id))}
                 title={t(confirmAction === "archive" ? "confirm_archive_yes" : confirmAction === "unarchive" ? "confirm_unarchive_yes" : "confirm_delete_yes")}
+                aria-label={t(confirmAction === "archive" ? "confirm_archive_yes" : confirmAction === "unarchive" ? "confirm_unarchive_yes" : "confirm_delete_yes")}
               >
                 <Check size={12} />
               </button>
@@ -82,19 +87,19 @@ export const KanbanCard = React.memo(function KanbanCard({
             </>
           ) : (
             <>
-              <button className="trk-icon-btn" onClick={() => onEdit(task)} title={t("edit_task")}>
+              <button className="trk-icon-btn" onClick={() => onEdit(task)} title={t("edit_task")} aria-label={t("edit_task")}>
                 <Pencil size={12} />
               </button>
               {task.archived ? (
-                <button className="trk-icon-btn" onClick={() => onAskUnarchive(task.id)} title={t("unarchive_task")}>
+                <button className="trk-icon-btn" onClick={() => onAskUnarchive(task.id)} title={t("unarchive_task")} aria-label={t("unarchive_task")}>
                   <ArchiveRestore size={12} />
                 </button>
               ) : (
-                <button className="trk-icon-btn" onClick={() => onAskArchive(task.id)} title={t("archive_task")}>
+                <button className="trk-icon-btn" onClick={() => onAskArchive(task.id)} title={t("archive_task")} aria-label={t("archive_task")}>
                   <Archive size={12} />
                 </button>
               )}
-              <button className="trk-icon-btn" onClick={() => onAskDelete(task.id)} title={t("remove")}>
+              <button className="trk-icon-btn" onClick={() => onAskDelete(task.id)} title={t("remove")} aria-label={t("remove")}>
                 <Trash2 size={12} />
               </button>
             </>

@@ -3,6 +3,7 @@ import { Coffee, Flame, Maximize2, Minus, Pause, Play, X } from "lucide-react";
 import { desktopPet } from "../../services/desktopPet";
 import { FullBodyPet } from "../../components/DynamicIsland/FullBodyPet.jsx";
 import { createUnthrottledInterval } from "../../lib/timerWorker.js";
+import { isLightTheme } from "../../lib/themes";
 import "./desktopPet.css";
 
 function formatSeconds(totalSec) {
@@ -303,7 +304,7 @@ export function DesktopPetWindow() {
     <div
       className={
         "trk-desktop-pet-window " +
-        (petState?.theme === "light" ? "light" : "dark") +
+        (isLightTheme(petState?.theme) ? "light" : "dark") +
         (isDragging ? " trk-is-dragging" : "")
       }
       style={{ "--pet-accent": petAccent, "--pet-glow": petGlow }}

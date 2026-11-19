@@ -1,12 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import {
   prioOf, statusOf, isDoneStatus, isTaskDone, taskMatchesQuery, randomThemeVars, randomThemePattern,
 } from "./utils";
+import { getNextTheme, isLightTheme, isValidTheme } from "./lib/themes";
 import { useLang } from "./i18n.jsx";
-import { CelebrationOverlay, MiniCelebration, pickCelebration } from "./celebration.jsx";
 import { playTaskDoneSound } from "./lib/audioFx";
-import { Tutorial, TUTORIAL_STORAGE_KEY } from "./tips.jsx";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { useUndoRedoShortcut } from "./hooks/useUndoRedoShortcut";
 import { AppHeader } from "./components/AppHeader.jsx";
@@ -18,7 +17,6 @@ import { usePomodoroSession } from "./hooks/usePomodoroSession";
 import { getOrCreatePetDna } from "./lib/petGenerator";
 import { useTasks } from "./features/tasks/useTasks";
 import { TaskList } from "./features/tasks/TaskList.jsx";
-import { TaskModal } from "./features/tasks/TaskModal.jsx";
 import { TaskToolbar } from "./features/tasks/TaskToolbar.jsx";
 import { useProjects } from "./features/projects/useProjects";
 import { ProjectSidebar } from "./features/projects/ProjectSidebar.jsx";
@@ -27,17 +25,50 @@ import { FocusProvider } from "./features/focus/FocusContext.jsx";
 import { FocusZone } from "./features/focus/FocusZone.jsx";
 import { KanbanSection } from "./features/kanban/KanbanSection.jsx";
 import { useChartData } from "./features/charts/useChartData";
-import { ChartsSection } from "./features/charts/ChartsSection.jsx";
 import { useBackup } from "./features/backup/useBackup";
-import { ImportConfirmModal } from "./features/backup/ImportConfirmModal.jsx";
-import { PluginsSection } from "./features/plugins/PluginsSection.jsx";
 import { discoverPlugins } from "./services/plugins";
 import { collectTaskColumns, collectTaskPanels } from "./lib/plugins/contrib";
+
+// Chargement dynamique des modules lourds (éditeur riche, graphiques Recharts,
+// plugins + icônes complètes, tutoriel illustré, célébrations, modales).
+const TaskModal = lazy(() =>
+  import("./features/tasks/TaskModal.jsx").then((m) => ({ default: m.TaskModal }))
+);
+const ChartsSection = lazy(() =>
+  import("./features/charts/ChartsSection.jsx").then((m) => ({ default: m.ChartsSection }))
+);
+const PluginsSection = lazy(() =>
+  import("./features/plugins/PluginsSection.jsx").then((m) => ({ default: m.PluginsSection }))
+);
+const Tutorial = lazy(() =>
+  import("./tips.jsx").then((m) => ({ default: m.Tutorial }))
+);
+const ImportConfirmModal = lazy(() =>
+  import("./features/backup/ImportConfirmModal.jsx").then((m) => ({
+    default: m.ImportConfirmModal,
+  }))
+);
+const CelebrationOverlay = lazy(() =>
+  import("./celebration.jsx").then((m) => ({ default: m.CelebrationOverlay }))
+);
+const MiniCelebration = lazy(() =>
+  import("./celebration.jsx").then((m) => ({ default: m.MiniCelebration }))
+);
 
 const THEME_STORAGE_KEY = "suivi-travaux-theme";
 const RANDOM_SEED_STORAGE_KEY = "suivi-travaux-random-seed";
 const STICKY_STORAGE_KEY = "suivi-travaux-sticky-mode";
 const CELEBRATIONS_STORAGE_KEY = "suivi-travaux-celebrations";
+const TUTORIAL_STORAGE_KEY = "suivi-travaux-tutorial-seen";
+
+const CELEBRATION_VARIANTS = ["confetti", "fireworks", "ribbons", "stardust", "petals"];
+function pickCelebrationVariant() {
+  const legendary = Math.random() < 1 / 1000;
+  const variant = legendary
+    ? "legendary"
+    : CELEBRATION_VARIANTS[Math.floor(Math.random() * CELEBRATION_VARIANTS.length)];
+  return { variant, legendary, msg: 1 + Math.floor(Math.random() * 4) };
+}
 
 // Coquille de composition : état de vue (filtres, tri, modals, thème) et
 // assemblage des features. La logique métier vit dans les hooks de features.
@@ -54,6 +85,14 @@ export default function App() {
     true,
     {
       read: (raw) => raw !== "0",
+      write: (v) => (v ? "1" : "0"),
+    }
+  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorageState(
+    "suivi-travaux-sidebar-collapsed",
+    false,
+    {
+      read: (raw) => raw === "1",
       write: (v) => (v ? "1" : "0"),
     }
   );
@@ -79,17 +118,8 @@ export default function App() {
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null); // { id, action: "delete" | "archive" | "unarchive" }
   const [toast, setToast] = useState(null);
-  const [chartsReady, setChartsReady] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setChartsReady(true), 120);
-    return () => clearTimeout(timer);
-  }, []);
 
   // ── Colonnes de tâches contribuées par les plugins (v2) ──
-  // Découverte une fois au montage ; les colonnes s'affichent dans chaque
-  // ligne de la vue liste (cf. TaskRow). Découplé de PluginsSection pour
-  // rester disponible quelle que soit la vue active.
   const [taskColumns, setTaskColumns] = useState([]);
   const [taskPanels, setTaskPanels] = useState([]);
   useEffect(() => {
@@ -108,27 +138,35 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
-  // ── Thème et célébrations ──
-  // theme = palette de couleurs (dark / light / random) ; le mode sticky
-  // (post-it) se superpose à n'importe laquelle des trois, indépendamment.
-  const [theme, setTheme] = useLocalStorageState(THEME_STORAGE_KEY, "dark");
-  // Persisté : le tirage du thème random ne change qu'en re-basculant dessus,
-  // pas à chaque relance de l'appli (cf. retour utilisateur).
+  // ── Thèmes (6 thèmes dédiés + aléatoire) et célébrations ──
+  const [theme, setTheme] = useLocalStorageState(THEME_STORAGE_KEY, "dark", {
+    read: (raw) => (isValidTheme(raw) ? raw : "dark"),
+    write: (v) => String(v),
+  });
   const [randomSeed, setRandomSeed] = useLocalStorageState(RANDOM_SEED_STORAGE_KEY, 0, {
     read: (raw) => (raw !== null ? parseFloat(raw) : Math.random()),
     write: (v) => String(v),
   });
-  const toggleTheme = () =>
+
+  const selectTheme = useCallback((nextTheme) => {
+    if (!isValidTheme(nextTheme)) return;
+    if (nextTheme === "random") setRandomSeed(Math.random());
+    setTheme(nextTheme);
+  }, [setRandomSeed, setTheme]);
+
+  const toggleTheme = useCallback(() => {
     setTheme((prev) => {
-      const next = prev === "dark" ? "light" : prev === "light" ? "random" : "dark";
+      const next = getNextTheme(prev);
       if (next === "random") setRandomSeed(Math.random());
       return next;
     });
+  }, [setRandomSeed, setTheme]);
+
   const [stickyMode, setStickyMode] = useLocalStorageState(STICKY_STORAGE_KEY, false, {
     read: (raw) => raw === "1",
     write: (v) => (v ? "1" : "0"),
   });
-  const toggleStickyMode = () => setStickyMode((v) => !v);
+  const toggleStickyMode = useCallback(() => setStickyMode((v) => !v), [setStickyMode]);
 
   const [celebration, setCelebration] = useState(null);
   const [miniCeleb, setMiniCeleb] = useState(null);
@@ -138,26 +176,22 @@ export default function App() {
     write: (v) => (v ? "on" : "off"),
   });
 
-  const toggleCelebrations = () => {
+  const toggleCelebrations = useCallback(() => {
     setCelebrationsOn((prev) => {
       if (prev) {
-        // Coupe aussi tout effet en cours.
         setCelebration(null);
         setMiniCeleb(null);
       }
       return !prev;
     });
-  };
+  }, [setCelebrationsOn]);
 
-  // Mini célébration quand une tâche passe à « terminé », sauf si tout est
-  // terminé (la grande célébration prend le relais).
   const celebrateTaskDone = useCallback((statut, nextTasks, origin) => {
     if (!celebrationsOn) return;
     if (!isDoneStatus(statut)) return;
-    // Déclenchement sonore instantané (0 ms de latence, tampon PCM pré-rendu)
     playTaskDoneSound();
     if (nextTasks.length > 0 && nextTasks.every(isTaskDone)) {
-      setCelebration(pickCelebration());
+      setCelebration(pickCelebrationVariant());
       return;
     }
     setMiniCeleb({
@@ -175,8 +209,6 @@ export default function App() {
     addTimeLog, editTimeLog, deleteTimeLog,
   } = store;
 
-  // Les tâches archivées sont exclues du tableau de bord (progression,
-  // graphiques, célébrations) : elles ne représentent plus du travail actif.
   const activeTasks = useMemo(() => tasks.filter((tk) => !tk.archived), [tasks]);
 
   useUndoRedoShortcut({ undo: store.undo, redo: store.redo });
@@ -200,7 +232,7 @@ export default function App() {
   const deferredActiveTasks = React.useDeferredValue(activeTasks);
   const chartData = useChartData(deferredActiveTasks, projects);
 
-  // ── Guide de démarrage : affiché à la première ouverture, rejouable via le « ? » ──
+  // ── Guide de démarrage : affiché à la première ouverture, rejouable via Préférences ──
   const [tutorialOpen, setTutorialOpen] = useState(() => {
     try {
       return !localStorage.getItem(TUTORIAL_STORAGE_KEY);
@@ -209,14 +241,21 @@ export default function App() {
     }
   });
 
-  const closeTutorial = () => {
+  const openTutorial = useCallback(() => setTutorialOpen(true), []);
+  const closeTutorial = useCallback(() => {
     setTutorialOpen(false);
     try {
       localStorage.setItem(TUTORIAL_STORAGE_KEY, "1");
     } catch (e) {
-      // stockage indisponible, le guide réapparaîtra à la prochaine ouverture
+      // stockage indisponible
     }
-  };
+  }, []);
+
+  const toggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), [setSidebarCollapsed]);
+  const toggleDesktopPet = useCallback(() => setDesktopPetEnabled((v) => !v), [setDesktopPetEnabled]);
+  const closeEditing = useCallback(() => setEditing(null), []);
+  const clearCelebration = useCallback(() => setCelebration(null), []);
+  const clearMiniCeleb = useCallback(() => setMiniCeleb(null), []);
 
   // ── Effets d'UI ──
   useEffect(() => {
@@ -232,21 +271,22 @@ export default function App() {
   }, [toast]);
 
   const doneCount = useMemo(() => activeTasks.filter(isTaskDone).length, [activeTasks]);
+  const inProgressCount = useMemo(
+    () => activeTasks.filter((tk) => !isTaskDone(tk) && statusOf(tk.statut).weight > 10).length,
+    [activeTasks]
+  );
   const allDone = activeTasks.length > 0 && doneCount === activeTasks.length;
 
-  // Célébration au passage à « tout terminé » (jamais au chargement initial).
   useEffect(() => {
     if (loading) return;
     if (prevAllDone.current === null) {
       prevAllDone.current = allDone;
       return;
     }
-    if (allDone && !prevAllDone.current && celebrationsOn) setCelebration(pickCelebration());
+    if (allDone && !prevAllDone.current && celebrationsOn) setCelebration(pickCelebrationVariant());
     prevAllDone.current = allDone;
   }, [allDone, loading, celebrationsOn]);
 
-  // La grande célébration remplace toute mini en attente : sans ça, une mini
-  // masquée par la grande rejouerait toute seule une fois celle-ci terminée.
   useEffect(() => {
     if (celebration) setMiniCeleb(null);
   }, [celebration]);
@@ -275,16 +315,12 @@ export default function App() {
         (!filterStatuts.length ||
           filterStatuts.includes(tk.statut) ||
           (filterStatuts.includes("termine") && isTaskDone(tk))) &&
-        // Même logique que la recherche des colonnes kanban : titre,
-        // description, projet et assigné, insensible aux accents.
         taskMatchesQuery(tk, search)
     );
   }, [tasks, filterProjects, filterStatuts, search]);
 
   const sortedTasks = useMemo(() => sortTasks(filteredTasks), [filteredTasks, sortTasks]);
 
-  // Vue « Archives » : mêmes recherche/tri, mais parmi les tâches archivées
-  // uniquement (les filtres projet/statut ne s'y appliquent pas).
   const archivedTasks = useMemo(
     () => tasks.filter((tk) => tk.archived && taskMatchesQuery(tk, search)),
     [tasks, search]
@@ -324,8 +360,6 @@ export default function App() {
     });
   }, []);
 
-  // Un nœud de plugin peut pointer une tâche qui n'existe plus (supprimée
-  // depuis) : on le signale plutôt que de silencieusement ne rien faire.
   const handleRevealTask = useCallback((id) => {
     const task = tasks.find((tk) => tk.id === id);
     if (task) openEditTask(task);
@@ -416,18 +450,25 @@ export default function App() {
     taskColumns,
   }), [openEditTask, handleDeleteTask, handleArchiveTask, handleUnarchiveTask, confirmProps, timeLogOps, taskColumns]);
 
+  const appClassName =
+    "trk-app" +
+    ` theme-${theme}` +
+    (maximized ? " trk-app-maximized" : "") +
+    (isLightTheme(theme) ? " light" : "") +
+    (theme === "random" ? " random" : "") +
+    (stickyMode ? " sticky" : "");
+
+  const randomStyle = useMemo(
+    () => (theme === "random" ? randomThemeVars(randomSeed) : undefined),
+    [theme, randomSeed]
+  );
+
   // ── Rendu ──
   return (
     <FocusProvider focusId={focus.focusId} focusStartedAt={focus.focusStartedAt}>
         <div
-          className={
-            "trk-app" +
-            (maximized ? " trk-app-maximized" : "") +
-            (theme === "light" ? " light" : "") +
-            (theme === "random" ? " random" : "") +
-            (stickyMode ? " sticky" : "")
-          }
-          style={theme === "random" ? randomThemeVars(randomSeed) : undefined}
+          className={appClassName}
+          style={randomStyle}
           data-pattern={theme === "random" ? randomThemePattern(randomSeed) : undefined}
         >
           <TitleBar maximized={maximized} />
@@ -437,7 +478,7 @@ export default function App() {
             pomodoroSession={pomodoro}
             petState={petState}
             desktopPetEnabled={desktopPetEnabled}
-            onToggleDesktopPet={() => setDesktopPetEnabled((prev) => !prev)}
+            onToggleDesktopPet={toggleDesktopPet}
           />
 
           <div className="trk-content">
@@ -448,15 +489,18 @@ export default function App() {
               <AppHeader
                 globalProgress={globalProgress}
                 doneCount={doneCount}
+                inProgressCount={inProgressCount}
                 totalTasks={activeTasks.length}
                 onImport={backup.importData}
                 onExport={backup.exportData}
                 ioBusy={backup.ioBusy}
-                onOpenTutorial={() => setTutorialOpen(true)}
+                onOpenTutorial={openTutorial}
                 celebrationsOn={celebrationsOn}
                 onToggleCelebrations={toggleCelebrations}
                 theme={theme}
+                randomSeed={randomSeed}
                 onToggleTheme={toggleTheme}
+                onSelectTheme={selectTheme}
                 stickyMode={stickyMode}
                 onToggleStickyMode={toggleStickyMode}
                 canUndo={store.canUndo}
@@ -465,7 +509,7 @@ export default function App() {
                 onRedo={store.redo}
               />
 
-          <div className="trk-layout">
+          <div className={"trk-layout" + (sidebarCollapsed ? " sidebar-collapsed" : "")}>
             <ProjectSidebar
               totalTasks={activeTasks.length}
               projectProgress={chartData.projectProgress}
@@ -475,6 +519,8 @@ export default function App() {
               onAdd={addProject}
               onRemove={handleRemoveProject}
               onRename={handleRenameProject}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={toggleSidebar}
             />
 
             <main className="trk-main">
@@ -497,15 +543,26 @@ export default function App() {
                   onNewTask={openNewTask}
                   boardProps={boardProps}
                 />
+              ) : viewMode === "insights" ? (
+                <Suspense fallback={<div className="trk-loading">{t("loading")}</div>}>
+                  <ChartsSection
+                    tasks={deferredActiveTasks}
+                    projects={projects}
+                    chartData={chartData}
+                    onEditTask={openEditTask}
+                  />
+                </Suspense>
               ) : viewMode === "plugins" ? (
-                <PluginsSection
-                  tasks={tasks}
-                  projects={projects}
-                  theme={theme}
-                  randomSeed={randomSeed}
-                  onRevealTask={handleRevealTask}
-                  onToast={handlePluginToast}
-                />
+                <Suspense fallback={<div className="trk-loading">{t("loading")}</div>}>
+                  <PluginsSection
+                    tasks={tasks}
+                    projects={projects}
+                    theme={theme}
+                    randomSeed={randomSeed}
+                    onRevealTask={handleRevealTask}
+                    onToast={handlePluginToast}
+                  />
+                </Suspense>
               ) : viewMode === "archived" ? (
                 <TaskList
                   tasks={sortedArchivedTasks}
@@ -525,10 +582,6 @@ export default function App() {
             </main>
           </div>
 
-          {chartsReady && (
-            <ChartsSection tasks={deferredActiveTasks} projects={projects} chartData={chartData} onEditTask={openEditTask} />
-          )}
-
           <FocusZone
             task={focus.focusTask}
             leaving={focus.focusLeaving}
@@ -540,7 +593,11 @@ export default function App() {
             onEdit={openEditTask}
           />
 
-          <Tutorial open={tutorialOpen} onClose={closeTutorial} />
+          {tutorialOpen && (
+            <Suspense fallback={null}>
+              <Tutorial open={tutorialOpen} onClose={closeTutorial} />
+            </Suspense>
+          )}
 
           {saveError && (
             <div className="trk-save-error">
@@ -548,43 +605,53 @@ export default function App() {
             </div>
           )}
 
-          <ImportConfirmModal
-            pendingImport={backup.pendingImport}
-            onConfirm={backup.confirmImport}
-            onCancel={backup.cancelImport}
-          />
+          {backup.pendingImport && (
+            <Suspense fallback={null}>
+              <ImportConfirmModal
+                pendingImport={backup.pendingImport}
+                onConfirm={backup.confirmImport}
+                onCancel={backup.cancelImport}
+              />
+            </Suspense>
+          )}
 
           {celebration && celebrationsOn && (
-            <CelebrationOverlay
-              variant={celebration.variant}
-              legendary={celebration.legendary}
-              title={t(celebration.legendary ? "celebrate_legendary_title" : `celebrate_title_${celebration.msg}`)}
-              subtitle={t(celebration.legendary ? "celebrate_legendary_sub" : `celebrate_sub_${celebration.msg}`)}
-              onDone={() => setCelebration(null)}
-            />
+            <Suspense fallback={null}>
+              <CelebrationOverlay
+                variant={celebration.variant}
+                legendary={celebration.legendary}
+                title={t(celebration.legendary ? "celebrate_legendary_title" : `celebrate_title_${celebration.msg}`)}
+                subtitle={t(celebration.legendary ? "celebrate_legendary_sub" : `celebrate_sub_${celebration.msg}`)}
+                onDone={clearCelebration}
+              />
+            </Suspense>
           )}
 
           {miniCeleb && !celebration && celebrationsOn && (
-            <MiniCelebration
-              key={miniCeleb.key || miniCeleb}
-              origin={miniCeleb}
-              onDone={() => setMiniCeleb(null)}
-            />
+            <Suspense fallback={null}>
+              <MiniCelebration
+                key={miniCeleb.key || miniCeleb}
+                origin={miniCeleb}
+                onDone={clearMiniCeleb}
+              />
+            </Suspense>
           )}
 
           <Toast toast={toast} />
 
           {editing && (
-            <TaskModal
-              initial={editing}
-              storeTask={editing.id ? tasks.find((tk) => tk.id === editing.id) : null}
-              projects={projects}
-              onSubmit={store.upsertTask}
-              onClose={() => setEditing(null)}
-              timeLogOps={timeLogOps}
-              onToast={setToast}
-              taskPanels={taskPanels}
-            />
+            <Suspense fallback={null}>
+              <TaskModal
+                initial={editing}
+                storeTask={editing.id ? tasks.find((tk) => tk.id === editing.id) : null}
+                projects={projects}
+                onSubmit={store.upsertTask}
+                onClose={closeEditing}
+                timeLogOps={timeLogOps}
+                onToast={setToast}
+                taskPanels={taskPanels}
+              />
+            </Suspense>
           )}
         </>
       )}

@@ -14,13 +14,14 @@
   --border: color-mix(in srgb, var(--bg) 88%, white);
   --titlebar-bg: var(--bg);
   --gauge-track: var(--bg);
-  --neo-light: rgba(255, 255, 255, 0.06);
-  --neo-dark: rgba(0, 0, 0, 0.5);
-  --neo-raised: 6px 6px 14px var(--neo-dark), -6px -6px 14px var(--neo-light);
-  --neo-raised-sm: 3px 3px 7px var(--neo-dark), -3px -3px 7px var(--neo-light);
+  --neo-light: rgba(255, 255, 255, 0.055);
+  --neo-dark: rgba(0, 0, 0, 0.38);
+  --neo-rim: inset 0 1px 0.5px rgba(255, 255, 255, 0.12);
+  --neo-raised: var(--neo-rim), 5px 5px 12px var(--neo-dark), -4px -4px 10px var(--neo-light);
+  --neo-raised-sm: var(--neo-rim), 2.5px 2.5px 6px var(--neo-dark), -2.5px -2.5px 6px var(--neo-light);
   --neo-raised-xs: 2px 2px 4px var(--neo-dark), -2px -2px 4px var(--neo-light);
-  --neo-pressed: inset 3px 3px 7px var(--neo-dark), inset -3px -3px 7px var(--neo-light);
-  --neo-pressed-lg: inset 6px 6px 12px var(--neo-dark), inset -6px -6px 12px var(--neo-light);
+  --neo-pressed: inset 2.5px 2.5px 6px var(--neo-dark), inset -2.5px -2.5px 6px var(--neo-light);
+  --neo-pressed-lg: inset 5px 5px 10px var(--neo-dark), inset -5px -5px 10px var(--neo-light);
   --radius-sm: 10px;
   --radius-md: 12px;
   --radius-lg: 18px;
@@ -30,19 +31,57 @@
   --bg: #E4E9F0;
   --panel-alt: color-mix(in srgb, var(--bg) 85%, white);
   --border: color-mix(in srgb, var(--bg) 85%, #8a96a8);
-  --neo-light: rgba(255, 255, 255, 0.9);
-  --neo-dark: rgba(150, 165, 188, 0.6);
+  --neo-light: rgba(255, 255, 255, 0.85);
+  --neo-dark: rgba(150, 165, 188, 0.45);
+  --neo-rim: inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+.trk-app.theme-nebula {
+  --bg: #131628;
+  --panel-alt: #1C213B;
+  --border: #2B3258;
+  --neo-light: rgba(148, 163, 255, 0.065);
+  --neo-dark: rgba(4, 6, 16, 0.48);
+}
+.trk-app.theme-forest {
+  --bg: #151F1C;
+  --panel-alt: #1D2B27;
+  --border: #2D4039;
+  --neo-light: rgba(134, 239, 172, 0.055);
+  --neo-dark: rgba(4, 12, 9, 0.48);
+}
+.trk-app.theme-synth {
+  --bg: #1B1C22;
+  --panel-alt: #24262E;
+  --border: #353742;
+  --neo-light: rgba(255, 245, 230, 0.05);
+  --neo-dark: rgba(5, 5, 9, 0.5);
+}
+.trk-app.theme-sand {
+  --bg: #EDE7DC;
+  --panel-alt: #F6F2EA;
+  --border: #D4C8B4;
+  --neo-light: rgba(255, 252, 245, 0.88);
+  --neo-dark: rgba(145, 128, 102, 0.36);
+  --neo-rim: inset 0 1px 1px rgba(255, 252, 245, 0.92);
 }
 
 /* ═════════ Surfaces flottantes / Modales en relief ═════════ */
 .trk-app .trk-modal,
 .trk-app .trk-help-pop,
 .trk-app .trk-multiselect-panel,
+.trk-app .trk-prefs-popover,
 .trk-app .trk-toast {
   background: var(--bg);
   border: none;
   border-radius: var(--radius-lg);
-  box-shadow: var(--neo-raised);
+  box-shadow: var(--neo-raised), 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+.trk-app.light .trk-modal,
+.trk-app.light .trk-help-pop,
+.trk-app.light .trk-multiselect-panel,
+.trk-app.light .trk-prefs-popover,
+.trk-app.light .trk-toast {
+  box-shadow: var(--neo-raised), 0 12px 28px rgba(20, 30, 42, 0.14);
 }
 
 /* ═════════ Conteneurs structurels : plats, nets, sans ombres parasites découpées ═════════ */
@@ -50,7 +89,7 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-top: 3px solid var(--col-color, var(--border));
-  border-radius: var(--radius-md);
+  border-radius: 14px;
   box-shadow: none;
 }
 .trk-app .trk-kanban-col-header {
@@ -67,11 +106,11 @@
 .trk-app .trk-task-panel {
   background: color-mix(in srgb, var(--bg) 96%, white);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   box-shadow: none;
 }
 
-/* Cartes / lignes */
+/* Cartes / lignes (optimisées GPU : pas d'animation de box-shadow coûteuse) */
 .trk-app .trk-task-row,
 .trk-app .trk-project-card,
 .trk-app .trk-timelog-entry {
@@ -79,58 +118,51 @@
   border: none;
   border-radius: var(--radius-md);
   box-shadow: var(--neo-raised-sm);
-  transition: box-shadow 0.2s ease, transform 0.2s ease, color 0.2s ease;
+  contain: layout style;
+  transition: transform 0.2s cubic-bezier(0.32, 1.25, 0.32, 1), color 0.16s ease;
 }
 .trk-app .trk-task-row:hover,
 .trk-app .trk-project-card:hover {
   background: var(--bg);
   color: var(--text);
-  box-shadow: var(--neo-raised);
-  transform: translateY(-1px);
+  transform: translate3d(0, -1.5px, 0);
 }
 
-/* ═════════ Cartes Kanban : relief néomorphique riche, tactile et sculptural ═════════ */
+/* ═════════ Cartes Kanban : relief néomorphique sculpté et fluide 60 FPS ═════════ */
 .trk-app .trk-kanban-card {
   background: var(--bg);
-  border: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
   border-left: 4px solid var(--rail-color, var(--border));
   border-radius: var(--radius-md);
+  contain: layout style paint;
   box-shadow:
-    inset 1px 1px 1.5px rgba(255, 255, 255, 0.08),
-    5px 5px 12px var(--neo-dark),
-    -5px -5px 12px var(--neo-light);
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.1),
+    3px 4px 8px var(--neo-dark),
+    -3px -3px 7px var(--neo-light);
   transition:
-    box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.2s ease,
-    color 0.2s ease;
+    transform 0.2s cubic-bezier(0.32, 1.25, 0.32, 1),
+    border-color 0.16s ease,
+    opacity 0.16s ease;
 }
 
 .trk-app.light .trk-kanban-card {
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   border-left: 4px solid var(--rail-color, var(--border));
   box-shadow:
-    inset 1px 1px 1.5px rgba(255, 255, 255, 0.95),
-    5px 6px 14px var(--neo-dark),
-    -5px -6px 14px var(--neo-light);
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    3px 4px 10px var(--neo-dark),
+    -3px -4px 10px var(--neo-light);
 }
 
 .trk-app .trk-kanban-card:hover {
   background: var(--bg);
   color: var(--text);
-  transform: translateY(-2.5px);
-  box-shadow:
-    inset 1px 1px 1.5px rgba(255, 255, 255, 0.12),
-    8px 12px 24px var(--neo-dark),
-    2px 4px 8px var(--neo-dark),
-    -7px -9px 20px var(--neo-light);
+  border-color: color-mix(in srgb, var(--rail-color, var(--accent)) 45%, var(--border));
+  transform: translate3d(0, -2px, 0);
 }
 
 .trk-app.light .trk-kanban-card:hover {
-  box-shadow:
-    inset 1px 1px 2px rgba(255, 255, 255, 0.98),
-    8px 12px 22px var(--neo-dark),
-    -7px -9px 20px var(--neo-light);
+  border-color: color-mix(in srgb, var(--rail-color, var(--accent)) 50%, white);
 }
 
 .trk-app .trk-kanban-card:active {
@@ -269,12 +301,14 @@
 .trk-app .trk-multiselect-btn,
 .trk-app .trk-md-format-btn,
 .trk-app .trk-focus-done-btn,
-.trk-app .trk-focus-mini {
+.trk-app .trk-focus-mini,
+.trk-app .trk-prefs-data-btn,
+.trk-app .trk-rail-all-btn {
   background: var(--bg);
   border: none;
   border-radius: var(--radius-md);
   box-shadow: var(--neo-raised-sm);
-  transition: box-shadow 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  transition: box-shadow 0.18s ease, color 0.18s ease, transform 0.18s cubic-bezier(0.32, 1.25, 0.32, 1);
 }
 .trk-app .trk-btn-secondary,
 .trk-app .trk-ghost-btn,
@@ -288,7 +322,9 @@
 .trk-app .trk-type-switch button,
 .trk-app .trk-multiselect-btn,
 .trk-app .trk-md-format-btn,
-.trk-app .trk-focus-mini { color: var(--text-dim); }
+.trk-app .trk-focus-mini,
+.trk-app .trk-prefs-data-btn,
+.trk-app .trk-rail-all-btn { color: var(--text-dim); }
 .trk-app .trk-btn-primary,
 .trk-app .trk-add-btn { color: var(--accent); font-weight: 700; }
 .trk-app .trk-btn-danger { color: var(--danger); }
@@ -308,7 +344,9 @@
 .trk-app .trk-type-switch button:hover:not(:disabled),
 .trk-app .trk-multiselect-btn:hover:not(:disabled),
 .trk-app .trk-md-format-btn:hover:not(:disabled),
-.trk-app .trk-focus-mini:hover {
+.trk-app .trk-focus-mini:hover,
+.trk-app .trk-prefs-data-btn:hover:not(:disabled),
+.trk-app .trk-rail-all-btn:hover:not(.active) {
   background: var(--bg);
   color: var(--text);
   box-shadow: var(--neo-raised);
@@ -332,7 +370,7 @@
   box-shadow: var(--neo-raised);
 }
 
-/* Actif / pressé : creusé + texte en accent */
+/* Actif / pressé : creusé + dépression tactile + texte en accent */
 .trk-app .trk-btn-secondary:active:not(:disabled),
 .trk-app .trk-btn-primary:active:not(:disabled),
 .trk-app .trk-btn-danger:active:not(:disabled),
@@ -342,8 +380,11 @@
 .trk-app .trk-chart-focus-btn:active,
 .trk-app .trk-focus-done-btn:active,
 .trk-app .trk-focus-mini:active,
-.trk-app .trk-icon-btn:active {
+.trk-app .trk-icon-btn:active,
+.trk-app .trk-prefs-data-btn:active:not(:disabled),
+.trk-app .trk-rail-all-btn:active {
   box-shadow: var(--neo-pressed);
+  transform: scale(0.97);
 }
 .trk-app .trk-all-btn.active,
 .trk-app .trk-view-btn.active,
@@ -358,11 +399,48 @@
 .trk-app .trk-btn-group .trk-theme-btn.trk-sticky-on:hover,
 .trk-app .trk-type-switch button.active,
 .trk-app .trk-md-format-btn.active,
-.trk-app .trk-help-btn.active {
+.trk-app .trk-help-btn.active,
+.trk-app .trk-rail-all-btn.active,
+.trk-app .trk-rail-dot-btn.active {
   background: var(--bg);
   border: none;
   box-shadow: var(--neo-pressed);
   color: var(--accent);
+}
+.trk-app .trk-rail-dot-btn:hover:not(.active) {
+  background: var(--bg);
+  box-shadow: var(--neo-raised-xs);
+}
+.trk-app .trk-prefs-row:hover {
+  background: var(--panel-alt);
+  color: var(--text);
+}
+.trk-app .trk-theme-card {
+  background: var(--bg);
+  border: none;
+  box-shadow: var(--neo-raised-xs);
+}
+.trk-app .trk-theme-card.active {
+  background: var(--bg);
+  box-shadow: var(--neo-pressed), inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.trk-app .trk-theme-card.active .trk-theme-card-name {
+  color: var(--accent);
+}
+.trk-app.light .trk-theme-card.active .trk-theme-card-name {
+  color: color-mix(in srgb, var(--accent) 68%, black);
+}
+.trk-app .trk-switch {
+  background: var(--bg);
+  border: none;
+  box-shadow: var(--neo-pressed);
+}
+.trk-app .trk-switch-thumb {
+  background: var(--text-dim);
+  box-shadow: var(--neo-raised-xs);
+}
+.trk-app .trk-switch.on .trk-switch-thumb {
+  background: var(--accent);
 }
 
 /* Boutons-icônes : plats au repos, en relief au survol */
@@ -475,6 +553,30 @@
 .trk-app .trk-pbar-fill,
 .trk-app .trk-dv-gauge-fill { border-radius: 999px; }
 
+.trk-app .trk-zen-sculpture {
+  background: var(--bg);
+  border: none;
+  border-radius: 22px;
+  box-shadow:
+    var(--neo-pressed-lg),
+    0 2px 0 rgba(255, 255, 255, 0.05);
+}
+.trk-app.light .trk-zen-sculpture {
+  box-shadow:
+    var(--neo-pressed-lg),
+    0 1.5px 0 rgba(255, 255, 255, 0.85);
+}
+.trk-app .trk-zen-sculpture:not(.is-empty) {
+  box-shadow:
+    var(--neo-pressed-lg),
+    0 0 22px -6px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.trk-app .trk-zen-sculpture.is-complete {
+  box-shadow:
+    var(--neo-pressed-lg),
+    0 0 28px -4px color-mix(in srgb, var(--ok) 34%, transparent);
+}
+
 /* Pastilles : on garde la teinte (lisible), sans bordure dure */
 .trk-app .trk-status-pill,
 .trk-app .trk-prio-tag,
@@ -530,6 +632,9 @@
   border-radius: var(--radius-md);
   box-shadow: var(--neo-pressed-lg);
   animation: none;
+}
+.trk-app:not(.sticky) .trk-focus-zone:not(.occupied):not(.over):not(.trk-focus-reduced) .trk-focus-empty {
+  box-shadow: var(--neo-pressed);
 }
 .trk-app .trk-focus-zone.over .trk-focus-empty {
   background: var(--bg);

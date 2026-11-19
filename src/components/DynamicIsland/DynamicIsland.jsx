@@ -52,7 +52,7 @@ function onButtonKey(fn) {
   };
 }
 
-export function DynamicIsland({
+export const DynamicIsland = React.memo(function DynamicIsland({
   focusSession,
   onEditTask,
   pomodoroSession: externalPomo,
@@ -145,14 +145,14 @@ export function DynamicIsland({
   const islandRef = useRef(null);
   const lastLen = useRef(0);
 
-  // Latency & INP Perf state (Dev Mode Only)
+  // Latency & INP Perf state (Dev Mode Only — abonné uniquement quand ouvert)
   const isDev = Boolean(import.meta.env?.DEV);
   const [perfState, setPerfState] = useState(() => (isDev ? getPerfState() : null));
 
   useEffect(() => {
-    if (!isDev) return;
+    if (!isDev || !open) return;
     return subscribePerf(setPerfState);
-  }, [isDev]);
+  }, [isDev, open]);
 
   const {
     focusTask,
@@ -185,10 +185,11 @@ export function DynamicIsland({
   }, [entries, open, mode]);
 
   useEffect(() => {
-    if (!isCooking && !open) return;
+    if (!isCooking) return;
+    setNow(Date.now());
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [isCooking, open]);
+  }, [isCooking]);
 
   useEffect(() => {
     if (isCooking || (pomoRunning && pomoPhase === "focus")) {
@@ -892,4 +893,4 @@ export function DynamicIsland({
       </div>
     </div>
   );
-}
+});

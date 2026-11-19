@@ -1,0 +1,533 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   6 Sculptures Diorama 2.5D de Progression (GPU-composited transform/opacity)
+   Fenêtre vitrée encastrée à 3 plans de profondeur (--px / --py via rAF).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.trk-zen-sculpture {
+  position: relative;
+  width: 100%;
+  height: 104px;
+  --px: 0;
+  --py: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  contain: layout style paint;
+  transition: transform 0.28s cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+
+/* Cadre vitré encastré 2.5D : profondeur de feuillure + reflet diagonal subtil */
+.trk-zen-window-frame {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 4;
+  background:
+    linear-gradient(
+      158deg,
+      rgba(255, 255, 255, 0.11) 0%,
+      rgba(255, 255, 255, 0.03) 22%,
+      transparent 44%,
+      rgba(0, 0, 0, 0.16) 100%
+    );
+  box-shadow:
+    inset 0 6px 14px -4px rgba(0, 0, 0, 0.52),
+    inset 0 -5px 12px -4px rgba(0, 0, 0, 0.44),
+    inset 6px 0 12px -6px rgba(0, 0, 0, 0.36),
+    inset -6px 0 12px -6px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.trk-app.light .trk-zen-window-frame {
+  background:
+    linear-gradient(
+      158deg,
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(255, 255, 255, 0.1) 24%,
+      transparent 46%,
+      rgba(60, 50, 38, 0.06) 100%
+    );
+  box-shadow:
+    inset 0 6px 13px -4px rgba(42, 38, 32, 0.22),
+    inset 0 -4px 10px -4px rgba(42, 38, 32, 0.16),
+    inset 6px 0 10px -6px rgba(42, 38, 32, 0.14),
+    inset -6px 0 10px -6px rgba(42, 38, 32, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.trk-zen-skeleton {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+/* Voile doux en haut pour garantir un contraste ≥ 4.5:1 sur chaque diorama */
+.trk-zen-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 9px 18px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(180deg, rgba(8, 10, 16, 0.44) 0%, rgba(8, 10, 16, 0.14) 68%, transparent 100%);
+}
+
+.trk-app.light .trk-zen-overlay {
+  background: linear-gradient(180deg, rgba(250, 248, 244, 0.56) 0%, rgba(250, 248, 244, 0.18) 68%, transparent 100%);
+}
+
+.trk-zen-encourage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.trk-app.light .trk-zen-encourage {
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.65);
+}
+
+.trk-zen-spark {
+  color: var(--accent);
+  flex-shrink: 0;
+  transition: color 0.3s ease;
+}
+
+.trk-zen-sculpture.is-complete .trk-zen-spark {
+  color: var(--ok);
+}
+
+.trk-zen-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.trk-zen-done {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.trk-zen-pct {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  transition: color 0.3s ease;
+}
+
+.trk-zen-sculpture.is-complete .trk-zen-pct {
+  color: var(--ok);
+}
+
+.trk-app.light .trk-zen-spark,
+.trk-app.light .trk-zen-pct {
+  color: color-mix(in srgb, var(--accent) 68%, black);
+}
+
+.trk-app.light .trk-zen-done {
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+}
+
+.trk-app.light .trk-zen-sculpture.is-complete .trk-zen-spark,
+.trk-app.light .trk-zen-sculpture.is-complete .trk-zen-pct {
+  color: color-mix(in srgb, var(--ok) 68%, black);
+}
+
+.trk-zen-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Parallaxe 2.5D (effet fenêtre « looking-glass » à 3 plans GPU) ── */
+.trk-depth-far,
+.trk-depth-mid,
+.trk-depth-near {
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.trk-depth-far {
+  transform: translate3d(calc(var(--px, 0) * 6px), calc(var(--py, 0) * 2.5px), 0);
+}
+
+.trk-depth-mid {
+  transform: translate3d(calc(var(--px, 0) * 2px), calc(var(--py, 0) * 1px), 0);
+}
+
+.trk-depth-near {
+  transform: translate3d(calc(var(--px, 0) * -4.5px), calc(var(--py, 0) * -2px), 0);
+}
+
+/* Mise en veille automatique lorsque la fenêtre/onglet est caché */
+.trk-zen-sculpture.is-paused * {
+  animation-play-state: paused !important;
+}
+
+/* ── 1. MOSAÏQUE KINTSUGI 2.5D (Obsidienne) ── */
+.trk-mosaic-shard {
+  transition:
+    transform 0.55s cubic-bezier(0.32, 1.25, 0.32, 1),
+    opacity 0.4s ease;
+}
+.trk-mosaic-shard.is-ghost {
+  transform: scale(0.95);
+  opacity: 0.72;
+}
+.trk-mosaic-shard.is-warm {
+  transform: scale(0.985);
+  opacity: 0.92;
+}
+.trk-mosaic-shard.is-lit {
+  transform: scale(1);
+  opacity: 1;
+}
+.trk-mosaic-poly {
+  fill: rgba(255, 255, 255, 0.03);
+  stroke: rgba(255, 255, 255, 0.13);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+  transition: opacity 0.35s ease;
+}
+.trk-app.light .trk-mosaic-poly {
+  fill: rgba(27, 36, 48, 0.04);
+  stroke: rgba(27, 36, 48, 0.14);
+}
+.trk-mosaic-shard.is-warm .trk-mosaic-poly {
+  fill: color-mix(in srgb, var(--accent) 18%, transparent);
+  stroke: color-mix(in srgb, #E5B869 56%, transparent);
+  stroke-dasharray: 3 3;
+}
+.trk-mosaic-shard.is-lit .trk-mosaic-poly {
+  stroke: rgba(252, 224, 155, 0.42);
+  stroke-width: 1;
+}
+.trk-mosaic-shard.is-magnetic .trk-mosaic-poly {
+  stroke: #F6D38A;
+  stroke-width: 1.3;
+  animation: trk-zen-breathe 2.2s ease-in-out infinite;
+}
+.trk-mosaic-seam {
+  stroke: transparent;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 0.55s ease;
+}
+.trk-mosaic-seam.is-edge {
+  stroke: rgba(229, 184, 105, 0.4);
+  opacity: 0.58;
+}
+.trk-mosaic-seam.is-gold {
+  opacity: 0.96;
+}
+.trk-mosaic-sheen {
+  fill: rgba(255, 248, 220, 0.16);
+  transform: skewX(-24deg) translate3d(-120px, 0, 0);
+  animation: trk-mosaic-glide 4.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes trk-mosaic-glide {
+  0%, 55% { transform: skewX(-24deg) translate3d(-120px, 0, 0); opacity: 0; }
+  70% { opacity: 1; }
+  100% { transform: skewX(-24deg) translate3d(640px, 0, 0); opacity: 0; }
+}
+
+/* ── 2. HORIZON D'AUBE 2.5D (Albâtre) ── */
+.trk-dawn-sky {
+  transition: opacity 0.8s ease;
+}
+.trk-dawn-stars {
+  transition: opacity 0.7s ease;
+}
+.trk-dawn-star {
+  fill: #475569;
+  animation: trk-zen-breathe 3.6s ease-in-out infinite;
+}
+.trk-app:not(.light) .trk-dawn-star {
+  fill: #E2E8F0;
+}
+.trk-dawn-sun-group {
+  transition: transform 0.85s cubic-bezier(0.32, 1.25, 0.32, 1);
+  will-change: transform;
+}
+.trk-dawn-sun-halo {
+  animation: trk-zen-breathe 4.4s ease-in-out infinite;
+}
+.trk-dawn-ridge {
+  transition: fill 0.6s ease;
+}
+.trk-dawn-ridge.r-back {
+  fill: color-mix(in srgb, var(--accent) 20%, var(--border));
+}
+.trk-dawn-ridge.r-mid {
+  fill: color-mix(in srgb, var(--accent) 32%, var(--panel-alt));
+}
+.trk-dawn-ridge.r-front {
+  fill: color-mix(in srgb, var(--text-dim) 28%, var(--bg));
+}
+.trk-sculp-dawn.is-complete .trk-dawn-ridge.r-back {
+  fill: color-mix(in srgb, #F59E0B 26%, var(--accent));
+}
+.trk-dawn-mist-layer {
+  transition: opacity 0.85s ease;
+}
+.trk-dawn-mist {
+  fill: rgba(255, 255, 255, 0.62);
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.trk-app:not(.light) .trk-dawn-mist {
+  fill: rgba(226, 232, 240, 0.14);
+}
+
+/* ── 3. CARTE STELLAIRE 2.5D (Nébuleuse) ── */
+.trk-star-astrolabe {
+  transition:
+    transform 0.85s cubic-bezier(0.32, 1.25, 0.32, 1),
+    opacity 0.65s ease;
+}
+.trk-star-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 0.9;
+  stroke-dasharray: 4 3;
+  opacity: 0.55;
+}
+.trk-star-ring.outer {
+  animation: trk-zen-slow-spin 36s linear infinite;
+}
+.trk-star-ring.inner {
+  stroke: #38BDF8;
+  stroke-dasharray: 2 4;
+  animation: trk-zen-slow-spin 24s linear infinite reverse;
+}
+.trk-star-diamond {
+  fill: none;
+  stroke: #C7D2FE;
+  stroke-width: 0.85;
+  opacity: 0.5;
+}
+.trk-star-link {
+  stroke: rgba(129, 140, 248, 0.14);
+  stroke-width: 0.9;
+  transition: stroke 0.5s ease, opacity 0.5s ease;
+}
+.trk-star-link.is-partial {
+  stroke: rgba(129, 140, 248, 0.38);
+}
+.trk-star-link.is-lit {
+  stroke: #A5B4FC;
+  stroke-width: 1.2;
+}
+.trk-sculp-starchart.is-complete .trk-star-link.is-lit {
+  stroke: #38BDF8;
+}
+.trk-star-node {
+  transition: opacity 0.5s ease;
+}
+.trk-star-node.is-hidden {
+  opacity: 0.25;
+}
+.trk-star-node.is-glimmer {
+  opacity: 0.72;
+  animation: trk-zen-breathe 2.4s ease-in-out infinite;
+}
+.trk-star-dot {
+  fill: #94A3B8;
+  transition: fill 0.4s ease;
+}
+.trk-star-node.is-lit .trk-star-dot {
+  fill: #E0E7FF;
+}
+.trk-star-spark {
+  fill: #F8FAFC;
+  stroke: #818CF8;
+  stroke-width: 0.6;
+}
+.trk-star-halo {
+  fill: rgba(129, 140, 248, 0.28);
+}
+.trk-star-veil {
+  transition:
+    transform 0.95s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.85s ease;
+  pointer-events: none;
+}
+
+/* ── 4. TERRARIUM FLORAISON 2.5D (Forêt) ── */
+.trk-bloom-horizon {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent) 44%, transparent);
+  stroke-width: 1;
+}
+.trk-bloom-seed {
+  fill: color-mix(in srgb, var(--accent) 58%, var(--bg));
+}
+.trk-bloom-stem-group {
+  transition: transform 0.75s cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+.trk-bloom-stem {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.65;
+  stroke-linecap: round;
+}
+.trk-bloom-leaf {
+  transition:
+    transform 0.65s cubic-bezier(0.32, 1.25, 0.32, 1),
+    opacity 0.5s ease;
+}
+.trk-bloom-crown {
+  transition:
+    transform 0.75s cubic-bezier(0.32, 1.25, 0.32, 1),
+    opacity 0.45s ease;
+}
+.trk-bloom-crown.is-dormant {
+  opacity: 0.28;
+}
+.trk-bloom-crown.is-bud {
+  opacity: 0.72;
+}
+.trk-bloom-crown.is-open {
+  opacity: 1;
+}
+.trk-bloom-core {
+  fill: #FEF9C3;
+}
+.trk-bloom-firefly {
+  fill: #FEF08A;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.trk-bloom-firefly.is-lit {
+  opacity: 0.88;
+  animation: trk-firefly-float 4.2s ease-in-out infinite;
+}
+.trk-bloom-firefly.f2 { animation-delay: 0.9s; }
+.trk-bloom-firefly.f3 { animation-delay: 1.8s; }
+.trk-bloom-firefly.f4 { animation-delay: 2.5s; }
+.trk-bloom-firefly.f5 { animation-delay: 0.4s; }
+
+@keyframes trk-firefly-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(0.9); opacity: 0.5; }
+  50% { transform: translate3d(3px, -5px, 0) scale(1.15); opacity: 1; }
+}
+
+/* ── 5. PLATINE STUDIO 2.5D (Studio Graphite) ── */
+.trk-deck-tape-coil {
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+  transition: transform 0.75s cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+.trk-deck-reel-rotor {
+  transform-box: view-box;
+  transform-origin: 0px 0px;
+}
+.trk-deck-reel-rotor.is-spinning {
+  animation: trk-zen-slow-spin 9s linear infinite;
+}
+.trk-deck-needle {
+  transition: transform 0.78s cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+.trk-deck-led {
+  fill: rgba(255, 255, 255, 0.08);
+  stroke: rgba(0, 0, 0, 0.48);
+  stroke-width: 0.6;
+  transition: fill 0.3s ease, opacity 0.3s ease;
+  opacity: 0.55;
+}
+.trk-deck-led.is-on {
+  opacity: 1;
+  stroke: rgba(255, 255, 255, 0.28);
+}
+
+/* ── 6. JARDIN DE PIERRES CAIRN 2.5D (Sable Zen) ── */
+.trk-cairn-groove-hi {
+  fill: none;
+  stroke: rgba(255, 252, 245, 0.62);
+  stroke-width: 1.1;
+}
+.trk-cairn-groove {
+  fill: none;
+  stroke: rgba(112, 96, 76, 0.28);
+  stroke-width: 1.1;
+}
+.trk-cairn-ripple {
+  fill: none;
+  stroke: rgba(140, 118, 92, 0.26);
+  stroke-width: 1;
+  opacity: 0.72;
+}
+.trk-cairn-stone {
+  transition:
+    transform 0.72s cubic-bezier(0.32, 1.25, 0.32, 1),
+    opacity 0.45s ease;
+}
+.trk-cairn-pebble {
+  stroke: rgba(45, 36, 26, 0.18);
+  stroke-width: 0.6;
+}
+.trk-cairn-stone.is-ghost .trk-cairn-pebble {
+  fill: transparent;
+  stroke: color-mix(in srgb, var(--text-dim) 44%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 2.5 2.5;
+}
+.trk-cairn-stone.is-hovering {
+  animation: trk-zen-breathe 2.6s ease-in-out infinite;
+}
+.trk-cairn-shadow {
+  fill: rgba(34, 26, 18, 0.34);
+}
+.trk-cairn-highlight {
+  fill: rgba(255, 252, 245, 0.26);
+}
+.trk-cairn-rim {
+  fill: none;
+  stroke: rgba(246, 232, 206, 0.36);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+
+/* ── Animations partagées légères (GPU only) ── */
+@keyframes trk-zen-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.95; }
+}
+@keyframes trk-zen-slow-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trk-zen-sculpture *,
+  .trk-zen-sculpture *::before,
+  .trk-zen-sculpture *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .trk-depth-far,
+  .trk-depth-mid,
+  .trk-depth-near {
+    transform: none !important;
+  }
+}

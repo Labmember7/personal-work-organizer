@@ -9,6 +9,7 @@ import { useEscapeKey } from "../../hooks/useEscapeKey";
 import { pushLog } from "../../lib/debugLog";
 import { localized, scopesOf } from "../../lib/plugins/manifest";
 import { projectSnapshot, themeSnapshot } from "../../lib/plugins/projection";
+import { isLightTheme } from "../../lib/themes";
 import { usePluginSettings } from "./usePluginSettings";
 import { savePluginSettings } from "../../lib/plugins/settings";
 import { discoverPlugins } from "../../services/plugins";
@@ -146,11 +147,11 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
 
   const snapshot = useMemo(() => projectSnapshot(tasks, projects), [tasks, projects]);
 
-  const [hostTheme, setHostTheme] = useState(() => themeSnapshot(theme, theme !== "light"));
+  const [hostTheme, setHostTheme] = useState(() => themeSnapshot(theme, !isLightTheme(theme)));
   useEffect(() => {
     // Le prochain rendu a déjà posé la classe de thème sur .trk-app : les
     // jetons calculés ici sont ceux du nouveau thème, pas de l'ancien.
-    setHostTheme(themeSnapshot(theme, theme !== "light", document.querySelector(".trk-app")));
+    setHostTheme(themeSnapshot(theme, !isLightTheme(theme), document.querySelector(".trk-app")));
   }, [theme, randomSeed]);
 
   const dict = useMemo(() => pluginDict(lang), [lang]);

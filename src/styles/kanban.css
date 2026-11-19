@@ -42,6 +42,19 @@
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
+.trk-col-filter-btn {
+  padding: 4px;
+  opacity: 0.45;
+  transition: opacity 0.16s ease, color 0.16s ease, background 0.16s ease;
+}
+.trk-kanban-col:hover .trk-col-filter-btn,
+.trk-kanban-col:focus-within .trk-col-filter-btn,
+.trk-col-filter-btn.active {
+  opacity: 1;
+}
+.trk-col-filter-btn.active {
+  color: var(--accent);
+}
 .trk-kanban-col-dot {
   width: 8px;
   height: 8px;
@@ -149,10 +162,10 @@
   background: var(--panel-alt);
   border: 1px solid var(--border);
   border-left: 3px solid var(--rail-color, var(--border));
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 10px 11px;
-  cursor: grab;
-  transition: transform 0.12s, box-shadow 0.12s, opacity 0.12s;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.32, 1.25, 0.32, 1), box-shadow 0.18s ease, opacity 0.15s ease;
 }
 .trk-kanban-card:hover {
   transform: translateY(-2px);
@@ -205,4 +218,15 @@
   flex-shrink: 0;
 }
 .trk-kanban-card-actions .trk-icon-btn { padding: 4px; }
+@media (hover: hover) {
+  .trk-kanban-card-actions {
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+  .trk-kanban-card:hover .trk-kanban-card-actions,
+  .trk-kanban-card:focus-within .trk-kanban-card-actions,
+  .trk-kanban-card-actions.confirming {
+    opacity: 1;
+  }
+}
 

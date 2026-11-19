@@ -1,47 +1,136 @@
-import React from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle2, Flame, Sparkles } from "lucide-react";
 import { AnimatedNumber } from "./AnimatedNumber.jsx";
-import { useLang } from "../i18n.jsx";
+import { useLang, doneOfTotal } from "../i18n.jsx";
+import { getSculptureForTheme } from "../lib/themes";
 
-// Jauge circulaire d'avancement global (0-100 %).
-export function Gauge({ value }) {
-  const { t } = useLang();
-  const R = 52;
-  const C = 2 * Math.PI * R;
-  const pct = Math.max(0, Math.min(100, value));
-  const dash = C * (pct / 100);
-  const color = pct < 35 ? "var(--danger)" : pct < 70 ? "var(--warn)" : "var(--ok)";
-  const ticks = Array.from({ length: 24 });
-  return (
-    <svg viewBox="0 0 120 120" width="120" height="120">
-      <g>
-        {ticks.map((_, i) => {
-          const angle = (i * 360) / 24;
-          const rad = (angle * Math.PI) / 180;
-          const x1 = 60 + 58 * Math.cos(rad);
-          const y1 = 60 + 58 * Math.sin(rad);
-          const x2 = 60 + 52 * Math.cos(rad);
-          const y2 = 60 + 52 * Math.sin(rad);
-          return (
-            <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke="var(--border)" strokeWidth="1.5" />
-          );
-        })}
-      </g>
-      <circle cx="60" cy="60" r={R} fill="none" stroke="var(--gauge-track)" strokeWidth="9" />
-      <circle
-        cx="60" cy="60" r={R} fill="none" stroke={color} strokeWidth="9"
-        strokeDasharray={`${dash} ${C}`} strokeLinecap="round"
-        transform="rotate(-90 60 60)"
-        style={{ transition: "stroke-dasharray 0.5s ease, stroke 0.5s ease" }}
-      />
-      <text x="60" y="57" textAnchor="middle" fontSize="22" fontWeight="700" fill="var(--text)"
-        fontFamily="'Space Grotesk', sans-serif">
-        <AnimatedNumber as="tspan" value={`${Math.round(pct)}%`} />
-      </text>
-      <text x="60" y="74" textAnchor="middle" fontSize="8" fill="var(--text-dim)"
-        fontFamily="'IBM Plex Mono', monospace" letterSpacing="0.5">
-        {t("gauge_caption")}
-      </text>
-    </svg>
+// Chargement dynamique par thème : seule la sculpture active est téléchargée et montée.
+const SCULPTURE_COMPONENTS = {
+  mosaic: lazy(() => import("./progress/MosaicSculpture.jsx")),
+  dawn: lazy(() => import("./progress/DawnSculpture.jsx")),
+  starchart: lazy(() => import("./progress/StarChartSculpture.jsx")),
+  bloom: lazy(() => import("./progress/BloomSculpture.jsx")),
+  harmony: lazy(() => import("./progress/HarmonySculpture.jsx")),
+  cairn: lazy(() => import("./progress/CairnSculpture.jsx")),
+};
+
+// Fenêtre diorama 2.5D réactive : parallaxe douce pilotée par variables CSS
+// (--px / --py) via rAF sans aucun re-render React, et veille automatique en arrière-plan.
+export const Gauge = React.memo(function Gauge({
+  value,
+  doneCount = 0,
+  inProgressCount = 0,
+  totalTasks = 0,
+  theme = "dark",
+  randomSeed = 0,
+}) {
+  const { t, lang } = useLang();
+  const hostRef = useRef(null);
+  const rafRef = useRef(0);
+  const [hidden, setHidden] = useState(
+    () => typeof document !== "undefined" && document.visibilityState === "hidden"
   );
-}
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVis = () => setHidden(document.visibilityState === "hidden");
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  const handlePointerMove = useCallback((e) => {
+    const el = hostRef.current;
+    if (!el || rafRef.current) return;
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      const rect = el.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const nx = Math.max(-1, Math.min(1, ((clientX - rect.left) / rect.width) * 2 - 1));
+      const ny = Math.max(-1, Math.min(1, ((clientY - rect.top) / rect.height) * 2 - 1));
+      el.style.setProperty("--px", nx.toFixed(3));
+      el.style.setProperty("--py", ny.toFixed(3));
+    });
+  }, []);
+
+  const handlePointerLeave = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    const el = hostRef.current;
+    if (!el) return;
+    el.style.setProperty("--px", "0");
+    el.style.setProperty("--py", "0");
+  }, []);
+
+  const pct = Math.max(0, Math.min(100, Math.round(value)));
+  const isComplete = totalTasks > 0 && pct >= 100;
+  const sculptureId = getSculptureForTheme(theme, randomSeed);
+  const ActiveSculpture = SCULPTURE_COMPONENTS[sculptureId];
+
+  const encourageKey =
+    pct === 0 || totalTasks === 0
+      ? "progress_encourage_0"
+      : pct < 35
+        ? "progress_encourage_1"
+        : pct < 70
+          ? "progress_encourage_2"
+          : pct < 100
+            ? "progress_encourage_3"
+            : "progress_encourage_4";
+
+  const Icon = isComplete ? CheckCircle2 : pct > 0 ? Flame : Sparkles;
+
+  return (
+    <div
+      ref={hostRef}
+      className={
+        `trk-zen-sculpture trk-zen-${sculptureId}` +
+        (isComplete ? " is-complete" : "") +
+        (pct === 0 ? " is-empty" : "") +
+        (hidden ? " is-paused" : "")
+      }
+      data-sculpture={sculptureId}
+      role="progressbar"
+      aria-label={`${t("gauge_caption")} — ${t(`sculpture_${sculptureId}`)}`}
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+    >
+      <div className="trk-zen-overlay">
+        <span className="trk-zen-encourage">
+          <Icon size={13} className="trk-zen-spark" aria-hidden="true" />
+          <span>{t(encourageKey)}</span>
+        </span>
+        <span className="trk-zen-stats">
+          <span className="trk-zen-done">
+            <AnimatedNumber value={doneOfTotal(lang, doneCount, totalTasks)} />
+          </span>
+          <span className="trk-zen-pct">
+            <AnimatedNumber value={`${pct}%`} />
+          </span>
+        </span>
+      </div>
+
+      <Suspense fallback={<div className="trk-zen-skeleton" aria-hidden="true" />}>
+        <ActiveSculpture
+          pct={pct}
+          doneCount={doneCount}
+          inProgressCount={inProgressCount}
+          totalTasks={totalTasks}
+          isComplete={isComplete}
+        />
+      </Suspense>
+
+      {/* Cadre vitré encastré (profondeur 2.5D + reflet de vitre subtil) */}
+      <span className="trk-zen-window-frame" aria-hidden="true" />
+    </div>
+  );
+});

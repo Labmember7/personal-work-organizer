@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 // Polices embarquées localement : l'app (AppImage portable) doit rester
 // utilisable hors ligne, sans requête vers Google Fonts au démarrage.
@@ -25,7 +25,12 @@ import { LanguageProvider } from "./i18n.jsx";
 import { initTauriBridge } from "./services/tauriBridge";
 import { initPerformanceMonitoring } from "./lib/performanceMonitor";
 import { isPetWindow } from "./services/desktopPet";
-import { DesktopPetWindow } from "./features/desktopPet/DesktopPetWindow.jsx";
+
+const DesktopPetWindow = lazy(() =>
+  import("./features/desktopPet/DesktopPetWindow.jsx").then((m) => ({
+    default: m.DesktopPetWindow,
+  }))
+);
 
 initTauriBridge();
 initPerformanceMonitoring();
@@ -34,7 +39,9 @@ if (isPetWindow()) {
   document.documentElement.classList.add("pet-window-mode");
   createRoot(document.getElementById("root")).render(
     <LanguageProvider>
-      <DesktopPetWindow />
+      <Suspense fallback={null}>
+        <DesktopPetWindow />
+      </Suspense>
     </LanguageProvider>
   );
 } else {

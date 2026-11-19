@@ -8,14 +8,14 @@ import { KanbanBoard } from "./KanbanBoard.jsx";
 // Vue kanban complète : un tableau pour les tâches workflow (6 statuts) et
 // un pour les tâches simples (3 statuts), avec libellés quand les deux
 // familles coexistent.
-export const KanbanSection = React.memo(function KanbanSection({ tasks, onNewTask, boardProps }) {
+export const KanbanSection = React.memo(function KanbanSection({ tasks, boardProps }) {
   const { t } = useLang();
 
   const standardTasks = useMemo(() => tasks.filter((tk) => !isSimpleTask(tk)), [tasks]);
   const simpleTasks = useMemo(() => tasks.filter(isSimpleTask), [tasks]);
 
   if (tasks.length === 0) {
-    return <EmptyState label={t("empty_task_list")} actionLabel={t("new_task")} onAction={onNewTask} />;
+    return <EmptyState label={t("empty_task_list")} />;
   }
 
   return (

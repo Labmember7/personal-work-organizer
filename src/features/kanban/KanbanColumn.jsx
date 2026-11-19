@@ -8,10 +8,10 @@ import { usePagination } from "../../hooks/usePagination";
 import { Pagination } from "../../components/Pagination.jsx";
 import { KanbanCard } from "./KanbanCard.jsx";
 
-const KANBAN_PAGE_SIZE = 3;
+const KANBAN_PAGE_SIZE = 4;
 
-// Colonne kanban : un statut, avec recherche et filtre priorité locaux,
-// pagination, et dépôt par drag & drop.
+// Colonne kanban : un statut, avec recherche et filtre priorité à la demande,
+// pagination et dépôt par drag & drop.
 export const KanbanColumn = React.memo(function KanbanColumn({
   status,
   tasks,
@@ -27,6 +27,10 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   const { t } = useLang();
   const [query, setQuery] = useState("");
   const [prio, setPrio] = useState("");
+  const [toolsOpen, setToolsOpen] = useState(false);
+
+  const hasActiveFilter = Boolean(query) || Boolean(prio);
+  const showTools = toolsOpen || hasActiveFilter;
 
   const visible = useMemo(
     () => tasks.filter((tk) => (!prio || tk.priorite === prio) && taskMatchesQuery(tk, query)),
@@ -63,33 +67,45 @@ export const KanbanColumn = React.memo(function KanbanColumn({
       <div className="trk-kanban-col-header">
         <span className="trk-kanban-col-dot" style={{ background: status.color }} />
         <span className="trk-kanban-col-title">{t(`status_${status.id}`)}</span>
+        <button
+          type="button"
+          className={"trk-icon-btn trk-col-filter-btn" + (showTools ? " active" : "")}
+          onClick={() => setToolsOpen((o) => !o)}
+          title={t("col_filter_toggle")}
+          aria-label={t("col_filter_toggle")}
+          aria-expanded={showTools}
+        >
+          <Search size={12} />
+        </button>
         <span className="trk-kanban-col-count">
           <AnimatedNumber value={visible.length === tasks.length ? tasks.length : `${visible.length}/${tasks.length}`} />
         </span>
       </div>
-      <div className="trk-kanban-col-tools">
-        <div className="trk-kanban-col-search">
-          <Search size={11} color="var(--text-dim)" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("col_search_placeholder")}
-          />
-          {query && (
-            <button type="button" className="trk-icon-btn" onClick={() => setQuery("")} title={t("clear_selection")}>
-              <X size={11} />
-            </button>
-          )}
+      {showTools && (
+        <div className="trk-kanban-col-tools">
+          <div className="trk-kanban-col-search">
+            <Search size={11} color="var(--text-dim)" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("col_search_placeholder")}
+            />
+            {query && (
+              <button type="button" className="trk-icon-btn" onClick={() => setQuery("")} title={t("clear_selection")}>
+                <X size={11} />
+              </button>
+            )}
+          </div>
+          <Select
+            className={"trk-kanban-col-prio" + (prio ? " active" : "")}
+            value={prio}
+            onChange={(e) => setPrio(e.target.value)}
+          >
+            <option value="">{t("prio_all")}</option>
+            {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{t(`prio_${p.id}`)}</option>)}
+          </Select>
         </div>
-        <Select
-          className={"trk-kanban-col-prio" + (prio ? " active" : "")}
-          value={prio}
-          onChange={(e) => setPrio(e.target.value)}
-        >
-          <option value="">{t("prio_all")}</option>
-          {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{t(`prio_${p.id}`)}</option>)}
-        </Select>
-      </div>
+      )}
       <div className="trk-kanban-col-body">
         {pageItems.length === 0 && (
           <div className="trk-kanban-drop-hint">{t("kanban_empty_col")}</div>
@@ -106,9 +122,11 @@ export const KanbanColumn = React.memo(function KanbanColumn({
           />
         ))}
       </div>
-      <div className="trk-kanban-col-footer">
-        <Pagination compact page={page} totalPages={totalPages} onChange={setPage} />
-      </div>
+      {totalPages > 1 && (
+        <div className="trk-kanban-col-footer">
+          <Pagination compact page={page} totalPages={totalPages} onChange={setPage} />
+        </div>
+      )}
     </div>
   );
 });

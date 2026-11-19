@@ -116,26 +116,24 @@ export function clearPerfMetrics(): void {
   notify();
 }
 
-export function subscribePerf(cb: (state: PerfState) => void): () => void {
-  subscribers.add(cb);
-  cb(getPerfState());
-  return () => {
-    subscribers.delete(cb);
-  };
+let fpsRafId: number | null = null;
+
+function stopFpsSampler(): void {
+  if (fpsRafId !== null && typeof cancelAnimationFrame === "function") {
+    cancelAnimationFrame(fpsRafId);
+    fpsRafId = null;
+  }
 }
 
-/**
- * Installe les observateurs de performance natifs (Event Timing API, Long Tasks API, FPS sampler).
- * Idempotent et sans danger dans les environnements où PerformanceObserver n'est pas supporté (ex: jsdom).
- */
-export function initPerformanceMonitoring(): void {
-  if (installed || typeof window === "undefined") return;
-  installed = true;
-
-  // 1. FPS Tracker léger (échantillonne sur 1 seconde)
+function startFpsSampler(): void {
+  if (fpsRafId !== null || typeof requestAnimationFrame !== "function") return;
   let frames = 0;
   let lastTime = performance.now();
   const sampleFps = () => {
+    if (subscribers.size === 0) {
+      fpsRafId = null;
+      return;
+    }
     frames++;
     const now = performance.now();
     if (now - lastTime >= 1000) {
@@ -144,9 +142,30 @@ export function initPerformanceMonitoring(): void {
       lastTime = now;
       notify();
     }
-    requestAnimationFrame(sampleFps);
+    fpsRafId = requestAnimationFrame(sampleFps);
   };
-  requestAnimationFrame(sampleFps);
+  fpsRafId = requestAnimationFrame(sampleFps);
+}
+
+export function subscribePerf(cb: (state: PerfState) => void): () => void {
+  subscribers.add(cb);
+  cb(getPerfState());
+  if (installed) startFpsSampler();
+  return () => {
+    subscribers.delete(cb);
+    if (subscribers.size === 0) stopFpsSampler();
+  };
+}
+
+/**
+ * Installe les observateurs de performance natifs (Event Timing API, Long Tasks API).
+ * L'échantillonneur FPS RAF ne tourne que lorsqu'un panneau de perf est ouvert.
+ */
+export function initPerformanceMonitoring(): void {
+  if (installed || typeof window === "undefined") return;
+  installed = true;
+
+  if (subscribers.size > 0) startFpsSampler();
 
   // 2. PerformanceObserver pour les interactions (INP / Event Timing)
   if (typeof PerformanceObserver !== "undefined") {

@@ -1,12 +1,10 @@
 import React from "react";
 import { Select } from "../../components/Select.jsx";
-import { Archive, Columns3, List, Plus, Puzzle, Search } from "lucide-react";
+import { Archive, BarChart3, Columns3, List, Plus, Puzzle, Search, X } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
-import { HelpTip } from "../../tips.jsx";
 import { StatusFilterDropdown } from "./StatusFilterDropdown.jsx";
 
-// Barre d'outils de la zone principale : recherche, filtre de statuts, tri,
-// bascule liste/kanban et création de tâche.
+// Barre d'outils de la zone principale : navigation par vues et filtres contextuels.
 export const TaskToolbar = React.memo(function TaskToolbar({
   search, onSearchChange,
   filterStatuts, onToggleStatut, onClearStatuts,
@@ -15,28 +13,21 @@ export const TaskToolbar = React.memo(function TaskToolbar({
   onNewTask,
 }) {
   const { t } = useLang();
+  const showFilters = viewMode !== "plugins" && viewMode !== "insights";
+  const showStatusFilter = showFilters && (viewMode === "list" || viewMode === "archived" || filterStatuts.length > 0);
+
   return (
     <div className="trk-toolbar">
-      <div className="trk-search">
-        <Search size={14} color="var(--text-dim)" />
-        <input
-          placeholder={t("search_placeholder")}
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
-      </div>
-      <StatusFilterDropdown
-        selected={filterStatuts}
-        onToggle={onToggleStatut}
-        onClear={onClearStatuts}
-      />
-      <Select className="trk-select" value={sortBy} onChange={(e) => onSortChange(e.target.value)}>
-        <option value="priorite">{t("sort_priority")}</option>
-        <option value="statut">{t("sort_status")}</option>
-        <option value="projet">{t("sort_project")}</option>
-        <option value="echeance">{t("sort_due")}</option>
-      </Select>
       <div className="trk-view-switch">
+        <button
+          type="button"
+          className={"trk-view-btn" + (viewMode === "kanban" ? " active" : "")}
+          onClick={() => onViewChange("kanban")}
+          title={t("view_kanban")}
+          aria-pressed={viewMode === "kanban"}
+        >
+          <Columns3 size={14} /> <span className="trk-view-label">{t("view_kanban")}</span>
+        </button>
         <button
           type="button"
           className={"trk-view-btn" + (viewMode === "list" ? " active" : "")}
@@ -48,12 +39,12 @@ export const TaskToolbar = React.memo(function TaskToolbar({
         </button>
         <button
           type="button"
-          className={"trk-view-btn" + (viewMode === "kanban" ? " active" : "")}
-          onClick={() => onViewChange("kanban")}
-          title={t("view_kanban")}
-          aria-pressed={viewMode === "kanban"}
+          className={"trk-view-btn" + (viewMode === "insights" ? " active" : "")}
+          onClick={() => onViewChange("insights")}
+          title={t("view_insights")}
+          aria-pressed={viewMode === "insights"}
         >
-          <Columns3 size={14} /> <span className="trk-view-label">{t("view_kanban")}</span>
+          <BarChart3 size={14} /> <span className="trk-view-label">{t("view_insights")}</span>
         </button>
         <button
           type="button"
@@ -74,10 +65,47 @@ export const TaskToolbar = React.memo(function TaskToolbar({
           <Puzzle size={14} /> <span className="trk-view-label">{t("view_plugins")}</span>
         </button>
       </div>
+
+      {showFilters && (
+        <div className="trk-toolbar-filters">
+          <div className="trk-search">
+            <Search size={14} color="var(--text-dim)" />
+            <input
+              placeholder={t("search_placeholder")}
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                className="trk-icon-btn"
+                onClick={() => onSearchChange("")}
+                title={t("clear_selection")}
+                aria-label={t("clear_selection")}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          {showStatusFilter && (
+            <StatusFilterDropdown
+              selected={filterStatuts}
+              onToggle={onToggleStatut}
+              onClear={onClearStatuts}
+            />
+          )}
+          <Select className="trk-select" value={sortBy} onChange={(e) => onSortChange(e.target.value)}>
+            <option value="priorite">{t("sort_priority")}</option>
+            <option value="statut">{t("sort_status")}</option>
+            <option value="projet">{t("sort_project")}</option>
+            <option value="echeance">{t("sort_due")}</option>
+          </Select>
+        </div>
+      )}
+
       <button className="trk-add-btn" onClick={onNewTask}>
         <Plus size={15} /> {t("new_task")}
       </button>
-      <HelpTip tipKey="tasks" />
     </div>
   );
 });

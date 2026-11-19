@@ -1,59 +1,54 @@
-import React from "react";
-import { AnimatedNumber } from "./AnimatedNumber.jsx";
-import { Dices, Download, HelpCircle, Moon, PartyPopper, Pin, PinOff, Redo2, Sun, Undo2, Upload } from "lucide-react";
-import { useLang, doneOfTotal, tasksTotalLabel } from "../i18n.jsx";
+import React, { useRef, useState } from "react";
+import {
+  Dices, Download, HelpCircle, Palette, PartyPopper, Pin,
+  Redo2, SlidersHorizontal, Undo2, Upload,
+} from "lucide-react";
+import { useLang } from "../i18n.jsx";
 import { Gauge } from "./Gauge.jsx";
 import { LangSwitch } from "./LangSwitch.jsx";
-import { HelpTip } from "../tips.jsx";
+import { useOutsideClick } from "../hooks/useOutsideClick";
+import { useEscapeKey } from "../hooks/useEscapeKey";
+import { THEMES, getThemeMeta } from "../lib/themes";
 
-// En-tête : marque, jauge d'avancement global et actions générales
-// (import/export, tutoriel, célébrations, thème, langue, undo/redo).
+// En-tête épuré : marque, sculpture de progression adaptée au thème, historique et préférences.
 export const AppHeader = React.memo(function AppHeader({
-  globalProgress, doneCount, totalTasks,
+  globalProgress, doneCount, inProgressCount = 0, totalTasks,
   onImport, onExport, ioBusy,
   onOpenTutorial,
   celebrationsOn, onToggleCelebrations,
-  theme, onToggleTheme,
+  theme, randomSeed = 0, onToggleTheme, onSelectTheme,
   stickyMode, onToggleStickyMode,
   canUndo, canRedo, onUndo, onRedo,
 }) {
-  const { t, lang } = useLang();
+  const { t } = useLang();
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+
+  useEscapeKey(() => setPrefsOpen(false), prefsOpen);
+  useOutsideClick([popRef, btnRef], () => setPrefsOpen(false), prefsOpen);
+
+  const currentMeta = getThemeMeta(theme);
+
   return (
     <div className="trk-header">
       <div className="trk-header-brand">
         <div className="trk-eyebrow">{t("eyebrow")}</div>
         <h1 className="trk-title">{t("app_title")}</h1>
       </div>
+
       <div className="trk-gauge-block">
-        <Gauge value={globalProgress} />
-        <div className="trk-gauge-caption">
-          <strong><AnimatedNumber value={doneOfTotal(lang, doneCount, totalTasks)} /></strong>
-          <span><AnimatedNumber value={tasksTotalLabel(lang, totalTasks)} /> <HelpTip tipKey="progress" /></span>
-        </div>
+        <Gauge
+          value={globalProgress}
+          doneCount={doneCount}
+          inProgressCount={inProgressCount}
+          totalTasks={totalTasks}
+          theme={theme}
+          randomSeed={randomSeed}
+        />
       </div>
+
       <div className="trk-header-actions">
-        <div className="trk-io-group">
-          <button
-            type="button"
-            className="trk-io-btn"
-            onClick={onImport}
-            disabled={ioBusy}
-            title={t("import_data")}
-          >
-            <Upload size={14} /> {t("import_data")}
-          </button>
-          <button
-            type="button"
-            className="trk-io-btn"
-            onClick={onExport}
-            disabled={ioBusy}
-            title={t("export_data")}
-          >
-            <Download size={14} /> {t("export_data")}
-          </button>
-          <HelpTip tipKey="backup" />
-        </div>
-        {/* Historique */}
         <div className="trk-btn-group" role="group" aria-label={t("group_history")}>
           <button
             type="button"
@@ -76,53 +71,179 @@ export const AppHeader = React.memo(function AppHeader({
             <Redo2 size={14} />
           </button>
         </div>
-        {/* Apparence */}
-        <div className="trk-btn-group" role="group" aria-label={t("group_appearance")}>
+
+        <button
+          type="button"
+          className="trk-theme-btn"
+          onClick={onToggleTheme}
+          title={`${t("theme_cycle")} (${t(currentMeta.labelKey)})`}
+          aria-label={`${t("theme_cycle")} (${t(currentMeta.labelKey)})`}
+        >
+          {theme === "random" ? <Dices size={14} /> : <Palette size={14} />}
+        </button>
+
+        <div className="trk-prefs-wrap">
           <button
+            ref={btnRef}
             type="button"
-            className="trk-theme-btn"
-            onClick={onToggleTheme}
-            title={theme === "dark" ? t("theme_light") : theme === "light" ? t("theme_random") : t("theme_dark")}
-            aria-label={theme === "dark" ? t("theme_light") : theme === "light" ? t("theme_random") : t("theme_dark")}
+            className={"trk-theme-btn trk-prefs-btn" + (prefsOpen ? " active" : "")}
+            onClick={() => setPrefsOpen((o) => !o)}
+            title={t("prefs_label")}
+            aria-label={t("prefs_label")}
+            aria-expanded={prefsOpen}
           >
-            {theme === "dark" ? <Sun size={14} /> : theme === "light" ? <Dices size={14} /> : <Moon size={14} />}
+            <SlidersHorizontal size={14} />
           </button>
-          <button
-            type="button"
-            className={"trk-theme-btn" + (stickyMode ? " trk-sticky-on" : "")}
-            onClick={onToggleStickyMode}
-            title={stickyMode ? t("sticky_mode_disable") : t("sticky_mode_enable")}
-            aria-label={stickyMode ? t("sticky_mode_disable") : t("sticky_mode_enable")}
-            aria-pressed={stickyMode}
-          >
-            {/* Punaise : même signe que la pastille plantée en haut des post-it
-                du mode. Comme le bouton de thème, l'icône annonce l'état visé. */}
-            {stickyMode ? <PinOff size={14} /> : <Pin size={14} />}
-          </button>
-          <button
-            type="button"
-            className={"trk-theme-btn" + (celebrationsOn ? "" : " trk-celeb-off")}
-            onClick={onToggleCelebrations}
-            title={celebrationsOn ? t("celebrations_disable") : t("celebrations_enable")}
-            aria-label={celebrationsOn ? t("celebrations_disable") : t("celebrations_enable")}
-            aria-pressed={celebrationsOn}
-          >
-            <PartyPopper size={14} />
-          </button>
-        </div>
-        {/* Aide et langue */}
-        <div className="trk-btn-group" role="group" aria-label={t("group_help")}>
-          <button
-            type="button"
-            className="trk-theme-btn"
-            onClick={onOpenTutorial}
-            title={t("help_tutorial")}
-            aria-label={t("help_tutorial")}
-          >
-            <HelpCircle size={14} />
-          </button>
-          <span className="trk-btn-group-sep" aria-hidden="true" />
-          <LangSwitch inGroup />
+
+          {prefsOpen && (
+            <div
+              ref={popRef}
+              className="trk-prefs-popover"
+              role="dialog"
+              aria-label={t("prefs_label")}
+            >
+              <div className="trk-prefs-section">
+                <div className="trk-prefs-section-title">{t("prefs_theme")}</div>
+                <div className="trk-theme-grid" role="radiogroup" aria-label={t("prefs_theme")}>
+                  {THEMES.map((item) => {
+                    const active = theme === item.id;
+                    const isRandom = item.id === "random";
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        className={
+                          "trk-theme-card" +
+                          (active ? " active" : "") +
+                          (isRandom ? " is-wide" : "")
+                        }
+                        onClick={() => {
+                          if (onSelectTheme) onSelectTheme(item.id);
+                          else onToggleTheme();
+                        }}
+                      >
+                        <span
+                          className="trk-theme-swatch"
+                          style={{ background: item.swatchBg }}
+                          aria-hidden="true"
+                        >
+                          {isRandom ? (
+                            <Dices size={12} color={item.swatchAccent} />
+                          ) : (
+                            <>
+                              <span
+                                className="trk-theme-swatch-dot"
+                                style={{ background: item.swatchAccent }}
+                              />
+                              <span
+                                className="trk-theme-swatch-sub"
+                                style={{ background: item.swatchSecondary }}
+                              />
+                            </>
+                          )}
+                        </span>
+                        <span className="trk-theme-card-text">
+                          <span className="trk-theme-card-name">{t(item.labelKey)}</span>
+                          <span className="trk-theme-card-sculp">{t(item.sculptureKey)}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  className="trk-prefs-row"
+                  onClick={onToggleStickyMode}
+                  aria-pressed={stickyMode}
+                >
+                  <span className="trk-prefs-row-label">
+                    <Pin size={14} />
+                    <span>{t("prefs_sticky")}</span>
+                  </span>
+                  <span className={"trk-switch" + (stickyMode ? " on" : "")} aria-hidden="true">
+                    <span className="trk-switch-thumb" />
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="trk-prefs-row"
+                  onClick={onToggleCelebrations}
+                  aria-pressed={celebrationsOn}
+                >
+                  <span className="trk-prefs-row-label">
+                    <PartyPopper size={14} />
+                    <span>{t("prefs_celebrations")}</span>
+                  </span>
+                  <span className={"trk-switch" + (celebrationsOn ? " on" : "")} aria-hidden="true">
+                    <span className="trk-switch-thumb" />
+                  </span>
+                </button>
+              </div>
+
+              <div className="trk-prefs-divider" />
+
+              <div className="trk-prefs-section">
+                <div className="trk-prefs-lang-row">
+                  <span className="trk-prefs-section-title">{t("prefs_language")}</span>
+                  <LangSwitch />
+                </div>
+              </div>
+
+              <div className="trk-prefs-divider" />
+
+              <div className="trk-prefs-section">
+                <div className="trk-prefs-section-title">{t("prefs_data")}</div>
+                <div className="trk-prefs-data-actions">
+                  <button
+                    type="button"
+                    className="trk-prefs-data-btn"
+                    onClick={() => {
+                      setPrefsOpen(false);
+                      onImport();
+                    }}
+                    disabled={ioBusy}
+                  >
+                    <Upload size={14} />
+                    <span>{t("import_data")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="trk-prefs-data-btn"
+                    onClick={() => {
+                      setPrefsOpen(false);
+                      onExport();
+                    }}
+                    disabled={ioBusy}
+                  >
+                    <Download size={14} />
+                    <span>{t("export_data")}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="trk-prefs-divider" />
+
+              <div className="trk-prefs-section">
+                <button
+                  type="button"
+                  className="trk-prefs-row"
+                  onClick={() => {
+                    setPrefsOpen(false);
+                    onOpenTutorial();
+                  }}
+                >
+                  <span className="trk-prefs-row-label">
+                    <HelpCircle size={14} />
+                    <span>{t("prefs_help")}</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

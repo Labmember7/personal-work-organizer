@@ -13,11 +13,23 @@
   gap: 12px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 12px 14px;
   border-left: 4px solid var(--rail-color, var(--border));
+  cursor: pointer;
   animation: trk-row-in 0.2s ease;
-  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.2s;
+  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.2s, transform 0.2s cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+@media (hover: hover) {
+  .trk-task-actions {
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+  .trk-task-row:hover .trk-task-actions,
+  .trk-task-row:focus-within .trk-task-actions,
+  .trk-task-actions.confirming {
+    opacity: 1;
+  }
 }
 .trk-task-row:hover {
   border-color: color-mix(in srgb, var(--rail-color, var(--border)) 45%, var(--border));

@@ -130,8 +130,15 @@ export function PixelHelper({
       window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
     let rafId;
+    let lastDraw = 0;
+    const FRAME_MS = 48; // ~20 FPS suffisant pour le pixel-art 36×36 (divise le CPU par 3)
 
     const render = (time) => {
+      rafId = requestAnimationFrame(render);
+      if (typeof document !== "undefined" && document.hidden) return;
+      if (lastDraw && time - lastDraw < FRAME_MS) return;
+      lastDraw = time;
+
       const s = animState.current;
 
       const dpr = typeof window !== "undefined" ? Math.max(1, window.devicePixelRatio || 1) : 1;
@@ -239,8 +246,6 @@ export function PixelHelper({
       if (s.activeQuirk && !reduceMotion) {
         drawQuirkEffects(px, fillBox, 0, hopY, petDna, s.activeQuirk, quirkProgress, false);
       }
-
-      rafId = requestAnimationFrame(render);
     };
 
     rafId = requestAnimationFrame(render);

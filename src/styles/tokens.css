@@ -24,12 +24,12 @@
   --space-5: 20px;
   --control-h: 34px;
   --control-h-sm: 26px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
   /* Hauteur commune des vues (kanban / liste) ; la sidebar y ajoute
      la barre d'outils (recherche) pour rester alignée. */
-  --board-h: 520px;
+  --board-h: clamp(460px, 66vh, 580px);
   --toolbar-h: calc(var(--control-h) + 14px);
   color-scheme: dark;
   font-family: 'Inter', sans-serif;
@@ -45,7 +45,7 @@
   transition: border-radius 0.15s ease, background 0.25s ease, color 0.25s ease;
 }
 .trk-app.light {
-  /* Design tokens — light */
+  /* Design tokens — light (Albâtre) */
   --bg: #EFF2F6;
   --panel: #FFFFFF;
   --panel-alt: #EDF0F4;
@@ -62,6 +62,72 @@
   --danger: #C23A3A;
   --warn: #B26B22;
   --ok: #35855A;
+  color-scheme: light;
+}
+.trk-app.theme-nebula {
+  /* Design tokens — Nébuleuse (Carte stellaire) */
+  --bg: #121526;
+  --panel: #181C33;
+  --panel-alt: #202542;
+  --border: #2C3357;
+  --text: #ECEEF8;
+  --text-dim: #9BA4C4;
+  --accent: #818CF8;
+  --accent-contrast: #0D1020;
+  --inset: #0E1020;
+  --gauge-track: #1F2440;
+  --titlebar-bg: #0D0F1E;
+  --ok: #38BDF8;
+  color-scheme: dark;
+}
+.trk-app.theme-forest {
+  /* Design tokens — Forêt (Floraison vivante) */
+  --bg: #141E1B;
+  --panel: #1A2622;
+  --panel-alt: #21302B;
+  --border: #2E423B;
+  --text: #E9F1EC;
+  --text-dim: #92A89D;
+  --accent: #34D399;
+  --accent-contrast: #0C1613;
+  --inset: #0F1714;
+  --gauge-track: #1F2D28;
+  --titlebar-bg: #0F1714;
+  --ok: #4ADE80;
+  color-scheme: dark;
+}
+.trk-app.theme-synth {
+  /* Design tokens — Studio Graphite (Chaos → Harmonie) */
+  --bg: #1A1B20;
+  --panel: #212228;
+  --panel-alt: #282A31;
+  --border: #363842;
+  --text: #F2F2F0;
+  --text-dim: #A1A1AA;
+  --accent: #F59E0B;
+  --accent-contrast: #16130D;
+  --inset: #131418;
+  --gauge-track: #262730;
+  --titlebar-bg: #131418;
+  --ok: #34D399;
+  color-scheme: dark;
+}
+.trk-app.theme-sand {
+  /* Design tokens — Sable Zen (Cairn d'équilibre) */
+  --bg: #EFEAE0;
+  --panel: #F8F4EC;
+  --panel-alt: #E7E0D3;
+  --border: #D5CBB9;
+  --text: #241F1A;
+  --text-dim: #5F564B;
+  --accent: #A84E2E;
+  --accent-contrast: #FFFFFF;
+  --inset: #E3DBCC;
+  --gauge-track: #E3DBCC;
+  --titlebar-bg: #E8E1D5;
+  --overlay: rgba(36, 31, 26, 0.42);
+  --shadow: rgba(58, 46, 34, 0.14);
+  --ok: #2F7A52;
   color-scheme: light;
 }
 .trk-app.trk-app-maximized {

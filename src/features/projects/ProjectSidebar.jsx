@@ -1,23 +1,24 @@
 import React, { useMemo, useState } from "react";
 import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
-import { Check, FolderPlus, Pencil, Search, X } from "lucide-react";
+import { Check, FolderPlus, PanelLeftClose, PanelLeftOpen, Pencil, Search, X } from "lucide-react";
 import { useLang, allProjectsLabel, selectedCountLabel } from "../../i18n.jsx";
 import { matchesQuery, projectColor } from "../../utils";
 import { usePagination } from "../../hooks/usePagination";
 import { Pagination } from "../../components/Pagination.jsx";
 import { ProgressBar } from "../../components/ProgressBar.jsx";
-import { HelpTip } from "../../tips.jsx";
 
 const PROJECT_PAGE_SIZE = 6;
 
-// Barre latérale des projets : filtre multi-projets, recherche, pagination,
-// ajout / renommage / suppression (uniquement si le projet est vide).
+// Barre latérale des projets : filtre multi-projets, recherche à la demande,
+// mode rail compact repliable, ajout / renommage / suppression.
 export const ProjectSidebar = React.memo(function ProjectSidebar({
   totalTasks, projectProgress, filterProjects,
   onToggleFilter, onClearFilters, onAdd, onRemove, onRename,
+  collapsed = false, onToggleCollapse,
 }) {
   const { t, lang } = useLang();
   const [projectSearch, setProjectSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [renaming, setRenaming] = useState(null);
@@ -30,6 +31,8 @@ export const ProjectSidebar = React.memo(function ProjectSidebar({
   const { page, setPage, totalPages, pageItems } = usePagination(
     visibleProjects, PROJECT_PAGE_SIZE, projectSearch
   );
+
+  const showSearch = projectProgress.length > 5 || searchOpen || Boolean(projectSearch);
 
   const submitAdd = () => {
     onAdd(newName);
@@ -54,12 +57,82 @@ export const ProjectSidebar = React.memo(function ProjectSidebar({
     if (oldName) onRename(oldName, newValue);
   };
 
+  if (collapsed) {
+    return (
+      <aside className="trk-sidebar trk-sidebar-collapsed" aria-label={t("projects")}>
+        {onToggleCollapse && (
+          <button
+            type="button"
+            className="trk-icon-btn trk-sidebar-toggle"
+            onClick={onToggleCollapse}
+            title={t("sidebar_expand")}
+            aria-label={t("sidebar_expand")}
+          >
+            <PanelLeftOpen size={15} />
+          </button>
+        )}
+        <button
+          type="button"
+          className={"trk-rail-all-btn" + (filterProjects.length === 0 ? " active" : "")}
+          onClick={onClearFilters}
+          title={allProjectsLabel(lang, totalTasks)}
+          aria-label={allProjectsLabel(lang, totalTasks)}
+          aria-pressed={filterProjects.length === 0}
+        >
+          <AnimatedNumber value={totalTasks} />
+        </button>
+        <div className="trk-rail-dots">
+          {projectProgress.map((p) => (
+            <button
+              key={p.name}
+              type="button"
+              className={"trk-rail-dot-btn" + (filterProjects.includes(p.name) ? " active" : "")}
+              style={{ "--project-color": projectColor(p.name) }}
+              onClick={() => onToggleFilter(p.name)}
+              title={`${p.name} (${p.count})`}
+              aria-label={`${p.name} (${p.count})`}
+              aria-pressed={filterProjects.includes(p.name)}
+            >
+              <span className="trk-project-dot" style={{ background: projectColor(p.name) }} />
+            </button>
+          ))}
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className="trk-sidebar">
       <div className="trk-sidebar-title">
-        {t("projects")}
-        {filterProjects.length > 0 && <span className="trk-filter-count"> · <AnimatedNumber value={selectedCountLabel(lang, filterProjects.length)} /></span>}
-        <HelpTip tipKey="projects" />
+        <span className="trk-sidebar-heading">
+          {t("projects")}
+          {filterProjects.length > 0 && <span className="trk-filter-count"> · <AnimatedNumber value={selectedCountLabel(lang, filterProjects.length)} /></span>}
+        </span>
+        <span className="trk-sidebar-head-actions">
+          {projectProgress.length <= 5 && (
+            <button
+              type="button"
+              className={"trk-icon-btn" + (showSearch ? " active" : "")}
+              onClick={() => setSearchOpen((v) => !v)}
+              title={t("col_search_placeholder")}
+              aria-label={t("col_search_placeholder")}
+              aria-expanded={showSearch}
+            >
+              <Search size={12} />
+            </button>
+          )}
+          {onToggleCollapse && (
+            <button
+              type="button"
+              className="trk-icon-btn trk-sidebar-toggle"
+              onClick={onToggleCollapse}
+              title={t("sidebar_collapse")}
+              aria-label={t("sidebar_collapse")}
+            >
+              <PanelLeftClose size={13} />
+            </button>
+          )}
+        </span>
       </div>
       <button
         className={"trk-all-btn" + (filterProjects.length === 0 ? " active" : "")}
@@ -67,19 +140,21 @@ export const ProjectSidebar = React.memo(function ProjectSidebar({
       >
         <AnimatedNumber value={allProjectsLabel(lang, totalTasks)} />
       </button>
-      <div className="trk-kanban-col-search trk-project-search">
-        <Search size={11} color="var(--text-dim)" />
-        <input
-          value={projectSearch}
-          onChange={(e) => setProjectSearch(e.target.value)}
-          placeholder={t("col_search_placeholder")}
-        />
-        {projectSearch && (
-          <button type="button" className="trk-icon-btn" onClick={() => setProjectSearch("")} title={t("clear_selection")}>
-            <X size={11} />
-          </button>
-        )}
-      </div>
+      {showSearch && (
+        <div className="trk-kanban-col-search trk-project-search">
+          <Search size={11} color="var(--text-dim)" />
+          <input
+            value={projectSearch}
+            onChange={(e) => setProjectSearch(e.target.value)}
+            placeholder={t("col_search_placeholder")}
+          />
+          {projectSearch && (
+            <button type="button" className="trk-icon-btn" onClick={() => setProjectSearch("")} title={t("clear_selection")}>
+              <X size={11} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="trk-project-list">
         {pageItems.map((p) => (
           <div

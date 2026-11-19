@@ -34,6 +34,10 @@ export const TaskRow = React.memo(function TaskRow({
         e.dataTransfer.setData("text/plain", task.id);
         e.dataTransfer.effectAllowed = "move";
       }}
+      onClick={(e) => {
+        if (confirmId === task.id || e.target.closest("button, a, input, .trk-timelog-wrap")) return;
+        onEdit(task);
+      }}
     >
       <div className="trk-task-main">
         <p className="trk-task-title">
@@ -97,7 +101,7 @@ export const TaskRow = React.memo(function TaskRow({
           </div>
         </div>
       </div>
-      <div className="trk-task-actions">
+      <div className={"trk-task-actions" + (confirmId === task.id ? " confirming" : "")}>
         {confirmId === task.id ? (
           <div className="trk-confirm">
             <span className="trk-confirm-label">
