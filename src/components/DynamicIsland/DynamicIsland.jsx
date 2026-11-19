@@ -22,14 +22,23 @@ import { useLang } from "../../i18n.jsx";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { formatDuration } from "../../utils";
 import { projectColor } from "../../lib/colors";
-import { clearLog, installHostConsoleCapture, subscribeLog } from "../../lib/debugLog";
+import {
+  clearLog,
+  installHostConsoleCapture,
+  subscribeLog,
+  subscribeLogSummary,
+} from "../../lib/debugLog";
 import { clearPerfMetrics, getPerfState, subscribePerf } from "../../lib/performanceMonitor";
 import { playAppleChime, playHapticTick } from "../../lib/audioFx";
 import { getOrCreatePetDna, regeneratePetDna } from "../../lib/petGenerator";
 import { DigitalClock } from "./DigitalClock.jsx";
 import { PixelHelper } from "./PixelHelper.jsx";
 import { PomodoroTimer } from "./PomodoroTimer.jsx";
-import { usePomodoroSession } from "../../hooks/usePomodoroSession";
+import {
+  formatPomodoroTime,
+  usePomodoroSession,
+  usePomodoroTimeLeft,
+} from "../../hooks/usePomodoroSession";
 
 function formatElapsedExact(startedAt, now) {
   if (!startedAt) return "00:00";
@@ -43,6 +52,34 @@ function formatElapsedExact(startedAt, now) {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
+// Feuille isolée pour le décompte Pomodoro : évite de re-rendre toute l'îlot chaque seconde.
+const PomoTimeDisplay = React.memo(function PomoTimeDisplay({ session, className }) {
+  const timeLeft = usePomodoroTimeLeft(session);
+  return <span className={className}>{formatPomodoroTime(timeLeft)}</span>;
+});
+
+// Feuille isolée pour le chrono de focus : évite de re-rendre toute l'îlot chaque seconde.
+const FocusElapsedDisplay = React.memo(function FocusElapsedDisplay({ startedAt, className }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!startedAt) return undefined;
+    setNow(Date.now());
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      setNow(Date.now());
+    }, 1000);
+    const onVis = () => {
+      if (!document.hidden) setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [startedAt]);
+  return <span className={className}>{formatElapsedExact(startedAt, now)}</span>;
+});
+
 function onButtonKey(fn) {
   return (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -52,10 +89,42 @@ function onButtonKey(fn) {
   };
 }
 
-export const DynamicIsland = React.memo(function DynamicIsland({
+export const DynamicIsland = React.memo(function DynamicIsland(props) {
+  if (props.pomodoroSession) {
+    return <DynamicIslandInner {...props} pomo={props.pomodoroSession} />;
+  }
+  return <UncontrolledDynamicIsland {...props} />;
+});
+
+function UncontrolledDynamicIsland(props) {
+  const [localPetDna, setLocalPetDna] = useState(() => getOrCreatePetDna());
+  const [localPetMood, setLocalPetMood] = useState("normal");
+  const [localPetEnergy, setLocalPetEnergy] = useState(96);
+  const setPetMood = props.petState?.setPetMood || setLocalPetMood;
+
+  const internalPomo = usePomodoroSession({
+    onMoodChange: (mood) => {
+      setPetMood(mood === "normal" && props.focusSession?.focusTask ? "focused" : mood);
+    },
+    trackTimeInState: false,
+  });
+
+  const resolvedPet = props.petState || {
+    petDna: localPetDna,
+    setPetDna: setLocalPetDna,
+    petMood: localPetMood,
+    setPetMood: setLocalPetMood,
+    petEnergy: localPetEnergy,
+    setPetEnergy: setLocalPetEnergy,
+  };
+
+  return <DynamicIslandInner {...props} pomo={internalPomo} petState={resolvedPet} />;
+}
+
+const DynamicIslandInner = React.memo(function DynamicIslandInner({
   focusSession,
   onEditTask,
-  pomodoroSession: externalPomo,
+  pomo,
   petState: externalPet,
   desktopPetEnabled = true,
   onToggleDesktopPet,
@@ -66,38 +135,26 @@ export const DynamicIsland = React.memo(function DynamicIsland({
   const [hovered, setHovered] = useState(false);
   const hoverTimerRef = useRef(null);
   const moodTimerRef = useRef(null);
-  const [now, setNow] = useState(() => Date.now());
-
-  // ── Compagnon Unique Généré & Persistant ──
-  const [localPetDna, setLocalPetDna] = useState(() => getOrCreatePetDna());
-  const [localPetMood, setLocalPetMood] = useState("normal");
-  const [localPetEnergy, setLocalPetEnergy] = useState(96);
   const [petBond, setPetBond] = useState(4);
 
-  const petDna = externalPet?.petDna || localPetDna;
-  const setPetDna = externalPet?.setPetDna || setLocalPetDna;
-  const petMood = externalPet?.petMood || localPetMood;
-  const setPetMood = externalPet?.setPetMood || setLocalPetMood;
-  const petEnergy = externalPet?.petEnergy ?? localPetEnergy;
-  const setPetEnergy = externalPet?.setPetEnergy || setLocalPetEnergy;
+  const [fallbackDna, setFallbackDna] = useState(() => externalPet?.petDna || getOrCreatePetDna());
+  const [fallbackMood, setFallbackMood] = useState("normal");
+  const [fallbackEnergy, setFallbackEnergy] = useState(96);
 
-  // ── Chronomètre Pomodoro persistant en arrière-plan ──
-  const internalPomo = usePomodoroSession({
-    onMoodChange: (mood) => {
-      setPetMood(mood === "normal" && focusSession?.focusTask ? "focused" : mood);
-    },
-  });
+  const petDna = externalPet?.petDna || fallbackDna;
+  const setPetDna = externalPet?.setPetDna || setFallbackDna;
+  const petMood = externalPet?.petMood || fallbackMood;
+  const setPetMood = externalPet?.setPetMood || setFallbackMood;
+  const petEnergy = externalPet?.petEnergy ?? fallbackEnergy;
+  const setPetEnergy = externalPet?.setPetEnergy || setFallbackEnergy;
 
-  const pomo = externalPomo || internalPomo;
   const timerSubTab = pomo.timerSubTab;
   const setTimerSubTab = pomo.setTimerSubTab;
   const pomoPreset = pomo.preset;
   const pomoPhase = pomo.phase;
-  const pomoTimeLeft = pomo.timeLeft;
   const pomoRunning = pomo.isRunning;
   const pomoSound = pomo.soundEnabled;
   const pomoCycle = pomo.cycleCount;
-  const pomoFormatted = pomo.timeFormatted;
   const isPomoActive = pomo.isPomoActive;
 
   const handleSelectPomoPreset = pomo.selectPreset;
@@ -137,7 +194,8 @@ export const DynamicIsland = React.memo(function DynamicIsland({
     };
   }, []);
 
-  // Debug state
+  // Debug state : résumé léger quand fermé, tableau complet uniquement si panneau ouvert
+  const [logSummary, setLogSummary] = useState({ count: 0, level: "ok" });
   const [entries, setEntries] = useState([]);
   const [filter, setFilter] = useState("");
   const [pulse, setPulse] = useState(0);
@@ -165,31 +223,29 @@ export const DynamicIsland = React.memo(function DynamicIsland({
 
   useEffect(() => {
     installHostConsoleCapture();
-    return subscribeLog(setEntries);
+    return subscribeLogSummary(setLogSummary);
   }, []);
 
   useEffect(() => {
-    if (entries.length > lastLen.current && !open) {
+    if (!open || mode !== "debug") return undefined;
+    return subscribeLog(setEntries);
+  }, [open, mode]);
+
+  useEffect(() => {
+    if (logSummary.count > lastLen.current && !open) {
       setPulse(1);
       const timer = setTimeout(() => setPulse(0), 450);
-      lastLen.current = entries.length;
+      lastLen.current = logSummary.count;
       return () => clearTimeout(timer);
     }
-    lastLen.current = entries.length;
-  }, [entries, open]);
+    lastLen.current = logSummary.count;
+  }, [logSummary.count, open]);
 
   useEffect(() => {
     if (open && mode === "debug" && bodyRef.current) {
       bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
     }
   }, [entries, open, mode]);
-
-  useEffect(() => {
-    if (!isCooking) return;
-    setNow(Date.now());
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [isCooking]);
 
   useEffect(() => {
     if (isCooking || (pomoRunning && pomoPhase === "focus")) {
@@ -228,13 +284,7 @@ export const DynamicIsland = React.memo(function DynamicIsland({
         (e) => e.source.toLowerCase().includes(needle) || e.text.toLowerCase().includes(needle)
       )
     : entries;
-  const debugLevel = entries.some((e) => e.level === "error")
-    ? "error"
-    : entries.some((e) => e.level === "warn")
-      ? "warn"
-      : "ok";
-
-  const elapsedTimer = formatElapsedExact(focusStartedAt, now);
+  const debugLevel = logSummary.level;
 
   const defaultMood = isCooking
     ? "focused"
@@ -376,7 +426,7 @@ export const DynamicIsland = React.memo(function DynamicIsland({
                     onKeyDown={onButtonKey(openPomodoro)}
                     role="button"
                     tabIndex={0}
-                    title={`${pomoPhase === "focus" ? "Focus" : "Rest"} · ${pomoFormatted}`}
+                    title={pomoPhase === "focus" ? "Focus" : "Rest"}
                   >
                     <button
                       type="button"
@@ -387,7 +437,7 @@ export const DynamicIsland = React.memo(function DynamicIsland({
                     >
                       {pomoRunning ? <Pause size={9} /> : <Play size={9} />}
                     </button>
-                    <span className="trk-island-compact-timer trk-mono">{pomoFormatted}</span>
+                    <PomoTimeDisplay session={pomo} className="trk-island-compact-timer trk-mono" />
                   </div>
                 )}
 
@@ -398,13 +448,13 @@ export const DynamicIsland = React.memo(function DynamicIsland({
                     onKeyDown={onButtonKey(openFocus)}
                     role="button"
                     tabIndex={0}
-                    title={`${focusTask.titre} · ${elapsedTimer}`}
+                    title={focusTask.titre}
                   >
                     <span className="trk-island-flame-wrap">
                       <Flame size={11} className="trk-island-flame-icon" />
                     </span>
                     <span className="trk-island-compact-title">{focusTask.titre}</span>
-                    <span className="trk-island-compact-timer trk-mono">{elapsedTimer}</span>
+                    <FocusElapsedDisplay startedAt={focusStartedAt} className="trk-island-compact-timer trk-mono" />
                   </div>
                 )}
 
@@ -421,8 +471,8 @@ export const DynamicIsland = React.memo(function DynamicIsland({
                 >
                   <span className={"trk-island-mini-dot " + debugLevel} />
                   <Bug size={11} className="trk-bug-mini" />
-                  {entries.length > 0 && (
-                    <span className="trk-island-mini-count">{entries.length}</span>
+                  {logSummary.count > 0 && (
+                    <span className="trk-island-mini-count">{logSummary.count}</span>
                   )}
                 </div>
               </div>
@@ -462,9 +512,7 @@ export const DynamicIsland = React.memo(function DynamicIsland({
                   <Clock size={12} />
                   <span>Timer</span>
                   {isPomoActive && (
-                    <span className={"trk-island-badge pomo-badge " + pomoPhase}>
-                      {pomoFormatted}
-                    </span>
+                    <PomoTimeDisplay session={pomo} className={"trk-island-badge pomo-badge " + pomoPhase} />
                   )}
                 </button>
 
@@ -490,7 +538,7 @@ export const DynamicIsland = React.memo(function DynamicIsland({
                   >
                     <Flame size={12} className="trk-island-flame-icon" />
                     <span>Focus</span>
-                    <span className="trk-island-badge focus-badge">{elapsedTimer}</span>
+                    <FocusElapsedDisplay startedAt={focusStartedAt} className="trk-island-badge focus-badge" />
                   </button>
                 )}
 
@@ -504,7 +552,7 @@ export const DynamicIsland = React.memo(function DynamicIsland({
                   <span className={"trk-island-mini-dot " + debugLevel} />
                   <Bug size={12} />
                   <span>Debug</span>
-                  {entries.length > 0 && <span className="trk-island-badge">{entries.length}</span>}
+                  {logSummary.count > 0 && <span className="trk-island-badge">{logSummary.count}</span>}
                 </button>
 
                 {isDev && perfState && (
@@ -554,6 +602,7 @@ export const DynamicIsland = React.memo(function DynamicIsland({
               {/* ── 1. TIMER ── */}
               {mode === "timer" && (
                 <PomodoroTimer
+                  session={pomo}
                   subTab={timerSubTab}
                   onSubTabChange={setTimerSubTab}
                   preset={pomoPreset}
@@ -561,14 +610,13 @@ export const DynamicIsland = React.memo(function DynamicIsland({
                   isViewingOtherPreset={pomo.isViewingOtherPreset}
                   isPomoActive={isPomoActive}
                   phase={pomoPhase}
-                  timeLeft={pomoTimeLeft}
                   isRunning={pomoRunning}
                   soundEnabled={pomoSound}
                   cycleCount={pomoCycle}
                   onSelectPreset={handleSelectPomoPreset}
                   onReturnToActive={pomo.returnToActivePreset}
                   onStartViewed={pomo.startViewedPreset}
-                  onTogglePlay={() => handleTogglePomoPlay()}
+                  onTogglePlay={handleTogglePomoPlay}
                   onSkipPhase={handleSkipPomoPhase}
                   onReset={handleResetPomo}
                   onToggleSound={handleTogglePomoSound}
@@ -734,7 +782,7 @@ export const DynamicIsland = React.memo(function DynamicIsland({
                     <div className="trk-island-focus-stats">
                       <div className="trk-island-stat-box">
                         <span className="trk-island-stat-label">Elapsed</span>
-                        <span className="trk-island-stat-val trk-mono">{elapsedTimer}</span>
+                        <FocusElapsedDisplay startedAt={focusStartedAt} className="trk-island-stat-val trk-mono" />
                       </div>
                       <div className="trk-island-stat-box">
                         <span className="trk-island-stat-label">Total</span>

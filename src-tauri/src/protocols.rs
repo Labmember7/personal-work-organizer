@@ -5,8 +5,14 @@ use crate::plugins::{
 };
 use regex::Regex;
 use std::fs;
+use std::sync::OnceLock;
 use tauri::http::{header, Request, Response, StatusCode};
 use tauri::AppHandle;
+
+fn image_name_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"^[\w-]+\.jpg$").unwrap())
+}
 
 pub fn handle_app_image(
     app: &AppHandle,
@@ -15,8 +21,7 @@ pub fn handle_app_image(
     let path = request.uri().path();
     let file_name = path.trim_start_matches('/');
 
-    let re = Regex::new(r"^[\w-]+\.jpg$").unwrap();
-    if !re.is_match(file_name) {
+    if !image_name_regex().is_match(file_name) {
         return Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
@@ -32,6 +37,7 @@ pub fn handle_app_image(
             return Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, "image/jpeg")
+                .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
                 .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
                 .body(bytes)
                 .unwrap();
@@ -112,31 +118,46 @@ pub fn handle_app_plugin(
 }
 
 fn read_sdk_js(app: &AppHandle) -> String {
-    let dirs = get_plugin_dirs(Some(app));
-    for d in &dirs {
-        let candidate = d.dir.join("sdk").join("trk-plugin-sdk.js");
-        if candidate.exists() {
-            if let Ok(content) = fs::read_to_string(candidate) {
-                return content;
+    static CACHE: OnceLock<String> = OnceLock::new();
+    CACHE
+        .get_or_init(|| {
+            let dirs = get_plugin_dirs(Some(app));
+            for d in &dirs {
+                let candidate = d.dir.join("sdk").join("trk-plugin-sdk.js");
+                if candidate.exists() {
+                    if let Ok(content) = fs::read_to_string(candidate) {
+                        return content;
+                    }
+                }
             }
-        }
-    }
-    // Fallback to base
-    let base = resolve_base_dir().join("plugins").join("sdk").join("trk-plugin-sdk.js");
-    fs::read_to_string(base).unwrap_or_default()
+            let base = resolve_base_dir()
+                .join("plugins")
+                .join("sdk")
+                .join("trk-plugin-sdk.js");
+            fs::read_to_string(base).unwrap_or_default()
+        })
+        .clone()
 }
 
 fn read_sdk_mjs(app: &AppHandle) -> String {
-    let dirs = get_plugin_dirs(Some(app));
-    for d in &dirs {
-        let candidate = d.dir.join("sdk").join("trk-plugin-sdk.mjs");
-        if candidate.exists() {
-            if let Ok(content) = fs::read_to_string(candidate) {
-                return content;
+    static CACHE: OnceLock<String> = OnceLock::new();
+    CACHE
+        .get_or_init(|| {
+            let dirs = get_plugin_dirs(Some(app));
+            for d in &dirs {
+                let candidate = d.dir.join("sdk").join("trk-plugin-sdk.mjs");
+                if candidate.exists() {
+                    if let Ok(content) = fs::read_to_string(candidate) {
+                        return content;
+                    }
+                }
             }
-        }
-    }
-    let base = resolve_base_dir().join("plugins").join("sdk").join("trk-plugin-sdk.mjs");
-    fs::read_to_string(base).unwrap_or_default()
+            let base = resolve_base_dir()
+                .join("plugins")
+                .join("sdk")
+                .join("trk-plugin-sdk.mjs");
+            fs::read_to_string(base).unwrap_or_default()
+        })
+        .clone()
 }
 

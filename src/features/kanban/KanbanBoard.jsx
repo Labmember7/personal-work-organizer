@@ -23,6 +23,8 @@ export const KanbanBoard = React.memo(function KanbanBoard({
   onCancelConfirm,
 }) {
   const [dragId, setDragId] = useState(null);
+  const dragIdRef = useRef(null);
+  dragIdRef.current = dragId;
   const [overCol, setOverCol] = useState(null);
   const [justMovedId, setJustMovedId] = useState(null);
   const landingTimer = useRef(null);
@@ -44,13 +46,11 @@ export const KanbanBoard = React.memo(function KanbanBoard({
     [onMove]
   );
 
-  const cardProps = useMemo(() => ({
+  const baseCardProps = useMemo(() => ({
     onEdit,
     onDelete,
     onArchive,
     onUnarchive,
-    confirmId,
-    confirmAction,
     onAskDelete,
     onAskArchive,
     onAskUnarchive,
@@ -60,8 +60,6 @@ export const KanbanBoard = React.memo(function KanbanBoard({
     onDelete,
     onArchive,
     onUnarchive,
-    confirmId,
-    confirmAction,
     onAskDelete,
     onAskArchive,
     onAskUnarchive,
@@ -69,14 +67,16 @@ export const KanbanBoard = React.memo(function KanbanBoard({
   ]);
 
   const prevTasksByStatusRef = useRef({});
-  const tasksByStatus = useMemo(() => {
+  const { tasksByStatus, statusByTaskId } = useMemo(() => {
     const freshMap = {};
+    const idToStatus = new Map();
     for (const s of statuses) {
       freshMap[s.id] = [];
     }
     for (const tk of tasks) {
       if (freshMap[tk.statut]) {
         freshMap[tk.statut].push(tk);
+        idToStatus.set(tk.id, tk.statut);
       }
     }
     const stableMap = {};
@@ -95,8 +95,12 @@ export const KanbanBoard = React.memo(function KanbanBoard({
       }
     }
     prevTasksByStatusRef.current = stableMap;
-    return stableMap;
+    return { tasksByStatus: stableMap, statusByTaskId: idToStatus };
   }, [tasks, statuses]);
+
+  const dragStatus = dragId ? statusByTaskId.get(dragId) : null;
+  const movedStatus = justMovedId ? statusByTaskId.get(justMovedId) : null;
+  const confirmStatus = confirmId ? statusByTaskId.get(confirmId) : null;
 
   return (
     <div className="trk-kanban">
@@ -104,15 +108,18 @@ export const KanbanBoard = React.memo(function KanbanBoard({
         <KanbanColumn
           key={s.id}
           status={s}
-          tasks={tasksByStatus[s.id] || []}
+          tasks={tasksByStatus[s.id]}
           isOver={overCol === s.id}
           setOverCol={setOverCol}
-          dragId={dragId}
+          dragId={dragStatus === s.id ? dragId : null}
+          dragIdRef={dragIdRef}
           setDragId={setDragId}
           onMove={move}
           endDrag={endDrag}
-          justMovedId={justMovedId}
-          cardProps={cardProps}
+          justMovedId={movedStatus === s.id ? justMovedId : null}
+          confirmId={confirmStatus === s.id ? confirmId : null}
+          confirmAction={confirmStatus === s.id ? confirmAction : null}
+          cardProps={baseCardProps}
         />
       ))}
     </div>

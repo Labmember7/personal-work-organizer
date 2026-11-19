@@ -4,7 +4,7 @@ import { useLang } from "../i18n.jsx";
 
 // Barre de titre custom (la fenêtre est frame: false) : zone de drag +
 // boutons réduire / agrandir / fermer branchés sur l'IPC window:*.
-export function TitleBar({ maximized }) {
+export const TitleBar = React.memo(function TitleBar({ maximized }) {
   const { t } = useLang();
   const hasControls = typeof window !== "undefined" && !!window.windowControls;
 
@@ -44,4 +44,4 @@ export function TitleBar({ maximized }) {
       </div>
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
   HelpCircle, Pilcrow, Eye,
   Bold, Italic, Underline, Strikethrough, Heading1, Heading2, Heading3, Quote,
@@ -74,7 +74,12 @@ function imageFileFrom(clipboardData) {
 // redimensionnement et compression, puis référencée dans le Markdown via le
 // protocole app-image:. En mode Formaté, l'image porte une poignée de
 // redimensionnement (voir lib/editorImage.ts).
-export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeholder, onToast }) {
+const SERIALIZE_DEBOUNCE_MS = 180;
+
+export const MarkdownEditor = React.memo(forwardRef(function MarkdownEditor(
+  { id, value, onChange, mode, onModeChange, placeholder, onToast },
+  ref
+) {
   const { t } = useLang();
   const textareaRef = useRef(null);
   const toolbarRef = useRef(null);
@@ -88,17 +93,16 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
   onChangeRef.current = onChange;
   const onToastRef = useRef(onToast);
   onToastRef.current = onToast;
-  // Libellés relus à la demande : l'éditeur n'est créé qu'une fois, la langue
-  // peut changer après.
   const tRef = useRef(t);
   tRef.current = t;
   const placeholderRef = useRef(placeholder);
   placeholderRef.current = placeholder;
 
-  // Dernier Markdown produit par l'éditeur formaté : tant que `value` lui est
-  // égal, le document Tiptap est déjà à jour (voir l'effet de synchronisation).
   const syncedRef = useRef(value);
   const pasteImageRef = useRef(null);
+  const flushTimerRef = useRef(null);
+  const dirtyDocRef = useRef(false);
+  const immediateSyncRef = useRef(false);
 
   const extensions = useMemo(
     () => createEditorExtensions({
@@ -107,6 +111,21 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
     }),
     []
   );
+
+  const flushEditorMarkdown = useCallback((instance) => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    if (!instance || !dirtyDocRef.current) return syncedRef.current;
+    dirtyDocRef.current = false;
+    const markdown = editorHtmlToMarkdown(instance.getHTML());
+    if (markdown !== syncedRef.current) {
+      syncedRef.current = markdown;
+      onChangeRef.current({ target: { value: markdown } });
+    }
+    return markdown;
+  }, []);
 
   const editor = useEditor(
     {
@@ -122,12 +141,40 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
         handlePaste: (_view, event) => pasteImageRef.current?.(event) === true,
       },
       onUpdate: ({ editor: instance }) => {
-        const markdown = editorHtmlToMarkdown(instance.getHTML());
-        syncedRef.current = markdown;
-        onChangeRef.current({ target: { value: markdown } });
+        dirtyDocRef.current = true;
+        if (immediateSyncRef.current) {
+          immediateSyncRef.current = false;
+          flushEditorMarkdown(instance);
+          return;
+        }
+        if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = setTimeout(() => {
+          flushTimerRef.current = null;
+          flushEditorMarkdown(instance);
+        }, SERIALIZE_DEBOUNCE_MS);
+      },
+      onBlur: ({ editor: instance }) => {
+        flushEditorMarkdown(instance);
       },
     },
     []
+  );
+
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      flush: () => (editor && mode === "formatted" ? flushEditorMarkdown(editor) : valueRef.current),
+    }),
+    [editor, mode, flushEditorMarkdown]
   );
 
   // Mises en forme sous le curseur : allume les boutons correspondants pour
@@ -200,7 +247,9 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
       setOpenMenu((open) => (open === item.menu ? null : item.menu));
       return;
     }
+    immediateSyncRef.current = true;
     item.run(editor.chain().focus()).run();
+    immediateSyncRef.current = false;
     setOpenMenu(null);
   }, [editor]);
 
@@ -266,6 +315,7 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
   const applyUrl = useCallback(() => {
     const url = urlDraft.trim();
     if (!editor || !url) return;
+    immediateSyncRef.current = true;
     const chain = editor.chain().focus();
     if (openMenu === "image") chain.setImage({ src: url }).run();
     else if (editor.state.selection.empty) {
@@ -277,6 +327,7 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
     } else {
       chain.extendMarkRange("link").setLink({ href: url }).run();
     }
+    immediateSyncRef.current = false;
     setUrlDraft("");
     setOpenMenu(null);
   }, [editor, openMenu, urlDraft, t]);
@@ -341,6 +392,9 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
   ];
 
   const switchMode = (next) => {
+    if (mode === "formatted" && next !== "formatted") {
+      flushEditorMarkdown(editor);
+    }
     setOpenMenu(null);
     setUrlDraft("");
     onModeChange(next);
@@ -413,7 +467,11 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
           className="trk-md-format-btn"
           title={t("md_undo")}
           disabled={!isRich || !formats?.canUndo}
-          onClick={() => editor?.chain().focus().undo().run()}
+          onClick={() => {
+            immediateSyncRef.current = true;
+            editor?.chain().focus().undo().run();
+            immediateSyncRef.current = false;
+          }}
         >
           <Undo2 size={14} />
         </button>
@@ -422,7 +480,11 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
           className="trk-md-format-btn"
           title={t("md_redo")}
           disabled={!isRich || !formats?.canRedo}
-          onClick={() => editor?.chain().focus().redo().run()}
+          onClick={() => {
+            immediateSyncRef.current = true;
+            editor?.chain().focus().redo().run();
+            immediateSyncRef.current = false;
+          }}
         >
           <Redo2 size={14} />
         </button>
@@ -574,4 +636,4 @@ export function MarkdownEditor({ id, value, onChange, mode, onModeChange, placeh
       </div>
     </div>
   );
-}
+}));

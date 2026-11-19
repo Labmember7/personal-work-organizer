@@ -17,6 +17,7 @@
   padding: 12px 14px;
   border-left: 4px solid var(--rail-color, var(--border));
   cursor: pointer;
+  contain: style;
   animation: trk-row-in 0.2s ease;
   transition: border-color 0.15s, box-shadow 0.15s, opacity 0.2s, transform 0.2s cubic-bezier(0.32, 1.25, 0.32, 1);
 }

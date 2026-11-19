@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { playHapticTick } from "../../lib/audioFx";
 import { LargeFlipClock } from "./DigitalClock.jsx";
+import { usePomodoroTimeLeft } from "../../hooks/usePomodoroSession";
 
 export const PRESETS = [
   { id: "25-5", label: "25 / 5", focus: 25 * 60, rest: 5 * 60 },
@@ -26,7 +27,8 @@ function formatMMSS(totalSec) {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-export function PomodoroTimer({
+export const PomodoroTimer = React.memo(function PomodoroTimer({
+  session,
   subTab = "pomodoro",
   onSubTabChange,
   preset = PRESETS[0],
@@ -34,7 +36,7 @@ export function PomodoroTimer({
   isViewingOtherPreset = false,
   isPomoActive: externalIsActive,
   phase = "focus",
-  timeLeft = PRESETS[0].focus,
+  timeLeft: timeLeftProp = PRESETS[0].focus,
   isRunning = false,
   soundEnabled = true,
   cycleCount = 1,
@@ -46,6 +48,8 @@ export function PomodoroTimer({
   onReset,
   onToggleSound,
 }) {
+  const liveTimeLeft = usePomodoroTimeLeft(session);
+  const timeLeft = session ? liveTimeLeft : timeLeftProp;
   const totalPhaseSec = phase === "focus" ? activePreset.focus : activePreset.rest;
   const isPomoActive =
     externalIsActive ?? (isRunning || phase !== "focus" || timeLeft < totalPhaseSec);
@@ -236,4 +240,4 @@ export function PomodoroTimer({
       )}
     </div>
   );
-}
+});

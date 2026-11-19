@@ -1,14 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getOrCreatePetDna } from "../../lib/petGenerator";
-import { drawPetHead, drawQuirkEffects, pickNextQuirk } from "../../lib/petAnimation";
+import {
+  drawPetHead,
+  drawQuirkEffects,
+  pickNextQuirk,
+  resolveHeadPalette,
+} from "../../lib/petAnimation";
 
 // Compagnon Cyber-Bot 2.5D Haute Définition pour la Dynamic Island.
-// Partage le moteur `petAnimation` avec FullBodyPet pour une parité visuelle
-// et comportementale exacte (couleurs, morphologie ADN et animations de caractère).
+// Rendu piloté par la demande : 0 rAF / 0% CPU au repos, réveillé uniquement
+// lors d'un mouvement du regard, d'un clignement, d'un quirk ou d'une humeur animée.
 
 const GRID_SIZE = 36;
+const FRAME_MS = 50; // ~20 FPS suffisant pour le pixel-art 36×36
 
-export function PixelHelper({
+export const PixelHelper = React.memo(function PixelHelper({
   size = 38,
   className = "",
   mood = "normal", // "normal" | "happy" | "focused" | "love" | "sleepy" | "visor" | "eating" | "radar"
@@ -20,9 +26,9 @@ export function PixelHelper({
   const [currentMood, setCurrentMood] = useState(mood);
   const [isHovered, setIsHovered] = useState(false);
 
-  const petDna = useMemo(() => {
-    return dna || getOrCreatePetDna();
-  }, [dna]);
+  const petDna = useMemo(() => dna || getOrCreatePetDna(), [dna]);
+  const palette = useMemo(() => resolveHeadPalette(petDna), [petDna]);
+  const wakeRef = useRef(null);
 
   const animState = useRef({
     targetGazeX: 0,
@@ -31,6 +37,7 @@ export function PixelHelper({
     currentGazeY: 0,
     blinkProgress: 0,
     isBlinking: false,
+    blinkStartTime: 0,
     lastBlink: 0,
     nextBlinkInterval: 3000,
     lastInteraction: 0,
@@ -55,9 +62,13 @@ export function PixelHelper({
     animState.current.lastInteraction = Date.now();
   }, [mood]);
 
+  // Suivi du curseur sans boucle rAF permanente : ne réveille le rendu que
+  // lorsque la cible du regard bouge réellement.
   useEffect(() => {
     let cachedCenter = null;
-    let rafId = null;
+    let moveQueued = false;
+    let lastClientX = 0;
+    let lastClientY = 0;
 
     const updateCenter = () => {
       const canvas = canvasRef.current;
@@ -73,49 +84,54 @@ export function PixelHelper({
     window.addEventListener("resize", updateCenter, { passive: true });
 
     const onMouseMove = (e) => {
-      const state = animState.current;
-      state.lastInteraction = Date.now();
-      const clientX = e.clientX;
-      const clientY = e.clientY;
-
-      if (rafId) return;
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
+      if (typeof document !== "undefined" && document.hidden) return;
+      animState.current.lastInteraction = Date.now();
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
+      if (moveQueued) return;
+      moveQueued = true;
+      requestAnimationFrame(() => {
+        moveQueued = false;
         if (!cachedCenter) updateCenter();
         if (!cachedCenter) return;
 
-        const deltaX = clientX - cachedCenter.x;
-        const deltaY = clientY - cachedCenter.y;
+        const state = animState.current;
+        const deltaX = lastClientX - cachedCenter.x;
+        const deltaY = lastClientY - cachedCenter.y;
         const dist = Math.hypot(deltaX, deltaY);
 
-        if (dist < 4) {
-          state.targetGazeX = 0;
-          state.targetGazeY = 0;
-          return;
+        let nextX = 0;
+        let nextY = 0;
+        if (dist >= 4) {
+          const maxOffset = 2.0;
+          const factor = Math.min(1, dist / 240);
+          nextX = (deltaX / dist) * maxOffset * factor;
+          nextY = (deltaY / dist) * maxOffset * factor;
         }
-
-        const maxOffset = 2.0;
-        const factor = Math.min(1, dist / 240);
-        state.targetGazeX = (deltaX / dist) * maxOffset * factor;
-        state.targetGazeY = (deltaY / dist) * maxOffset * factor;
+        if (Math.abs(nextX - state.targetGazeX) > 0.05 || Math.abs(nextY - state.targetGazeY) > 0.05) {
+          state.targetGazeX = nextX;
+          state.targetGazeY = nextY;
+          wakeRef.current?.();
+        }
       });
     };
 
     window.addEventListener("mousemove", onMouseMove, { passive: true });
     return () => {
-      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener("resize", updateCenter);
       window.removeEventListener("mousemove", onMouseMove);
     };
   }, []);
 
   useEffect(() => {
+    if (currentMood !== "normal") return undefined;
     const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       const idleTime = Date.now() - animState.current.lastInteraction;
-      if (idleTime > 30000 && currentMood === "normal") {
+      if (idleTime > 30000) {
         setCurrentMood("sleepy");
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [currentMood]);
 
@@ -129,18 +145,71 @@ export function PixelHelper({
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
-    let rafId;
+    const continuousMood =
+      !reduceMotion &&
+      (currentMood === "visor" ||
+        currentMood === "eating" ||
+        currentMood === "love" ||
+        currentMood === "sleepy");
+
+    let rafId = null;
+    let sleepTimerId = null;
     let lastDraw = 0;
-    const FRAME_MS = 48; // ~20 FPS suffisant pour le pixel-art 36×36 (divise le CPU par 3)
+    let pxScale = 1;
 
-    const render = (time) => {
-      rafId = requestAnimationFrame(render);
-      if (typeof document !== "undefined" && document.hidden) return;
-      if (lastDraw && time - lastDraw < FRAME_MS) return;
-      lastDraw = time;
+    const px = (x, y, color) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(
+        Math.floor(x * pxScale),
+        Math.floor(y * pxScale),
+        Math.ceil(pxScale),
+        Math.ceil(pxScale)
+      );
+    };
 
+    const fillBox = (x, y, w, h, color) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(
+        Math.floor(x * pxScale),
+        Math.floor(y * pxScale),
+        Math.ceil(w * pxScale),
+        Math.ceil(h * pxScale)
+      );
+    };
+
+    const stopLoop = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      if (sleepTimerId !== null) {
+        clearTimeout(sleepTimerId);
+        sleepTimerId = null;
+      }
+    };
+
+    const scheduleNextWake = (now) => {
+      if (reduceMotion || (typeof document !== "undefined" && document.hidden)) return;
       const s = animState.current;
+      let delay = Infinity;
+      if (currentMood !== "sleepy") {
+        const untilBlink = Math.max(80, s.lastBlink + s.nextBlinkInterval - now);
+        delay = Math.min(delay, untilBlink);
+      }
+      if (currentMood !== "sleepy" && currentMood !== "visor" && currentMood !== "eating") {
+        const untilQuirk = Math.max(80, s.nextQuirkAt - now);
+        delay = Math.min(delay, untilQuirk);
+      }
+      if (Number.isFinite(delay) && sleepTimerId === null) {
+        sleepTimerId = setTimeout(() => {
+          sleepTimerId = null;
+          startLoop();
+        }, delay);
+      }
+    };
 
+    const drawFrame = (time) => {
+      const s = animState.current;
       const dpr = typeof window !== "undefined" ? Math.max(1, window.devicePixelRatio || 1) : 1;
       const physicalSize = Math.round(size * dpr);
 
@@ -148,11 +217,18 @@ export function PixelHelper({
         canvas.width = physicalSize;
         canvas.height = physicalSize;
       }
+      pxScale = physicalSize / GRID_SIZE;
 
-      const pxScale = physicalSize / GRID_SIZE;
-
-      s.currentGazeX += (s.targetGazeX - s.currentGazeX) * 0.16;
-      s.currentGazeY += (s.targetGazeY - s.currentGazeY) * 0.16;
+      const dx = s.targetGazeX - s.currentGazeX;
+      const dy = s.targetGazeY - s.currentGazeY;
+      const gazeMoving = Math.abs(dx) > 0.04 || Math.abs(dy) > 0.04;
+      if (gazeMoving) {
+        s.currentGazeX += dx * 0.24;
+        s.currentGazeY += dy * 0.24;
+      } else {
+        s.currentGazeX = s.targetGazeX;
+        s.currentGazeY = s.targetGazeY;
+      }
 
       s.scanPos = reduceMotion ? 8 : (time * 0.018) % 16;
       s.munchFrame = reduceMotion ? 0 : Math.floor(time * 0.006) % 4;
@@ -176,7 +252,6 @@ export function PixelHelper({
         }
       }
 
-      // Déclenchement aléatoire de l'animation de caractère selon l'ADN
       if (!reduceMotion && currentMood !== "sleepy" && currentMood !== "visor" && currentMood !== "eating") {
         if (!s.activeQuirk && now >= s.nextQuirkAt) {
           const picked = pickNextQuirk(petDna, s.lastQuirk);
@@ -209,26 +284,6 @@ export function PixelHelper({
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, physicalSize, physicalSize);
 
-      const px = (x, y, color) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(
-          Math.floor(x * pxScale),
-          Math.floor(y * pxScale),
-          Math.ceil(pxScale),
-          Math.ceil(pxScale)
-        );
-      };
-
-      const fillBox = (x, y, w, h, color) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(
-          Math.floor(x * pxScale),
-          Math.floor(y * pxScale),
-          Math.ceil(w * pxScale),
-          Math.ceil(h * pxScale)
-        );
-      };
-
       drawPetHead(px, fillBox, 0, hopY, petDna, {
         time,
         currentMood,
@@ -241,19 +296,75 @@ export function PixelHelper({
         activeQuirk: s.activeQuirk,
         quirkProgress,
         reduceMotion,
+        palette,
       });
 
       if (s.activeQuirk && !reduceMotion) {
-        drawQuirkEffects(px, fillBox, 0, hopY, petDna, s.activeQuirk, quirkProgress, false);
+        drawQuirkEffects(px, fillBox, 0, hopY, petDna, s.activeQuirk, quirkProgress, false, palette);
+      }
+
+      const needsMoreFrames =
+        !reduceMotion &&
+        (continuousMood || gazeMoving || s.isBlinking || Boolean(s.activeQuirk));
+
+      if (needsMoreFrames) {
+        rafId = requestAnimationFrame(tick);
+      } else {
+        rafId = null;
+        scheduleNextWake(now);
       }
     };
 
-    rafId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(rafId);
-  }, [currentMood, isHovered, size, petDna]);
+    const tick = (time) => {
+      if (typeof document !== "undefined" && document.hidden) {
+        rafId = null;
+        return;
+      }
+      if (lastDraw && time - lastDraw < FRAME_MS) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+      lastDraw = time;
+      drawFrame(time);
+    };
+
+    const startLoop = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      if (sleepTimerId !== null) {
+        clearTimeout(sleepTimerId);
+        sleepTimerId = null;
+      }
+      if (rafId === null) {
+        lastDraw = 0;
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+
+    wakeRef.current = startLoop;
+
+    const onVisibility = () => {
+      if (document.hidden) stopLoop();
+      else startLoop();
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+
+    // Premier rendu immédiat
+    drawFrame(typeof performance !== "undefined" ? performance.now() : 0);
+
+    return () => {
+      wakeRef.current = null;
+      stopLoop();
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+    };
+  }, [currentMood, isHovered, size, petDna, palette]);
 
   const handleClick = (e) => {
     animState.current.lastInteraction = Date.now();
+    wakeRef.current?.();
     onClick?.(e);
   };
 
@@ -293,4 +404,4 @@ export function PixelHelper({
       />
     </div>
   );
-}
+});

@@ -15,6 +15,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 pub struct AppState {
@@ -46,38 +47,81 @@ fn storage_list(state: State<'_, AppState>, prefix: Option<String>) -> store::St
 }
 
 #[tauri::command]
-fn config_get_projects(app: AppHandle) -> Vec<Value> {
-    let config_file = get_projects_config_file(Some(&app));
-    config::get_projects(&config_file)
+async fn config_get_projects(app: AppHandle) -> Vec<Value> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let config_file = get_projects_config_file(Some(&app));
+        config::get_projects(&config_file)
+    })
+    .await
+    .unwrap_or_default()
 }
 
 #[tauri::command]
-fn config_set_projects(app: AppHandle, projects: Vec<Value>) -> config::ConfigSetResult {
-    let config_file = get_projects_config_file(Some(&app));
-    config::set_projects(&config_file, projects)
+async fn config_set_projects(app: AppHandle, projects: Vec<Value>) -> config::ConfigSetResult {
+    tauri::async_runtime::spawn_blocking(move || {
+        let config_file = get_projects_config_file(Some(&app));
+        config::set_projects(&config_file, projects)
+    })
+    .await
+    .unwrap_or(config::ConfigSetResult { ok: false })
 }
 
 #[tauri::command]
-fn images_save(app: AppHandle, buffer: Vec<u8>) -> Result<images::ImageSaveResult, String> {
-    let images_dir = get_images_dir(Some(&app));
-    images::save_image(&images_dir, &buffer)
+async fn images_save(
+    app: AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<images::ImageSaveResult, String> {
+    let bytes: Vec<u8> = match request.body() {
+        tauri::ipc::InvokeBody::Raw(raw) => raw.clone(),
+        tauri::ipc::InvokeBody::Json(val) => val
+            .get("buffer")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|n| n.as_u64().map(|b| b as u8))
+                    .collect()
+            })
+            .ok_or_else(|| "Charge utile image invalide".to_string())?,
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let images_dir = get_images_dir(Some(&app));
+        images::save_image(&images_dir, &bytes)
+    })
+    .await
+    .map_err(|e| format!("Tâche image interrompue: {}", e))?
 }
 
 #[tauri::command]
-fn images_prune(app: AppHandle, used_files: Vec<String>) -> images::ImagePruneResult {
-    let images_dir = get_images_dir(Some(&app));
-    images::prune_images(&images_dir, used_files)
+async fn images_prune(app: AppHandle, used_files: Vec<String>) -> images::ImagePruneResult {
+    tauri::async_runtime::spawn_blocking(move || {
+        let images_dir = get_images_dir(Some(&app));
+        images::prune_images(&images_dir, used_files)
+    })
+    .await
+    .unwrap_or(images::ImagePruneResult { removed: 0 })
 }
 
 #[tauri::command]
-fn plugins_list(app: AppHandle) -> Vec<RawPluginEntry> {
-    let dirs = get_plugin_dirs(Some(&app));
-    plugins::list_plugins(&dirs)
+async fn plugins_list(app: AppHandle) -> Vec<RawPluginEntry> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let dirs = get_plugin_dirs(Some(&app));
+        plugins::list_plugins(&dirs)
+    })
+    .await
+    .unwrap_or_default()
 }
 
 #[tauri::command]
-fn plugins_save_file(app: AppHandle, payload: data_io::PluginSaveFilePayload) -> data_io::ExportResult {
-    data_io::save_plugin_file(&app, payload)
+async fn plugins_save_file(
+    app: AppHandle,
+    payload: data_io::PluginSaveFilePayload,
+) -> data_io::ExportResult {
+    tauri::async_runtime::spawn_blocking(move || data_io::save_plugin_file(&app, payload))
+        .await
+        .unwrap_or(data_io::ExportResult {
+            canceled: true,
+            file_path: None,
+        })
 }
 
 #[tauri::command]
@@ -89,10 +133,15 @@ fn plugins_watch(
 ) -> Value {
     let app_handle = app.clone();
     let plugin_id = id.clone();
+    let last_emit = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(1)));
 
     let mut watcher = match notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if res.is_ok() {
-            let _ = app_handle.emit("host:reload", json!({ "id": plugin_id }));
+            let mut last = last_emit.lock();
+            if last.elapsed() >= Duration::from_millis(150) {
+                *last = Instant::now();
+                let _ = app_handle.emit("host:reload", json!({ "id": plugin_id }));
+            }
         }
     }) {
         Ok(w) => w,
@@ -109,13 +158,25 @@ fn plugins_watch(
 }
 
 #[tauri::command]
-fn data_export(app: AppHandle, payload: Value) -> data_io::ExportResult {
-    data_io::export_data(&app, &payload)
+async fn data_export(app: AppHandle, payload: Value) -> data_io::ExportResult {
+    tauri::async_runtime::spawn_blocking(move || data_io::export_data(&app, &payload))
+        .await
+        .unwrap_or(data_io::ExportResult {
+            canceled: true,
+            file_path: None,
+        })
 }
 
 #[tauri::command]
-fn data_import(app: AppHandle) -> data_io::ImportResult {
-    data_io::import_data(&app)
+async fn data_import(app: AppHandle) -> data_io::ImportResult {
+    tauri::async_runtime::spawn_blocking(move || data_io::import_data(&app))
+        .await
+        .unwrap_or(data_io::ImportResult {
+            canceled: true,
+            file_path: None,
+            error: None,
+            data: None,
+        })
 }
 
 use window::{

@@ -79,9 +79,7 @@ html.pet-window-mode #root {
   width: max-content;
   max-width: 218px;
   margin: 0 auto;
-  background: linear-gradient(165deg, rgba(14, 19, 32, 0.92) 0%, rgba(8, 11, 20, 0.95) 100%);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: linear-gradient(165deg, rgba(14, 19, 32, 0.94) 0%, rgba(8, 11, 20, 0.97) 100%);
   border: 1px solid color-mix(in srgb, var(--pet-accent) 28%, rgba(255, 255, 255, 0.14));
   border-radius: 14px;
   box-shadow:
@@ -178,9 +176,7 @@ html.pet-window-mode #root {
   height: 20px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(15, 23, 42, 0.82);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(15, 23, 42, 0.92);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     0 4px 10px rgba(0, 0, 0, 0.34);

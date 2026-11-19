@@ -59,6 +59,13 @@
   }
 }
 
+/* Mise en veille globale de toutes les animations CSS lorsque la fenêtre est réduite/cachée */
+.trk-app.is-hidden *,
+.trk-app.is-hidden *::before,
+.trk-app.is-hidden *::after {
+  animation-play-state: paused !important;
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {

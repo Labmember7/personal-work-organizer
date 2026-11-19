@@ -189,20 +189,21 @@
     -4px -4px 10px var(--neo-light);
 }
 
-/* Micro-reliefs internes des cartes Kanban */
+/* Micro-pastilles internes des cartes Kanban : contour fin + reflet spéculaire
+   (supprime ~140 passes de box-shadow floutées simultanées sur le tableau). */
 .trk-app .trk-kanban-card .trk-tag,
 .trk-app .trk-kanban-card .trk-prio-tag,
 .trk-app .trk-kanban-card .trk-type-tag {
-  background: var(--bg);
-  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-  box-shadow: var(--neo-raised-xs);
+  background: color-mix(in srgb, var(--bg) 92%, var(--pill-color, white));
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   border-radius: 999px;
 }
 
 .trk-app .trk-kanban-card .trk-tag:hover,
 .trk-app .trk-kanban-card .trk-prio-tag:hover,
 .trk-app .trk-kanban-card .trk-type-tag:hover {
-  box-shadow: var(--neo-raised-sm);
+  border-color: color-mix(in srgb, var(--pill-color, var(--accent)) 55%, var(--border));
 }
 
 .trk-app .trk-kanban-card .trk-kanban-card-actions .trk-icon-btn {
@@ -248,7 +249,7 @@
   color: var(--text-dim);
   font-weight: 500;
   padding: 22px 12px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, color 0.2s ease;
 }
 
 .trk-app .trk-kanban-col.drag-over .trk-kanban-drop-hint {
@@ -620,6 +621,8 @@
 }
 .trk-app .trk-focus-zone,
 .trk-app .trk-focus-zone::after { border-radius: var(--radius-lg); }
+.trk-app .trk-focus-zone.trk-focus-reduced,
+.trk-app .trk-focus-zone.trk-focus-reduced::after { border-radius: 999px; }
 .trk-app .trk-focus-inner {
   background: var(--bg);
   border: none;
@@ -778,6 +781,9 @@
   -webkit-backdrop-filter: none;
   border-radius: 18px 18px 34px 34px;
   box-shadow: var(--neo-raised), var(--neo-pressed);
+}
+.trk-app.sticky .trk-focus-zone:not(.trk-focus-reduced)::after {
+  border-radius: 18px 18px 34px 34px;
 }
 .trk-app.sticky .trk-focus-zone.occupied .trk-focus-shell {
   box-shadow: var(--neo-raised), var(--neo-pressed),

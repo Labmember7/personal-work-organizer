@@ -74,6 +74,7 @@ function PetControls({ isHeadDock = false, cloudReduced, onToggleCloud, onRestor
 
 export function DesktopPetWindow() {
   const [petState, setPetState] = useState(null);
+  const [isVisible, setIsVisible] = useState(true);
   const [now, setNow] = useState(() => Date.now());
   const [cloudReduced, setCloudReduced] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -122,7 +123,7 @@ export function DesktopPetWindow() {
 
   // Filet de sécurité OS : interroge la fenêtre sous le curseur tant que le survol est actif
   useEffect(() => {
-    if (!isHovered || !desktopPet.isCursorInside) return undefined;
+    if (!isHovered || !isVisible || !desktopPet.isCursorInside) return undefined;
     let active = true;
     const timer = setInterval(() => {
       desktopPet
@@ -136,31 +137,47 @@ export function DesktopPetWindow() {
           }
         })
         .catch(() => {});
-    }, 80);
+    }, 100);
     return () => {
       active = false;
       clearInterval(timer);
     };
-  }, [isHovered]);
+  }, [isHovered, isVisible]);
 
   useEffect(() => {
-    const unlisten = desktopPet.onState((incomingState) => {
+    const unlistenState = desktopPet.onState((incomingState) => {
       setPetState(incomingState);
+    });
+    const unlistenVisibility = desktopPet.onVisibilityChanged?.((vis) => {
+      setIsVisible(Boolean(vis));
+      if (!vis) setIsHovered(false);
     });
 
     desktopPet.notifyReady();
-    return unlisten;
+    return () => {
+      unlistenState?.();
+      unlistenVisibility?.();
+    };
   }, []);
+
+  const hasLiveTicker =
+    isVisible && (Boolean(petState?.focusStartedAt) || Boolean(petState?.pomo?.isRunning));
 
   useEffect(() => {
-    const ticker = createUnthrottledInterval(() => setNow(Date.now()), 500);
+    if (!hasLiveTicker) return undefined;
+    setNow(Date.now());
+    const ticker = createUnthrottledInterval(() => setNow(Date.now()), 1000);
     return () => ticker.clear();
-  }, []);
+  }, [hasLiveTicker]);
 
-  // Synchronise la fenêtre native avec la hitbox utile pour permettre d'atteindre les bords de l'écran
+  const hasFocusTask = Boolean(petState?.focus);
+  const hasPomoState = Boolean(petState?.pomo);
+  const layoutModeKey = `${cloudReduced ? "r" : "e"}|${hasFocusTask ? 1 : 0}|${hasPomoState ? 1 : 0}|${petState?.focus?.title || ""}`;
+
+  // Synchronise la fenêtre native avec la hitbox utile sans recréer l'observer à chaque seconde
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || !isVisible) return undefined;
 
     const measure = () => {
       const rect = el.getBoundingClientRect();
@@ -177,7 +194,7 @@ export function DesktopPetWindow() {
       return () => ro.disconnect();
     }
     return undefined;
-  }, [petState, cloudReduced]);
+  }, [isVisible, layoutModeKey]);
 
   const elapsedStr = useMemo(() => {
     if (!petState?.focusStartedAt) return null;
@@ -286,7 +303,6 @@ export function DesktopPetWindow() {
 
   const pomoPhase = pomo?.phase || "focus";
   const pomoRunning = Boolean(pomo?.isRunning);
-  const hasFocusTask = Boolean(petState?.focus);
   const hasTimers = Boolean(elapsedStr) || Boolean(pomoRemainingStr);
   const isCompactTimerPill = !hasFocusTask && Boolean(pomoRemainingStr);
   const isStandbyPill = !hasFocusTask && !pomoRemainingStr;
@@ -478,6 +494,7 @@ export function DesktopPetWindow() {
             mood={petState?.mood || "normal"}
             size={72}
             showNativeTooltip={false}
+            active={isVisible}
           />
         </div>
       </div>

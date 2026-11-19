@@ -6,14 +6,27 @@
 
 let audioCtx = null;
 let masterGain = null;
+let idleSuspendTimer = null;
+const AUDIO_IDLE_SUSPEND_MS = 10000;
 
-// Cache en mémoire des tampons audio pré-rendus
+// Cache en mémoire des tampons audio pré-rendus à la demande (construits uniquement
+// lors de la première lecture de chaque effet : 0 ms de surcoût au premier clic UI).
 const buffers = {
   haptic: null,
   chime: null,
   phaseSwitch: null,
   taskDone: null,
 };
+
+function scheduleAutoSuspend() {
+  if (idleSuspendTimer) clearTimeout(idleSuspendTimer);
+  idleSuspendTimer = setTimeout(() => {
+    idleSuspendTimer = null;
+    if (audioCtx && audioCtx.state === "running" && typeof audioCtx.suspend === "function") {
+      audioCtx.suspend().catch(() => {});
+    }
+  }, AUDIO_IDLE_SUSPEND_MS);
+}
 
 export function getAudioContext() {
   if (typeof window === "undefined") return null;
@@ -33,31 +46,8 @@ export function getAudioContext() {
   if (audioCtx && audioCtx.state === "suspended") {
     audioCtx.resume().catch(() => {});
   }
+  if (audioCtx) scheduleAutoSuspend();
   return audioCtx;
-}
-
-// Déverrouillage anticipé du moteur audio dès l'entrée de la souris ou la première touche
-if (typeof window !== "undefined") {
-  const warmAudioEngine = () => {
-    const ctx = getAudioContext();
-    if (ctx && ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-    // Pré-génération asynchrone des tampons en arrière-plan
-    if (ctx && !buffers.haptic) {
-      try {
-        buffers.haptic = buildHapticBuffer(ctx);
-        buffers.chime = buildChimeBuffer(ctx);
-        buffers.phaseSwitch = buildPhaseSwitchBuffer(ctx);
-        buffers.taskDone = buildTaskDoneCelebrationBuffer(ctx);
-      } catch {
-        // Repli sur la synthèse en direct lors de la lecture
-      }
-    }
-  };
-
-  window.addEventListener("pointerdown", warmAudioEngine, { capture: true, passive: true });
-  window.addEventListener("keydown", warmAudioEngine, { capture: true, passive: true });
 }
 
 // ── Générateurs PCM des effets sonores (synthèse mathématique pure) ──

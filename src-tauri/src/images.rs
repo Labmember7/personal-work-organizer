@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use uuid::Uuid;
 
 const MAX_IMAGE_DIMENSION: u32 = 1600;
@@ -61,8 +62,9 @@ pub fn save_image(images_dir: &PathBuf, buffer: &[u8]) -> Result<ImageSaveResult
 }
 
 pub fn prune_images(images_dir: &PathBuf, used_files: Vec<String>) -> ImagePruneResult {
+    static RE: OnceLock<Regex> = OnceLock::new();
     let keep: HashSet<String> = used_files.into_iter().collect();
-    let re = Regex::new(r"^[\w-]+\.jpg$").unwrap();
+    let re = RE.get_or_init(|| Regex::new(r"^[\w-]+\.jpg$").unwrap());
     let mut removed = 0;
 
     if let Ok(entries) = fs::read_dir(images_dir) {

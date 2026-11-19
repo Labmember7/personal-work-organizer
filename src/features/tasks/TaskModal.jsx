@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Select } from "../../components/Select.jsx";
 import { X, Columns3, Zap, AlertTriangle } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
@@ -11,11 +11,18 @@ import { projectTask } from "../../lib/plugins/projection";
 import { DeclarativeView } from "../plugins/DeclarativeView.jsx";
 
 
+const DRAFT_COMPARE_FIELDS = [
+  "type", "projet", "titre", "description", "priorite", "statut",
+  "assigne", "dateDebut", "echeance",
+];
+
 // Modal de création/édition d'une tâche. Le composant possède son brouillon
 // (copie de `initial`) ; la fermeture demande confirmation si le brouillon a
 // été modifié. Les timeLogs ne passent pas par le brouillon : la section de
 // pointage lit `storeTask` (version du store) et mute via timeLogOps.
-export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, timeLogOps, onToast, taskPanels }) {
+export const TaskModal = React.memo(function TaskModal({
+  initial, storeTask, projects, onSubmit, onClose, timeLogOps, onToast, taskPanels,
+}) {
   const { t, lang } = useLang();
   const [draft, setDraft] = useState(initial);
   const [descMode, setDescMode] = useState("formatted");
@@ -23,8 +30,41 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
   const [titleError, setTitleError] = useState(false);
 
   const initialRef = useRef(initial);
+  const editorRef = useRef(null);
 
-  const isDirty = () => JSON.stringify(draft) !== JSON.stringify(initialRef.current);
+  const parsedPanels = useMemo(() => {
+    if (!Array.isArray(taskPanels) || taskPanels.length === 0) return [];
+    return taskPanels.map((panelInstance) => {
+      const { panel, specJson } = panelInstance;
+      let spec = null;
+      if (panel.kind === "declarative" && typeof specJson === "string") {
+        try {
+          spec = JSON.parse(specJson);
+        } catch {
+          spec = null;
+        }
+      }
+      return { ...panelInstance, spec };
+    });
+  }, [taskPanels]);
+
+  const getEffectiveDraft = () => {
+    const flushedDesc = editorRef.current?.flush?.();
+    if (typeof flushedDesc === "string" && flushedDesc !== draft.description) {
+      return { ...draft, description: flushedDesc };
+    }
+    return draft;
+  };
+
+  const isDirty = () => {
+    const current = getEffectiveDraft();
+    const base = initialRef.current;
+    for (let i = 0; i < DRAFT_COMPARE_FIELDS.length; i++) {
+      const k = DRAFT_COMPARE_FIELDS[i];
+      if ((current[k] ?? "") !== (base[k] ?? "")) return true;
+    }
+    return false;
+  };
 
   const requestClose = () => {
     if (isDirty()) setConfirmClose(true);
@@ -38,12 +78,13 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
 
   const submit = (e) => {
     e.preventDefault();
-    if (!draft.titre.trim()) {
+    const effective = getEffectiveDraft();
+    if (!effective.titre.trim()) {
       setTitleError(true);
       return;
     }
-    if (!draft.projet.trim()) return;
-    onSubmit(draft);
+    if (!effective.projet.trim()) return;
+    onSubmit(effective);
     onClose();
   };
 
@@ -88,9 +129,10 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
               <div className="trk-field trk-field-description">
                 <label htmlFor="task-description">{t("field_description")}</label>
                 <MarkdownEditor
+                  ref={editorRef}
                   id="task-description"
                   value={draft.description}
-                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
                   mode={descMode}
                   onModeChange={setDescMode}
                   placeholder={t("description_placeholder")}
@@ -191,10 +233,10 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
                 <div className="trk-timelog-hint">{t("time_hint")}</div>
               )}
             </div>
-            {Array.isArray(taskPanels) && taskPanels.length > 0 && (
+            {parsedPanels.length > 0 && (
               <div className="trk-modal-task-panels">
-                {taskPanels.map((panelInstance) => {
-                  const { panel, specJson, pluginId } = panelInstance;
+                {parsedPanels.map((panelInstance) => {
+                  const { panel, spec, pluginId } = panelInstance;
                   const title = localized(panel.title, lang) || panel.id;
                   if (panel.kind === "app" && panel.entry) {
                     return (
@@ -208,14 +250,6 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
                         />
                       </section>
                     );
-                  }
-                  let spec = null;
-                  if (panel.kind === "declarative" && typeof specJson === "string") {
-                    try {
-                      spec = JSON.parse(specJson);
-                    } catch {
-                      spec = null;
-                    }
                   }
                   if (!spec) return null;
                   const sourceTask = storeTask ?? draft;
@@ -265,4 +299,4 @@ export function TaskModal({ initial, storeTask, projects, onSubmit, onClose, tim
       )}
     </div>
   );
-}
+});

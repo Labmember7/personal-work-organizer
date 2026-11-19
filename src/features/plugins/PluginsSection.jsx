@@ -1,8 +1,106 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { Select } from "../../components/Select.jsx";
-import * as LucideIcons from "lucide-react";
-import { AlertTriangle, Puzzle, X } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Archive,
+  BarChart3,
+  BookOpen,
+  Bookmark,
+  Bug,
+  Calendar,
+  CheckSquare,
+  ClipboardList,
+  Clock,
+  Code,
+  Columns3,
+  Compass,
+  Cpu,
+  Database,
+  Download,
+  FileText,
+  Filter,
+  Flag,
+  Flame,
+  FlaskConical,
+  Folder,
+  GitBranch,
+  Globe,
+  Heart,
+  Layers,
+  Layout,
+  Lightbulb,
+  List,
+  Map,
+  Network,
+  PieChart,
+  Puzzle,
+  Search,
+  Settings,
+  Share2,
+  Sparkles,
+  Star,
+  Table,
+  Tag,
+  Target,
+  Terminal,
+  Upload,
+  Users,
+  Workflow,
+  X,
+  Zap,
+} from "lucide-react";
+
+const PLUGIN_ICONS = {
+  Activity,
+  AlertTriangle,
+  Archive,
+  BarChart3,
+  BookOpen,
+  Bookmark,
+  Bug,
+  Calendar,
+  CheckSquare,
+  ClipboardList,
+  Clock,
+  Code,
+  Columns3,
+  Compass,
+  Cpu,
+  Database,
+  Download,
+  FileText,
+  Filter,
+  Flag,
+  Flame,
+  FlaskConical,
+  Folder,
+  GitBranch,
+  Globe,
+  Heart,
+  Layers,
+  Layout,
+  Lightbulb,
+  List,
+  Map,
+  Network,
+  PieChart,
+  Puzzle,
+  Search,
+  Settings,
+  Share2,
+  Sparkles,
+  Star,
+  Table,
+  Tag,
+  Target,
+  Terminal,
+  Upload,
+  Users,
+  Workflow,
+  Zap,
+};
 import { useLang, pluginDict } from "../../i18n.jsx";
 import { HelpTip } from "../../tips.jsx";
 import { useEscapeKey } from "../../hooks/useEscapeKey";
@@ -35,7 +133,7 @@ function PluginIcon({ name, size = 14 }) {
 }
 
 function iconFor(name) {
-  return (name && LucideIcons[name]) || Puzzle;
+  return (name && PLUGIN_ICONS[name]) || Puzzle;
 }
 
 // Éditeur des réglages déclarés par le plugin (`contributes.settings`) : chaque
@@ -85,7 +183,7 @@ function PluginSettingsEditor({ defs, values, onChange, lang }) {
 // du plugin puis de son document, et le pont vers l'iframe sandboxée. Toute
 // la mutation des tâches reste hors de portée : ce module ne fait que lire
 // et afficher (cf. PLUGIN_PLAN.md, § Deux décisions arbitrées).
-export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTask, onToast }) {
+export const PluginsSection = React.memo(function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTask, onToast }) {
   const { t, lang } = useLang();
   const [discovering, setDiscovering] = useState(true);
   const [plugins, setPlugins] = useState([]);
@@ -122,11 +220,14 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
   // dossier du plugin et notifie via l'IPC `host:reload`. On redécouvre les
   // plugins (relecture manifeste + specs) et on remonte la vue active.
   useEffect(() => {
-    if (!window.plugins || typeof window.plugins.onReload !== "function") return;
+    if (!window.plugins || typeof window.plugins.onReload !== "function") return undefined;
     const handler = () => {
       void refreshPlugins(true);
     };
-    window.plugins.onReload(handler);
+    const unlisten = window.plugins.onReload(handler);
+    return () => {
+      if (typeof unlisten === "function") unlisten();
+    };
   }, []);
 
   const activePlugin = plugins.find((p) => p.manifest.id === selectedId) ?? plugins[0] ?? null;
@@ -354,4 +455,4 @@ export function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTas
       </div>
     </div>
   );
-}
+});

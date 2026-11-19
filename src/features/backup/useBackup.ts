@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { Project, Task } from "../../lib/types";
 import { isValidBackupData, normalizeBackupData, buildBackupPayload } from "../../lib/backup";
 
@@ -26,54 +26,60 @@ export interface BackupApi {
 }
 
 // Export / import de sauvegarde via les boîtes de dialogue natives (IPC).
-// L'import passe par une étape de confirmation (pendingImport) avant de
-// remplacer les données. `onToast` remonte les succès/erreurs à l'UI.
+// Les callbacks sont stabilisés via refs pour préserver React.memo sur AppHeader.
 export function useBackup({ tasks, projects, saveBoth, onImported, onToast, t }: UseBackupArgs): BackupApi {
   const [pendingImport, setPendingImport] = useState<{ tasks: Task[]; projects: Project[] } | null>(null);
   const [ioBusy, setIoBusy] = useState(false);
 
-  const exportData = async () => {
-    if (!window.dataIO || ioBusy) return;
+  const stateRef = useRef({ tasks, projects, ioBusy, pendingImport, onImported, onToast, t });
+  stateRef.current = { tasks, projects, ioBusy, pendingImport, onImported, onToast, t };
+
+  const exportData = useCallback(async () => {
+    const { tasks: curTasks, projects: curProjects, ioBusy: busy, onToast: toast, t: tr } = stateRef.current;
+    if (!window.dataIO || busy) return;
     setIoBusy(true);
     try {
-      const result = await window.dataIO.export(buildBackupPayload(tasks, projects));
-      if (!result.canceled) onToast({ type: "success", text: t("export_success") });
+      const result = await window.dataIO.export(buildBackupPayload(curTasks, curProjects));
+      if (!result.canceled) toast({ type: "success", text: tr("export_success") });
     } catch (e) {
-      onToast({ type: "error", text: t("export_error") });
+      toast({ type: "error", text: tr("export_error") });
     } finally {
       setIoBusy(false);
     }
-  };
+  }, []);
 
-  const importData = async () => {
-    if (!window.dataIO || ioBusy) return;
+  const importData = useCallback(async () => {
+    const { ioBusy: busy, onToast: toast, t: tr } = stateRef.current;
+    if (!window.dataIO || busy) return;
     setIoBusy(true);
     try {
       const result = await window.dataIO.import();
       if (result.canceled) return;
       if (result.error || !isValidBackupData(result.data)) {
-        onToast({ type: "error", text: t("import_invalid") });
+        toast({ type: "error", text: tr("import_invalid") });
         return;
       }
-      // Normalisation avant confirmation : champs manquants complétés et
-      // projets réconciliés avec ceux référencés par les tâches.
       setPendingImport(normalizeBackupData(result.data));
     } catch (e) {
-      onToast({ type: "error", text: t("import_error") });
+      toast({ type: "error", text: tr("import_error") });
     } finally {
       setIoBusy(false);
     }
-  };
+  }, []);
 
-  const confirmImport = () => {
-    if (!pendingImport) return;
-    saveBoth(pendingImport.tasks, pendingImport.projects);
+  const confirmImport = useCallback(() => {
+    const { pendingImport: pending, onImported: imported, onToast: toast, t: tr } = stateRef.current;
+    if (!pending) return;
+    saveBoth(pending.tasks, pending.projects);
     setPendingImport(null);
-    onImported?.();
-    onToast({ type: "success", text: t("import_success") });
-  };
+    imported?.();
+    toast({ type: "success", text: tr("import_success") });
+  }, [saveBoth]);
 
-  const cancelImport = () => setPendingImport(null);
+  const cancelImport = useCallback(() => setPendingImport(null), []);
 
-  return { pendingImport, ioBusy, exportData, importData, confirmImport, cancelImport };
+  return useMemo(
+    () => ({ pendingImport, ioBusy, exportData, importData, confirmImport, cancelImport }),
+    [pendingImport, ioBusy, exportData, importData, confirmImport, cancelImport]
+  );
 }

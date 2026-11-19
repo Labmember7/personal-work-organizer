@@ -5,6 +5,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub const PLUGIN_CSP: &str =
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; \
@@ -35,7 +36,10 @@ pub struct RawPluginEntry {
 }
 
 pub fn extract_manifest_block(html: &str) -> Option<String> {
-    let re = Regex::new(r#"(?i)<script[^>]*\bid=["']trk-plugin["'][^>]*>([\s\S]*?)</script>"#).ok()?;
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(r#"(?i)<script[^>]*\bid=["']trk-plugin["'][^>]*>([\s\S]*?)</script>"#).unwrap()
+    });
     let caps = re.captures(html)?;
     let body = caps.get(1)?.as_str().trim();
     if body.is_empty() {
@@ -172,7 +176,8 @@ pub fn list_plugins(dirs: &[PluginDir]) -> Vec<RawPluginEntry> {
 }
 
 pub fn read_plugin_html(dirs: &[PluginDir], file: &str) -> Option<String> {
-    let re = Regex::new(r"^[\w-]+\.html$").ok()?;
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"^[\w-]+\.html$").unwrap());
     if !re.is_match(file) {
         return None;
     }
@@ -190,8 +195,9 @@ pub fn read_plugin_html(dirs: &[PluginDir], file: &str) -> Option<String> {
 }
 
 pub fn wrap_plugin_html(html: &str, sdk_source: &str) -> String {
+    static HEAD_RE: OnceLock<Regex> = OnceLock::new();
     let inject = format!("<meta charset=\"utf-8\">\n<script>{}</script>\n", sdk_source);
-    let head_re = Regex::new(r"(?i)<head[^>]*>").unwrap();
+    let head_re = HEAD_RE.get_or_init(|| Regex::new(r"(?i)<head[^>]*>").unwrap());
     if let Some(mat) = head_re.find(html) {
         let end = mat.end();
         format!("{}{}{}", &html[..end], inject, &html[end..])

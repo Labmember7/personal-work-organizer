@@ -16,14 +16,39 @@ export interface LogEntry {
   text: string;
 }
 
+export interface LogSummary {
+  count: number;
+  level: "ok" | "warn" | "error";
+}
+
 const MAX_ENTRIES = 500;
 let seq = 0;
 const buffer: LogEntry[] = [];
 const subscribers = new Set<(entries: LogEntry[]) => void>();
+const summarySubscribers = new Set<(summary: LogSummary) => void>();
+
+function computeSummary(): LogSummary {
+  let level: "ok" | "warn" | "error" = "ok";
+  for (let i = 0; i < buffer.length; i++) {
+    const lv = buffer[i]!.level;
+    if (lv === "error") {
+      level = "error";
+      break;
+    }
+    if (lv === "warn") level = "warn";
+  }
+  return { count: buffer.length, level };
+}
 
 function notify(): void {
-  const snapshot = buffer.slice();
-  subscribers.forEach((cb) => cb(snapshot));
+  if (subscribers.size > 0) {
+    const snapshot = buffer.slice();
+    subscribers.forEach((cb) => cb(snapshot));
+  }
+  if (summarySubscribers.size > 0) {
+    const summary = computeSummary();
+    summarySubscribers.forEach((cb) => cb(summary));
+  }
 }
 
 function stringifyPart(part: unknown): string {
@@ -55,6 +80,15 @@ export function subscribeLog(cb: (entries: LogEntry[]) => void): () => void {
   cb(buffer.slice());
   return () => {
     subscribers.delete(cb);
+  };
+}
+
+/** S'abonne uniquement au compteur et au niveau agrégé sans cloner le tableau. */
+export function subscribeLogSummary(cb: (summary: LogSummary) => void): () => void {
+  summarySubscribers.add(cb);
+  cb(computeSummary());
+  return () => {
+    summarySubscribers.delete(cb);
   };
 }
 

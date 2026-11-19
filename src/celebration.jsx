@@ -467,6 +467,32 @@ const ANIMS = {
   },
 };
 
+// Cache de sprites lumineux pré-rendus : remplace `ctx.shadowBlur` (flou gaussien
+// logiciel à chaque particule) par un simple `drawImage` 5-10× plus rapide.
+const glowSpriteCache = new Map();
+function getGlowSprite(color) {
+  if (glowSpriteCache.has(color)) return glowSpriteCache.get(color);
+  if (typeof document === "undefined") return null;
+  const sprite = document.createElement("canvas");
+  const size = 24;
+  sprite.width = size;
+  sprite.height = size;
+  const ctx = sprite.getContext?.("2d");
+  if (!ctx || typeof ctx.createRadialGradient !== "function") {
+    glowSpriteCache.set(color, null);
+    return null;
+  }
+  const half = size / 2;
+  const grad = ctx.createRadialGradient(half, half, 0, half, half, half);
+  grad.addColorStop(0, color);
+  grad.addColorStop(0.35, color);
+  grad.addColorStop(1, "transparent");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  glowSpriteCache.set(color, sprite);
+  return sprite;
+}
+
 function drawParticle(g, p, age) {
   const fade = Math.max(0, 1 - age / p.life);
   g.globalAlpha = fade;
@@ -484,13 +510,16 @@ function drawParticle(g, p, age) {
     case "spark": {
       const tw = p.twinkle ? 0.55 + 0.45 * Math.sin(age * 0.03 + p.size * 7) : 1;
       g.globalAlpha = fade * tw;
-      g.fillStyle = p.color;
-      g.shadowColor = p.color;
-      g.shadowBlur = 6;
-      g.beginPath();
-      g.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      g.fill();
-      g.shadowBlur = 0;
+      const sprite = typeof g.drawImage === "function" ? getGlowSprite(p.color) : null;
+      if (sprite) {
+        const r = p.size * 2.8;
+        g.drawImage(sprite, p.x - r, p.y - r, r * 2, r * 2);
+      } else {
+        g.fillStyle = p.color;
+        g.beginPath();
+        g.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        g.fill();
+      }
       break;
     }
     case "trail":
@@ -498,28 +527,26 @@ function drawParticle(g, p, age) {
         g.strokeStyle = p.color;
         g.lineWidth = p.size;
         g.lineCap = "round";
-        if (p.glow) {
-          g.shadowColor = p.color;
-          g.shadowBlur = 8;
-        }
         g.beginPath();
         g.moveTo(p.hist[0].x, p.hist[0].y);
         for (const pt of p.hist) g.lineTo(pt.x, pt.y);
         g.lineTo(p.x, p.y);
         g.stroke();
-        g.shadowBlur = 0;
       }
       break;
     case "orb": {
       const tw = 0.5 + 0.5 * Math.sin(age * 0.006 + p.phase);
       g.globalAlpha = fade * tw;
-      g.fillStyle = p.color;
-      g.shadowColor = p.color;
-      g.shadowBlur = 10;
-      g.beginPath();
-      g.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      g.fill();
-      g.shadowBlur = 0;
+      const sprite = typeof g.drawImage === "function" ? getGlowSprite(p.color) : null;
+      if (sprite) {
+        const r = p.size * 3.2;
+        g.drawImage(sprite, p.x - r, p.y - r, r * 2, r * 2);
+      } else {
+        g.fillStyle = p.color;
+        g.beginPath();
+        g.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        g.fill();
+      }
       if (p.size > 3) {
         g.strokeStyle = p.color;
         g.lineWidth = 0.8;
@@ -625,15 +652,15 @@ export function playMiniSound() {
   }
 }
 
-export function MiniCelebration({ onDone, origin }) {
+export function MiniCelebration({ onDone, origin, playSound = true }) {
   const canvasRef = useRef(null);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
   const soundPlayed = useRef(false);
 
   useLayoutEffect(() => {
-    // Joue le carillon immédiatement et de façon synchrone sans délai React
-    if (!soundPlayed.current) {
+    // Joue le carillon uniquement si non déjà joué en amont par l'appelant
+    if (playSound && !soundPlayed.current) {
       soundPlayed.current = true;
       playTaskDoneSound();
     }

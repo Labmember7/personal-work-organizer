@@ -1,7 +1,8 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import {
-  prioOf, statusOf, isDoneStatus, isTaskDone, taskMatchesQuery, randomThemeVars, randomThemePattern,
+  prioOf, statusOf, isDoneStatus, isTaskDone, compileSearchTerms, taskMatchesTerms,
+  randomThemeVars, randomThemePattern,
 } from "./utils";
 import { getNextTheme, isLightTheme, isValidTheme } from "./lib/themes";
 import { useLang } from "./i18n.jsx";
@@ -24,7 +25,7 @@ import { useFocusSession } from "./features/focus/useFocusSession";
 import { FocusProvider } from "./features/focus/FocusContext.jsx";
 import { FocusZone } from "./features/focus/FocusZone.jsx";
 import { KanbanSection } from "./features/kanban/KanbanSection.jsx";
-import { useChartData } from "./features/charts/useChartData";
+import { computeProjectProgress } from "./features/charts/useChartData";
 import { useBackup } from "./features/backup/useBackup";
 import { discoverPlugins } from "./services/plugins";
 import { collectTaskColumns, collectTaskPanels } from "./lib/plugins/contrib";
@@ -75,6 +76,16 @@ function pickCelebrationVariant() {
 export default function App() {
   const { t } = useLang();
   const [maximized, setMaximized] = useState(false);
+  const [windowHidden, setWindowHidden] = useState(
+    () => typeof document !== "undefined" && document.visibilityState === "hidden"
+  );
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const onVis = () => setWindowHidden(document.visibilityState === "hidden");
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   // ── Compagnon unique partagé (Dynamic Island + pet flottant du bureau) ──
   const [petDna, setPetDna] = useState(() => getOrCreatePetDna());
@@ -97,8 +108,8 @@ export default function App() {
     }
   );
 
-  // ── Chronomètre Pomodoro unifié (survit à la réduction de la fenêtre) ──
-  const pomodoro = usePomodoroSession({ onMoodChange: setPetMood });
+  // ── Chronomètre Pomodoro unifié (décompte isolé sans re-render de App) ──
+  const pomodoro = usePomodoroSession({ onMoodChange: setPetMood, trackTimeInState: false });
 
   const petState = useMemo(() => ({
     petDna,
@@ -168,6 +179,13 @@ export default function App() {
   });
   const toggleStickyMode = useCallback(() => setStickyMode((v) => !v), [setStickyMode]);
 
+  // Charge la police manuscrite Patrick Hand uniquement lorsque le mode sticky est activé.
+  useEffect(() => {
+    if (!stickyMode) return;
+    void import("@fontsource/patrick-hand/latin-400.css");
+    void import("@fontsource/patrick-hand/latin-ext-400.css");
+  }, [stickyMode]);
+
   const [celebration, setCelebration] = useState(null);
   const [miniCeleb, setMiniCeleb] = useState(null);
   const prevAllDone = useRef(null);
@@ -204,7 +222,7 @@ export default function App() {
   // ── Données et features ──
   const store = useTasks({ onTaskDone: celebrateTaskDone });
   const {
-    loading, tasks, projects, saveError,
+    loading, tasks, projects, saveError, tasksRef,
     deleteTask, archiveTask, unarchiveTask, moveTask,
     addTimeLog, editTimeLog, deleteTimeLog,
   } = store;
@@ -230,7 +248,10 @@ export default function App() {
   });
 
   const deferredActiveTasks = React.useDeferredValue(activeTasks);
-  const chartData = useChartData(deferredActiveTasks, projects);
+  const projectProgress = useMemo(
+    () => computeProjectProgress(deferredActiveTasks, projects),
+    [deferredActiveTasks, projects]
+  );
 
   // ── Guide de démarrage : affiché à la première ouverture, rejouable via Préférences ──
   const [tutorialOpen, setTutorialOpen] = useState(() => {
@@ -307,6 +328,9 @@ export default function App() {
     [sortBy]
   );
 
+  const deferredSearch = React.useDeferredValue(search);
+  const searchTerms = useMemo(() => compileSearchTerms(deferredSearch), [deferredSearch]);
+
   const filteredTasks = useMemo(() => {
     return tasks.filter(
       (tk) =>
@@ -315,19 +339,19 @@ export default function App() {
         (!filterStatuts.length ||
           filterStatuts.includes(tk.statut) ||
           (filterStatuts.includes("termine") && isTaskDone(tk))) &&
-        taskMatchesQuery(tk, search)
+        taskMatchesTerms(tk, searchTerms)
     );
-  }, [tasks, filterProjects, filterStatuts, search]);
+  }, [tasks, filterProjects, filterStatuts, searchTerms]);
 
   const sortedTasks = useMemo(() => sortTasks(filteredTasks), [filteredTasks, sortTasks]);
 
   const archivedTasks = useMemo(
-    () => tasks.filter((tk) => tk.archived && taskMatchesQuery(tk, search)),
-    [tasks, search]
+    () => tasks.filter((tk) => tk.archived && taskMatchesTerms(tk, searchTerms)),
+    [tasks, searchTerms]
   );
   const sortedArchivedTasks = useMemo(() => sortTasks(archivedTasks), [archivedTasks, sortTasks]);
 
-  const listResetKey = `${filterProjects.join(",")}|${filterStatuts.join(",")}|${search}|${sortBy}|${viewMode}`;
+  const listResetKey = `${filterProjects.join(",")}|${filterStatuts.join(",")}|${deferredSearch}|${sortBy}|${viewMode}`;
 
   const globalProgress = useMemo(() => {
     if (activeTasks.length === 0) return 0;
@@ -361,10 +385,10 @@ export default function App() {
   }, []);
 
   const handleRevealTask = useCallback((id) => {
-    const task = tasks.find((tk) => tk.id === id);
+    const task = tasksRef.current.find((tk) => tk.id === id);
     if (task) openEditTask(task);
     else setToast({ type: "error", text: t("plugin_task_not_found") });
-  }, [tasks, openEditTask, t]);
+  }, [tasksRef, openEditTask, t]);
 
   const handlePluginToast = useCallback((message) => setToast({ type: "success", text: message }), []);
 
@@ -456,7 +480,8 @@ export default function App() {
     (maximized ? " trk-app-maximized" : "") +
     (isLightTheme(theme) ? " light" : "") +
     (theme === "random" ? " random" : "") +
-    (stickyMode ? " sticky" : "");
+    (stickyMode ? " sticky" : "") +
+    (windowHidden ? " is-hidden" : "");
 
   const randomStyle = useMemo(
     () => (theme === "random" ? randomThemeVars(randomSeed) : undefined),
@@ -474,7 +499,7 @@ export default function App() {
           <TitleBar maximized={maximized} />
           <DynamicIsland
             focusSession={focus}
-            onEditTask={setEditing}
+            onEditTask={openEditTask}
             pomodoroSession={pomodoro}
             petState={petState}
             desktopPetEnabled={desktopPetEnabled}
@@ -512,7 +537,7 @@ export default function App() {
           <div className={"trk-layout" + (sidebarCollapsed ? " sidebar-collapsed" : "")}>
             <ProjectSidebar
               totalTasks={activeTasks.length}
-              projectProgress={chartData.projectProgress}
+              projectProgress={projectProgress}
               filterProjects={filterProjects}
               onToggleFilter={toggleFilterProject}
               onClearFilters={handleClearProjectFilters}
@@ -548,7 +573,6 @@ export default function App() {
                   <ChartsSection
                     tasks={deferredActiveTasks}
                     projects={projects}
-                    chartData={chartData}
                     onEditTask={openEditTask}
                   />
                 </Suspense>
@@ -632,6 +656,7 @@ export default function App() {
               <MiniCelebration
                 key={miniCeleb.key || miniCeleb}
                 origin={miniCeleb}
+                playSound={false}
                 onDone={clearMiniCeleb}
               />
             </Suspense>

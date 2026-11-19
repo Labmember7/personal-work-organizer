@@ -56,9 +56,19 @@ function argVal(a: Node, vars: Record<string, Value>): Value {
 
 export type { Diagnostic, Value, Node, EvalContext } from "./expr";
 
+const AST_CACHE_LIMIT = 256;
+const astCache = new Map<string, Node | null>();
+
 export function parse(source: string): Node | null {
+  if (astCache.has(source)) return astCache.get(source) ?? null;
   const res = exprParse(source);
-  return res.ok ? res.ast : null;
+  const ast = res.ok ? res.ast : null;
+  if (astCache.size >= AST_CACHE_LIMIT) {
+    const firstKey = astCache.keys().next().value;
+    if (firstKey !== undefined) astCache.delete(firstKey);
+  }
+  astCache.set(source, ast);
+  return ast;
 }
 
 /** Equivalent historique : rend la valeur (pas l'objet {value, warnings}). */

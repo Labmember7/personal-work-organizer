@@ -9,7 +9,7 @@ const PAGE_SIZE = 6;
 
 // Vue liste : tâches triées/filtrées par l'appelant, paginées ici.
 // `resetKey` ramène en page 1 quand filtres, recherche ou tri changent.
-export function TaskList({ tasks, resetKey, rowProps, emptyLabel }) {
+export const TaskList = React.memo(function TaskList({ tasks, resetKey, rowProps, emptyLabel }) {
   const { t } = useLang();
   const { page, setPage, totalPages, pageItems } = usePagination(tasks, PAGE_SIZE, resetKey);
 
@@ -24,4 +24,4 @@ export function TaskList({ tasks, resetKey, rowProps, emptyLabel }) {
       <Pagination page={page} totalPages={totalPages} onChange={setPage} />
     </div>
   );
-}
+});

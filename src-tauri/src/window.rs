@@ -1,12 +1,43 @@
 use parking_lot::Mutex;
 #[cfg(target_os = "linux")]
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter, LogicalPosition, Manager, Position, WebviewWindow, Window};
+use tauri::{
+    AppHandle, Emitter, LogicalPosition, Manager, Position, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, Window,
+};
 
 static PET_DRAG_ORIGIN: Mutex<Option<(f64, f64, f64, f64)>> = Mutex::new(None);
 static PET_WINDOW_SIZE: Mutex<(f64, f64)> = Mutex::new((96.0, 104.0));
 #[cfg(target_os = "linux")]
 static PET_LEAVE_WIRED: AtomicBool = AtomicBool::new(false);
+
+/// Crée la fenêtre compagnon paresseusement à la première minimisation, sur son
+/// entrée dédiée légère `pet.html` (zéro RAM/CPU consommés au démarrage).
+fn ensure_pet_window(app: &AppHandle) -> Option<WebviewWindow> {
+    if let Some(existing) = app.get_webview_window("pet") {
+        return Some(existing);
+    }
+
+    #[cfg(target_os = "linux")]
+    PET_LEAVE_WIRED.store(false, Ordering::SeqCst);
+
+    WebviewWindowBuilder::new(app, "pet", WebviewUrl::App("pet.html".into()))
+        .title("Companion")
+        .inner_size(96.0, 104.0)
+        .min_inner_size(52.0, 64.0)
+        .center()
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .resizable(false)
+        .maximizable(false)
+        .always_on_top(true)
+        .visible_on_all_workspaces(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .build()
+        .ok()
+}
 
 /// Réapplique les attributs « toujours au premier plan » et « tous les bureaux »
 /// sur la fenêtre compagnon (utile après mapping/déplacement sous Linux et Windows).
@@ -193,12 +224,13 @@ pub fn window_is_maximized(window: Window) -> bool {
 
 #[tauri::command]
 pub fn pet_show(app: AppHandle) {
-    if let Some(pet_win) = app.get_webview_window("pet") {
+    if let Some(pet_win) = ensure_pet_window(&app) {
         let (cur_w, cur_h) = *PET_WINDOW_SIZE.lock();
         apply_pet_size(&pet_win, cur_w, cur_h);
         enforce_pet_topmost(&pet_win);
         center_pet_on_screen(&app, &pet_win, cur_w, cur_h);
         let _ = pet_win.show();
+        let _ = pet_win.emit("pet:visibility", true);
         apply_pet_size(&pet_win, cur_w, cur_h);
         enforce_pet_topmost(&pet_win);
         center_pet_on_screen(&app, &pet_win, cur_w, cur_h);
@@ -209,6 +241,7 @@ pub fn pet_show(app: AppHandle) {
 pub fn pet_hide(app: AppHandle) {
     *PET_DRAG_ORIGIN.lock() = None;
     if let Some(pet_win) = app.get_webview_window("pet") {
+        let _ = pet_win.emit("pet:visibility", false);
         let _ = pet_win.hide();
     }
 }
@@ -217,6 +250,7 @@ pub fn pet_hide(app: AppHandle) {
 pub fn pet_restore_main(app: AppHandle) {
     *PET_DRAG_ORIGIN.lock() = None;
     if let Some(pet_win) = app.get_webview_window("pet") {
+        let _ = pet_win.emit("pet:visibility", false);
         let _ = pet_win.hide();
     }
     if let Some(main_win) = app.get_webview_window("main") {

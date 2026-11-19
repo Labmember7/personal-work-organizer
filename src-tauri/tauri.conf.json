@@ -24,25 +24,6 @@
         "shadow": true,
         "dragDropEnabled": false,
         "backgroundColor": "#10141A"
-      },
-      {
-        "label": "pet",
-        "title": "Companion",
-        "url": "index.html#pet",
-        "width": 96,
-        "height": 104,
-        "minWidth": 52,
-        "minHeight": 64,
-        "center": true,
-        "decorations": false,
-        "transparent": true,
-        "shadow": false,
-        "resizable": false,
-        "maximizable": false,
-        "alwaysOnTop": true,
-        "visibleOnAllWorkspaces": true,
-        "skipTaskbar": true,
-        "visible": false
       }
     ],
     "security": {

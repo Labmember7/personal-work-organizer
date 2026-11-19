@@ -139,22 +139,77 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
   // focus. Sans effet hors mode sticky (classe posée inconditionnellement).
   const boilTier = elapsed >= 20 ? 3 : elapsed >= 5 ? 2 : 1;
 
+  // Nettoyage garanti de l'état .over si le drag quitte la zone, est lâché
+  // ailleurs ou annulé (Echap) : n'attache aucun écouteur au repos.
+  useEffect(() => {
+    if (!over) return;
+    const clear = () => setOver(false);
+    const onWinDragOver = (e) => {
+      if (zoneRef.current && e.target instanceof Node && !zoneRef.current.contains(e.target)) {
+        setOver(false);
+      }
+    };
+    const onWinDrop = (e) => {
+      if (!zoneRef.current || !(e.target instanceof Node) || !zoneRef.current.contains(e.target)) {
+        setOver(false);
+      }
+    };
+    window.addEventListener("dragover", onWinDragOver, { capture: true, passive: true });
+    window.addEventListener("drop", onWinDrop, { capture: true });
+    window.addEventListener("dragend", clear, { capture: true });
+    return () => {
+      window.removeEventListener("dragover", onWinDragOver, { capture: true });
+      window.removeEventListener("drop", onWinDrop, { capture: true });
+      window.removeEventListener("dragend", clear, { capture: true });
+    };
+  }, [over]);
+
+  const isExternalDrag = (e) => {
+    const types = e.dataTransfer?.types ? Array.from(e.dataTransfer.types) : [];
+    return !types.includes(FOCUS_DRAG_TYPE);
+  };
+
   const dndProps = {
+    onDragEnter: (e) => {
+      e.preventDefault();
+      if (isExternalDrag(e) && !over) setOver(true);
+    },
     onDragOver: (e) => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
       // La tâche déjà focalisée peut être relâchée dans la zone (annulation)
       // sans déclencher le halo d'accueil.
-      const isSelf = Array.from(e.dataTransfer.types).includes(FOCUS_DRAG_TYPE);
-      if (!isSelf && !over) setOver(true);
+      if (isExternalDrag(e) && !over) setOver(true);
     },
     onDragLeave: (e) => {
-      if (!e.currentTarget.contains(e.relatedTarget)) setOver(false);
+      if (e.currentTarget.contains(e.relatedTarget)) return;
+      // Sur WebKitGTK / Chromium, dragleave peut se déclencher avec
+      // relatedTarget === null pendant le reflow d'ouverture ou le survol d'un
+      // enfant alors que le pointeur reste DANS la zone. Vérifie la géométrie
+      // réelle quand les coordonnées sont fournies (hors événements synthétiques 0,0).
+      const hasCoords =
+        Number.isFinite(e.clientX) &&
+        Number.isFinite(e.clientY) &&
+        (e.clientX !== 0 || e.clientY !== 0);
+      if (hasCoords) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          e.clientX > rect.left &&
+          e.clientX < rect.right &&
+          e.clientY > rect.top &&
+          e.clientY < rect.bottom
+        ) {
+          return;
+        }
+      }
+      setOver(false);
     },
     onDrop: (e) => {
       e.preventDefault();
       setOver(false);
-      const id = e.dataTransfer.getData("text/plain");
+      const id = e.dataTransfer?.getData("text/plain");
       if (id) {
         onDropTask(id);
         setReduced(false);
@@ -165,6 +220,7 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
   if (reduced) {
     return (
       <div
+        ref={zoneRef}
         className={
           "trk-focus-zone trk-focus-reduced" +
           (task ? " occupied" : "") +

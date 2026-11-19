@@ -36,9 +36,13 @@ type Unlisten = () => void;
 
 export const PET_WINDOW_HASH = "#pet";
 
-/** Vrai dans la fenêtre du pet (même bundle, chargé avec le hash #pet). */
+/** Vrai dans la fenêtre du pet (entrée dédiée pet.html ou fallback #pet). */
 export function isPetWindow(): boolean {
-  return typeof window !== "undefined" && window.location.hash === PET_WINDOW_HASH;
+  if (typeof window === "undefined") return false;
+  return (
+    window.location.hash === PET_WINDOW_HASH ||
+    window.location.pathname.endsWith("/pet.html")
+  );
 }
 
 // Abonnement Tauri synchrone côté appelant : `listen` est asynchrone, on
@@ -137,6 +141,10 @@ export const desktopPet = {
   },
   onPointerLeft(cb: () => void): Unlisten {
     if (isTauri()) return tauriListen<null>("pet:pointer-left", () => cb());
+    return noop;
+  },
+  onVisibilityChanged(cb: (visible: boolean) => void): Unlisten {
+    if (isTauri()) return tauriListen<boolean>("pet:visibility", cb);
     return noop;
   },
 };

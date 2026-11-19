@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { Project, Task, TaskDraft, TaskType, TimeLog } from "../../lib/types";
 import { isTaskDone, statusesForTask, STATUSES, SIMPLE_STATUSES } from "../../lib/statuses";
 import { uid } from "../../lib/uid";
@@ -275,12 +275,21 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     );
   }, [saveTasks]);
 
-  return {
-    loading, tasks, projects, saveError,
-    tasksRef, projectsRef,
-    saveTasks, saveProjects, saveBoth,
-    upsertTask, deleteTask, archiveTask, unarchiveTask, moveTask,
-    addTimeLog, editTimeLog, deleteTimeLog,
-    canUndo, canRedo, undo, redo,
-  };
+  return useMemo(
+    () => ({
+      loading, tasks, projects, saveError,
+      tasksRef, projectsRef,
+      saveTasks, saveProjects, saveBoth,
+      upsertTask, deleteTask, archiveTask, unarchiveTask, moveTask,
+      addTimeLog, editTimeLog, deleteTimeLog,
+      canUndo, canRedo, undo, redo,
+    }),
+    [
+      loading, tasks, projects, saveError,
+      saveTasks, saveProjects, saveBoth,
+      upsertTask, deleteTask, archiveTask, unarchiveTask, moveTask,
+      addTimeLog, editTimeLog, deleteTimeLog,
+      canUndo, canRedo, undo, redo,
+    ]
+  );
 }

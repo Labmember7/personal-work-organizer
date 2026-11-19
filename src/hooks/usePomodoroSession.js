@@ -1,21 +1,54 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { playAppleChime, playHapticTick, playPhaseSwitchChime } from "../lib/audioFx";
 import { createUnthrottledInterval } from "../lib/timerWorker.js";
 import { PRESETS } from "../components/DynamicIsland/PomodoroTimer.jsx";
 
+export function formatPomodoroTime(totalSec) {
+  const sec = Math.max(0, Math.floor(totalSec));
+  const mins = Math.floor(sec / 60);
+  const secs = sec % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
 // Chronomètre Pomodoro partagé : une seule instance dans App, consommée par
 // la Dynamic Island ET par le pet flottant du bureau (fenêtre réduite).
-// `activePreset` porte la session en cours ; `viewedPreset` permet d'inspecter
-// d'autres durées sans arrêter ni réinitialiser un timer déjà démarré.
-export function usePomodoroSession({ onMoodChange } = {}) {
+// Lorsque `trackTimeInState` vaut `false` (cas de App.jsx), le décompte par
+// seconde est diffusé via `subscribeTick`/`getTimeLeft` sans re-rendre toute
+// l'application à chaque seconde — seuls les afficheurs numériques abonnés
+// via `usePomodoroTimeLeft` se mettent à jour.
+export function usePomodoroSession({ onMoodChange, trackTimeInState = true } = {}) {
   const [timerSubTab, setTimerSubTab] = useState("pomodoro"); // "pomodoro" | "flipclock"
   const [activePreset, setActivePreset] = useState(PRESETS[0]);
   const [viewedPreset, setViewedPreset] = useState(PRESETS[0]);
   const [phase, setPhase] = useState("focus"); // "focus" | "rest"
-  const [timeLeft, setTimeLeft] = useState(PRESETS[0].focus);
+  const [timeLeftState, setTimeLeftState] = useState(PRESETS[0].focus);
   const [isRunning, setIsRunning] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [cycleCount, setCycleCount] = useState(1);
+  const [hasStarted, setHasStarted] = useState(false);
+
+  const timeLeftRef = useRef(PRESETS[0].focus);
+  const tickListenersRef = useRef(new Set());
+
+  const notifyTick = useCallback((nextSec, forceState = false) => {
+    const prev = timeLeftRef.current;
+    timeLeftRef.current = nextSec;
+    if (trackTimeInState || forceState) {
+      setTimeLeftState(nextSec);
+    }
+    if (prev !== nextSec || forceState) {
+      tickListenersRef.current.forEach((cb) => cb());
+    }
+  }, [trackTimeInState]);
+
+  const subscribeTick = useCallback((cb) => {
+    tickListenersRef.current.add(cb);
+    return () => {
+      tickListenersRef.current.delete(cb);
+    };
+  }, []);
+
+  const getTimeLeft = useCallback(() => timeLeftRef.current, []);
 
   const moodRef = useRef(onMoodChange);
   moodRef.current = onMoodChange;
@@ -24,25 +57,24 @@ export function usePomodoroSession({ onMoodChange } = {}) {
   const soundRef = useRef(soundEnabled);
   soundRef.current = soundEnabled;
 
-  // Horodatage de fin de phase : le décompte est calculé depuis l'horloge
-  // (pas par décrément) via un Web Worker non bridé, donc il reste exact
-  // même lorsque la fenêtre principale est réduite.
   const endsAtRef = useRef(null);
 
   const totalPhaseSec = phase === "focus" ? activePreset.focus : activePreset.rest;
-  const isPomoActive = isRunning || phase !== "focus" || timeLeft < totalPhaseSec;
+  const isPomoActive = isRunning || phase !== "focus" || hasStarted || timeLeftState < totalPhaseSec;
   const isPomoActiveRef = useRef(isPomoActive);
   isPomoActiveRef.current = isPomoActive;
 
   useEffect(() => {
     if (!isRunning) return;
-    if (!endsAtRef.current) endsAtRef.current = Date.now() + timeLeft * 1000;
+    if (!endsAtRef.current) endsAtRef.current = Date.now() + timeLeftRef.current * 1000;
 
     const ticker = createUnthrottledInterval(() => {
       if (!endsAtRef.current) return;
       const remaining = Math.ceil((endsAtRef.current - Date.now()) / 1000);
       if (remaining > 0) {
-        setTimeLeft(remaining);
+        if (remaining !== timeLeftRef.current) {
+          notifyTick(remaining, false);
+        }
         return;
       }
       const nextPhase = phase === "focus" ? "rest" : "focus";
@@ -56,14 +88,12 @@ export function usePomodoroSession({ onMoodChange } = {}) {
 
       endsAtRef.current = Date.now() + nextDuration * 1000;
       setPhase(nextPhase);
-      setTimeLeft(nextDuration);
+      notifyTick(nextDuration, true);
       emitMood(nextPhase === "focus" ? "focused" : "happy");
     }, 250);
 
     return () => ticker.clear();
-    // timeLeft volontairement absent : seul l'horodatage pilote le décompte.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRunning, phase, activePreset]);
+  }, [isRunning, phase, activePreset, notifyTick]);
 
   const selectPreset = useCallback(
     (newPreset) => {
@@ -73,15 +103,14 @@ export function usePomodoroSession({ onMoodChange } = {}) {
         setActivePreset(newPreset);
         setViewedPreset(newPreset);
         setPhase("focus");
-        setTimeLeft(newPreset.focus);
+        setHasStarted(false);
+        notifyTick(newPreset.focus, true);
         setIsRunning(false);
         return;
       }
-      // Un timer est déjà démarré : changer d'option bascule uniquement
-      // l'aperçu sans jamais arrêter ni réinitialiser la session active.
       setViewedPreset(newPreset);
     },
-    []
+    [notifyTick]
   );
 
   const returnToActivePreset = useCallback(() => {
@@ -93,12 +122,19 @@ export function usePomodoroSession({ onMoodChange } = {}) {
       if (e && typeof e.stopPropagation === "function") e.stopPropagation();
       if (soundRef.current) playHapticTick();
       const next = !isRunning;
-      endsAtRef.current = next ? Date.now() + timeLeft * 1000 : null;
-      if (next) isPomoActiveRef.current = true;
+      const curTimeLeft = timeLeftRef.current;
+      endsAtRef.current = next ? Date.now() + curTimeLeft * 1000 : null;
+      if (next) {
+        isPomoActiveRef.current = true;
+        setHasStarted(true);
+      } else {
+        // Synchronise l'état statique lors d'une pause pour le pet / re-montages
+        setTimeLeftState(curTimeLeft);
+      }
       setIsRunning(next);
       emitMood(next ? (phase === "focus" ? "focused" : "happy") : "normal");
     },
-    [isRunning, timeLeft, phase]
+    [isRunning, phase]
   );
 
   const startViewedPreset = useCallback(
@@ -111,13 +147,14 @@ export function usePomodoroSession({ onMoodChange } = {}) {
       if (soundRef.current) playHapticTick();
       endsAtRef.current = Date.now() + viewedPreset.focus * 1000;
       isPomoActiveRef.current = true;
+      setHasStarted(true);
       setActivePreset(viewedPreset);
       setPhase("focus");
-      setTimeLeft(viewedPreset.focus);
+      notifyTick(viewedPreset.focus, true);
       setIsRunning(true);
       emitMood("focused");
     },
-    [viewedPreset, activePreset, togglePlay]
+    [viewedPreset, activePreset, togglePlay, notifyTick]
   );
 
   const skipPhase = useCallback(() => {
@@ -127,56 +164,93 @@ export function usePomodoroSession({ onMoodChange } = {}) {
     if (nextPhase === "focus") setCycleCount((c) => c + 1);
     endsAtRef.current = isRunning ? Date.now() + nextDuration * 1000 : null;
     isPomoActiveRef.current = isRunning || nextPhase !== "focus";
+    setHasStarted(isRunning || nextPhase !== "focus");
     setPhase(nextPhase);
-    setTimeLeft(nextDuration);
+    notifyTick(nextDuration, true);
     setViewedPreset(activePreset);
     emitMood(nextPhase === "focus" ? "focused" : "happy");
-  }, [phase, activePreset, isRunning]);
+  }, [phase, activePreset, isRunning, notifyTick]);
 
   const reset = useCallback(() => {
     if (soundRef.current) playHapticTick();
     endsAtRef.current = null;
     isPomoActiveRef.current = false;
+    setHasStarted(false);
     setIsRunning(false);
     setPhase("focus");
-    setTimeLeft(activePreset.focus);
+    notifyTick(activePreset.focus, true);
     setViewedPreset(activePreset);
     emitMood("normal");
-  }, [activePreset]);
+  }, [activePreset, notifyTick]);
 
   const toggleSound = useCallback(() => {
     playHapticTick();
     setSoundEnabled((s) => !s);
   }, []);
 
-  const mins = Math.floor(timeLeft / 60);
-  const secs = timeLeft % 60;
-  const timeFormatted = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  const timeFormatted = formatPomodoroTime(timeLeftState);
+  const progressPercent = Math.min(100, Math.max(0, ((totalPhaseSec - timeLeftState) / totalPhaseSec) * 100));
+  const endsAt = isRunning ? endsAtRef.current : null;
 
-  const progressPercent = Math.min(100, Math.max(0, ((totalPhaseSec - timeLeft) / totalPhaseSec) * 100));
+  return useMemo(
+    () => ({
+      preset: viewedPreset,
+      activePreset,
+      isViewingOtherPreset: viewedPreset.id !== activePreset.id,
+      phase,
+      timeLeft: timeLeftState,
+      isRunning,
+      soundEnabled,
+      cycleCount,
+      timerSubTab,
+      timeFormatted,
+      progressPercent,
+      isPomoActive,
+      totalPhaseSec,
+      endsAt,
+      subscribeTick,
+      getTimeLeft,
+      setTimerSubTab,
+      selectPreset,
+      returnToActivePreset,
+      startViewedPreset,
+      togglePlay,
+      skipPhase,
+      reset,
+      toggleSound,
+    }),
+    [
+      viewedPreset,
+      activePreset,
+      phase,
+      timeLeftState,
+      isRunning,
+      soundEnabled,
+      cycleCount,
+      timerSubTab,
+      timeFormatted,
+      progressPercent,
+      isPomoActive,
+      totalPhaseSec,
+      endsAt,
+      subscribeTick,
+      getTimeLeft,
+      selectPreset,
+      returnToActivePreset,
+      startViewedPreset,
+      togglePlay,
+      skipPhase,
+      reset,
+      toggleSound,
+    ]
+  );
+}
 
-  return {
-    preset: viewedPreset,
-    activePreset,
-    isViewingOtherPreset: viewedPreset.id !== activePreset.id,
-    phase,
-    timeLeft,
-    isRunning,
-    soundEnabled,
-    cycleCount,
-    timerSubTab,
-    timeFormatted,
-    progressPercent,
-    isPomoActive,
-    totalPhaseSec,
-    endsAt: isRunning ? endsAtRef.current : null,
-    setTimerSubTab,
-    selectPreset,
-    returnToActivePreset,
-    startViewedPreset,
-    togglePlay,
-    skipPhase,
-    reset,
-    toggleSound,
-  };
+const noopSubscribe = () => () => {};
+
+/** S'abonne au décompte seconde par seconde sans re-rendre les parents. */
+export function usePomodoroTimeLeft(session) {
+  const subscribe = session?.subscribeTick || noopSubscribe;
+  const getSnapshot = session?.getTimeLeft || (() => session?.timeLeft ?? 0);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

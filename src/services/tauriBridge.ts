@@ -49,8 +49,8 @@ export function initTauriBridge(): void {
 
   window.images = {
     save: async (buffer: ArrayBuffer) => {
-      const bytes = Array.from(new Uint8Array(buffer));
-      return invoke<{ url: string; width: number; height: number }>("images_save", { buffer: bytes });
+      // Charge utile binaire brute Tauri v2 (évite de sérialiser 5 Mo en tableau JSON de nombres)
+      return invoke<{ url: string; width: number; height: number }>("images_save", new Uint8Array(buffer));
     },
     prune: async (usedFiles: string[]) => {
       return invoke<{ removed: number }>("images_prune", { usedFiles });
@@ -69,12 +69,15 @@ export function initTauriBridge(): void {
     },
     onReload: (callback: (payload: { id: string }) => void) => {
       let unlisten: (() => void) | undefined;
+      let cancelled = false;
       listen<{ id: string }>("host:reload", (event) => {
         callback(event.payload);
       }).then((u) => {
-        unlisten = u;
+        if (cancelled) u();
+        else unlisten = u;
       });
       return () => {
+        cancelled = true;
         if (unlisten) unlisten();
       };
     },
@@ -111,6 +114,7 @@ export function initTauriBridge(): void {
     },
     onMaximizedChanged: (cb: (isMaximized: boolean) => void) => {
       let unlisten: (() => void) | undefined;
+      let cancelled = false;
       let resizeTimer: ReturnType<typeof setTimeout> | null = null;
       let lastMax: boolean | null = null;
 
@@ -120,7 +124,7 @@ export function initTauriBridge(): void {
           resizeTimer = setTimeout(async () => {
             try {
               const max = await invoke<boolean>("window_is_maximized").catch(() => appWindow.isMaximized());
-              if (max !== lastMax) {
+              if (!cancelled && max !== lastMax) {
                 lastMax = max;
                 cb(max);
               }
@@ -130,9 +134,11 @@ export function initTauriBridge(): void {
           }, 80);
         })
         .then((u) => {
-          unlisten = u;
+          if (cancelled) u();
+          else unlisten = u;
         });
       return () => {
+        cancelled = true;
         if (resizeTimer) clearTimeout(resizeTimer);
         if (unlisten) unlisten();
       };

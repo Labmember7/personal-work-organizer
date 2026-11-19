@@ -130,5 +130,66 @@ describe("FocusZone (Drag & Drop Task Tracking)", () => {
     fireEvent.dragEnd(taskBtn, { clientX: 100, clientY: 100 });
     expect(onRelease).toHaveBeenCalled();
   });
+
+  it("ignore les dragleave parasites tant que le pointeur reste dans la zone et nettoie en sortie", () => {
+    const { container } = renderZone();
+    const zone = container.querySelector(".trk-focus-zone");
+    expect(zone).toBeTruthy();
+
+    vi.spyOn(zone, "getBoundingClientRect").mockReturnValue({
+      left: 700,
+      top: 500,
+      right: 1010,
+      bottom: 650,
+      width: 310,
+      height: 150,
+      x: 700,
+      y: 500,
+      toJSON: () => {},
+    });
+
+    fireEvent.dragEnter(zone, {
+      clientX: 850,
+      clientY: 575,
+      dataTransfer: { types: ["text/plain"], dropEffect: "move" },
+    });
+    expect(zone.classList.contains("over")).toBe(true);
+
+    // Dragleave parasite (relatedTarget === null) alors que le curseur est toujours dedans
+    fireEvent(
+      zone,
+      new MouseEvent("dragleave", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 860,
+        clientY: 580,
+        relatedTarget: null,
+      })
+    );
+    expect(zone.classList.contains("over")).toBe(true);
+
+    // Sortie réelle hors du rectangle de la zone
+    fireEvent(
+      zone,
+      new MouseEvent("dragleave", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 650,
+        clientY: 580,
+        relatedTarget: null,
+      })
+    );
+    expect(zone.classList.contains("over")).toBe(false);
+
+    // Nettoyage global si le drag est annulé ailleurs (dragend)
+    fireEvent.dragOver(zone, {
+      clientX: 850,
+      clientY: 575,
+      dataTransfer: { types: ["text/plain"], dropEffect: "move" },
+    });
+    expect(zone.classList.contains("over")).toBe(true);
+    fireEvent.dragEnd(window);
+    expect(zone.classList.contains("over")).toBe(false);
+  });
 });
 

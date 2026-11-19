@@ -5,6 +5,5 @@ export * from "./lib/statuses";
 export * from "./lib/time";
 export * from "./lib/search";
 export * from "./lib/colors";
-export * from "./lib/markdown";
 export * from "./lib/backup";
 export * from "./lib/uid";

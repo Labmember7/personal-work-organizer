@@ -3,7 +3,7 @@ import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { Select } from "../../components/Select.jsx";
 import { Search, X } from "lucide-react";
 import { useLang } from "../../i18n.jsx";
-import { PRIORITIES, taskMatchesQuery } from "../../utils";
+import { PRIORITIES, compileSearchTerms, taskMatchesTerms } from "../../utils";
 import { usePagination } from "../../hooks/usePagination";
 import { Pagination } from "../../components/Pagination.jsx";
 import { KanbanCard } from "./KanbanCard.jsx";
@@ -18,10 +18,13 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   isOver,
   setOverCol,
   dragId,
+  dragIdRef,
   setDragId,
   onMove,
   endDrag,
   justMovedId,
+  confirmId,
+  confirmAction,
   cardProps,
 }) {
   const { t } = useLang();
@@ -32,10 +35,11 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   const hasActiveFilter = Boolean(query) || Boolean(prio);
   const showTools = toolsOpen || hasActiveFilter;
 
-  const visible = useMemo(
-    () => tasks.filter((tk) => (!prio || tk.priorite === prio) && taskMatchesQuery(tk, query)),
-    [tasks, query, prio]
-  );
+  const visible = useMemo(() => {
+    const terms = compileSearchTerms(query);
+    if (!prio && terms.length === 0) return tasks;
+    return tasks.filter((tk) => (!prio || tk.priorite === prio) && taskMatchesTerms(tk, terms));
+  }, [tasks, query, prio]);
   const { page, setPage, totalPages, pageItems } = usePagination(
     visible, KANBAN_PAGE_SIZE, `${query}|${prio}`
   );
@@ -54,7 +58,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
       }}
       onDrop={(e) => {
         e.preventDefault();
-        const id = e.dataTransfer.getData("text/plain") || dragId;
+        const id = e.dataTransfer.getData("text/plain") || dragId || dragIdRef?.current;
         const hasCoords = typeof e.clientX === "number" && typeof e.clientY === "number" && !isNaN(e.clientX) && !isNaN(e.clientY) && (e.clientX > 0 || e.clientY > 0);
         const origin = hasCoords ? { x: e.clientX, y: e.clientY } : undefined;
         if (id) {
@@ -118,6 +122,8 @@ export const KanbanColumn = React.memo(function KanbanColumn({
             justMoved={justMovedId === task.id}
             onDragStart={setDragId}
             onDragEnd={endDrag}
+            confirmId={confirmId === task.id ? confirmId : null}
+            confirmAction={confirmId === task.id ? confirmAction : null}
             {...cardProps}
           />
         ))}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { desktopPet, desktopPetSupported } from "../../services/desktopPet";
 
 /**
@@ -8,7 +8,7 @@ import { desktopPet, desktopPetSupported } from "../../services/desktopPet";
  * la fenêtre transparente du pet de bureau au-dessus de la barre des tâches
  * et synchronise en temps réel les données de tâche et de timer.
  */
-export function DesktopPetSync({
+export const DesktopPetSync = React.memo(function DesktopPetSync({
   enabled = true,
   focusTask,
   focusStartedAt,
@@ -22,7 +22,14 @@ export function DesktopPetSync({
   const pomodoroRef = useRef(pomodoro);
   pomodoroRef.current = pomodoro;
 
-  // Construction de l'état actuel à envoyer au pet
+  // Construction de l'état actuel à envoyer au pet (le décompte lui-même est
+  // calculé localement dans DesktopPetWindow depuis `endsAt`, donc aucun envoi
+  // IPC par seconde n'est nécessaire).
+  const currentTimeLeft =
+    typeof pomodoro?.getTimeLeft === "function"
+      ? pomodoro.getTimeLeft()
+      : (pomodoro?.timeLeft ?? 1500);
+
   const currentState = {
     petDna,
     theme: theme || "dark",
@@ -38,7 +45,7 @@ export function DesktopPetSync({
     pomo: pomodoro
       ? {
           phase: pomodoro.phase || "focus",
-          timeLeft: pomodoro.timeLeft ?? 1500,
+          timeLeft: currentTimeLeft,
           total: pomodoro.totalPhaseSec || 1500,
           isRunning: Boolean(pomodoro.isRunning),
           isPomoActive: Boolean(pomodoro.isPomoActive),
@@ -119,7 +126,7 @@ export function DesktopPetSync({
     }
   }, [shouldShow, isMainMinimized, enabled]);
 
-  // Diffusion continue de l'état quand le pet est affiché
+  // Diffusion de l'état uniquement sur transition (pas sur chaque tick de 1s)
   useEffect(() => {
     if (!desktopPetSupported() || !shouldShow) return;
     if (stateRef.current) desktopPet.sendState(stateRef.current);
@@ -129,7 +136,6 @@ export function DesktopPetSync({
     focusTask?.projet,
     focusStartedAt,
     pomodoro?.phase,
-    pomodoro?.timeLeft,
     pomodoro?.isRunning,
     pomodoro?.isPomoActive,
     pomodoro?.totalPhaseSec,
@@ -139,4 +145,4 @@ export function DesktopPetSync({
   ]);
 
   return null;
-}
+});

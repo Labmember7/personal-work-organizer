@@ -110,9 +110,10 @@ export function drawPetHead(px, fillBox, ox, oy, petDna, opts) {
     activeQuirk = null,
     quirkProgress = 0,
     reduceMotion = false,
+    palette = null,
   } = opts;
 
-  const c = resolveHeadPalette(petDna);
+  const c = palette || resolveHeadPalette(petDna);
   const antennaType = petDna?.antennaType || "pulse_beacon";
   const earType = petDna?.earType || "equalizer";
   const eyeShape = petDna?.eyeShape || "classic_square";
@@ -421,9 +422,9 @@ export function drawPetHead(px, fillBox, ox, oy, petDna, opts) {
 /**
  * Particules et glyphes animés reflétant la personnalité de chaque pet.
  */
-export function drawQuirkEffects(px, fillBox, ox, oy, petDna, activeQuirk, p, fullBody = false) {
+export function drawQuirkEffects(px, fillBox, ox, oy, petDna, activeQuirk, p, fullBody = false, palette = null) {
   if (!activeQuirk || p <= 0 || p >= 1) return;
-  const c = resolveHeadPalette(petDna);
+  const c = palette || resolveHeadPalette(petDna);
   const rise = Math.round(p * 6);
   const spread = fullBody ? 5 : 0;
 

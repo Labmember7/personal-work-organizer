@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -29,16 +30,32 @@ const injectCsp = () => ({
   },
 });
 
+// Les webviews Tauri (WebKitGTK, WKWebView, WebView2) supportent tous WOFF2 :
+// supprimer le repli .woff évite d'embarquer 16 fichiers de police doublons.
+const stripLegacyWoff = () => ({
+  name: "strip-legacy-woff",
+  enforce: "pre",
+  transform(code, id) {
+    if (!id.includes("@fontsource") || !id.endsWith(".css")) return null;
+    const next = code.replace(/,\s*url\([^)]+\.woff\)\s*format\(['"]woff['"]\)/g, "");
+    return next === code ? null : { code: next, map: null };
+  },
+});
+
 export default defineConfig({
-  plugins: [react(), injectCsp()],
+  plugins: [react(), injectCsp(), stripLegacyWoff()],
   base: "./",
   optimizeDeps: {
-    // Limite la pré-analyse Vite à l'entrée principale (évite de scanner
+    // Limite la pré-analyse Vite aux deux entrées de l'app (évite de scanner
     // plugins/**/index.html dont l'importmap "trk:sdk" est servi à l'exécution).
-    entries: ["index.html"],
+    entries: ["index.html", "pet.html"],
   },
   build: {
     rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        pet: resolve(__dirname, "pet.html"),
+      },
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
@@ -48,13 +65,12 @@ export default defineConfig({
             if (id.includes("@tiptap") || id.includes("prosemirror")) {
               return "vendor-editor";
             }
-            if (id.includes("lucide-react")) {
-              return "vendor-icons";
-            }
             if (id.includes("dompurify") || id.includes("turndown") || id.includes("marked")) {
               return "vendor-markdown";
             }
-            return "vendor";
+            if (id.includes("react-dom") || id.includes("react/")) {
+              return "vendor-react";
+            }
           }
         },
       },

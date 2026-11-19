@@ -57,19 +57,10 @@
 .trk-app.sticky .trk-kanban-col-header {
   border-bottom: 2px dashed color-mix(in srgb, var(--col-color, var(--border)) 50%, transparent);
 }
-@keyframes trk-sticky-hover-glow {
-  0%, 100% {
-    box-shadow: inset 0 0 0 2px var(--col-color, var(--accent)),
-      0 0 12px color-mix(in srgb, var(--col-color, var(--accent)) 35%, transparent);
-  }
-  50% {
-    box-shadow: inset 0 0 0 3px var(--col-color, var(--accent)),
-      0 0 22px color-mix(in srgb, var(--col-color, var(--accent)) 55%, transparent);
-  }
-}
 .trk-app.sticky .trk-kanban-col.drag-over {
   background: color-mix(in srgb, var(--col-color, var(--accent)) 12%, var(--panel));
-  animation: trk-sticky-hover-glow 0.9s ease-in-out infinite;
+  box-shadow: inset 0 0 0 2.5px var(--col-color, var(--accent)),
+    0 0 16px color-mix(in srgb, var(--col-color, var(--accent)) 42%, transparent);
 }
 
 /* ── Post-it : fond papier + encre toujours lisible ──
@@ -177,9 +168,7 @@
       color-mix(in srgb, var(--note-color, var(--accent)) 24%, transparent) 0%,
       transparent 62%
     ),
-    rgba(var(--pot-scrim), var(--pot-card-a));
-  backdrop-filter: blur(7px) saturate(1.25) brightness(var(--pot-clamp));
-  -webkit-backdrop-filter: blur(7px) saturate(1.25) brightness(var(--pot-clamp));
+    rgba(var(--pot-scrim), calc(var(--pot-card-a) + 0.14));
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.3),
     0 0 18px -4px color-mix(in srgb, var(--rail-color, var(--accent)) 55%, transparent),
@@ -364,11 +353,6 @@
       var(--pot-metal-mid) 55%,
       var(--pot-metal-dark) 100%
     );
-  /* Métal translucide (« verre givré ») : laisse deviner le fond de l'appli
-     derrière plutôt qu'un bloc de couleur plaqué, donc se fond naturellement
-     dans n'importe quel thème/motif au lieu d'y être étranger. */
-  backdrop-filter: blur(9px) saturate(1.15);
-  -webkit-backdrop-filter: blur(9px) saturate(1.15);
   /* Les deux « joues » latérales (copies décalées de la silhouette, jadis
      -13px/13px 6px 0 -10px) sont retirées : leur arc de fond, réduit de 10px par
      le spread, ne suivait pas celui de la cuve et laissait deux languettes de
@@ -552,9 +536,7 @@
 /* Le placeholder vide (marmite froide) : même verre que la note submergée,
    sans le voile de projet — sans plaque, son texte serait posé à même l'eau. */
 .trk-app.sticky .trk-focus-empty {
-  background: rgba(var(--pot-scrim), var(--pot-card-a));
-  backdrop-filter: blur(7px) brightness(var(--pot-clamp));
-  -webkit-backdrop-filter: blur(7px) brightness(var(--pot-clamp));
+  background: rgba(var(--pot-scrim), calc(var(--pot-card-a) + 0.14));
   border-color: color-mix(in srgb, var(--pot-ink) 30%, transparent);
   color: var(--pot-ink);
 }
@@ -805,16 +787,15 @@
   top: var(--pot-surface, 26px);
   bottom: -20%;
   background:
-    radial-gradient(38% 26% at 28% 34%, var(--pot-edge), transparent 62%),
-    radial-gradient(30% 20% at 72% 62%, var(--pot-edge), transparent 66%),
-    radial-gradient(24% 16% at 48% 84%, var(--pot-edge), transparent 68%);
-  opacity: 0.5;
-  filter: blur(6px);
+    radial-gradient(42% 30% at 28% 34%, var(--pot-edge), transparent 68%),
+    radial-gradient(34% 24% at 72% 62%, var(--pot-edge), transparent 72%),
+    radial-gradient(28% 20% at 48% 84%, var(--pot-edge), transparent 74%);
+  opacity: 0.45;
   animation: trk-pot-caustics calc(var(--boil-dur, 3.4s) * 2.6) ease-in-out infinite;
 }
 @keyframes trk-pot-caustics {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.35; }
-  50% { transform: translate(8px, -6px) scale(1.12); opacity: 0.6; }
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.35; }
+  50% { transform: translate3d(8px, -6px, 0) scale(1.12); opacity: 0.6; }
 }
 /* Bulles d'avant-plan : plus grosses et plus floues que celles du fond — la
    parallaxe de taille/netteté est ce qui place la note ENTRE les deux plans. */
@@ -824,7 +805,6 @@
   height: 7px;
   background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.25) 62%, transparent 72%);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
-  filter: blur(0.4px);
   animation: trk-pot-bubble-rise calc(var(--boil-dur, 3.4s) * 1.25) ease-in infinite;
 }
 .trk-app.sticky .trk-bubble-front.f1 { left: 22%; animation-delay: 0.25s; animation-duration: calc(var(--boil-dur, 3.4s) * 1.45); --rise: -150px; --drift: -8px; }
@@ -955,7 +935,6 @@
   margin-left: -48px;
   border-radius: 50%;
   background: radial-gradient(closest-side, rgba(255, 148, 46, 0.55), rgba(214, 60, 12, 0.22) 58%, transparent 78%);
-  filter: blur(3px);
   animation: trk-ember-glow calc(var(--boil-dur, 1.3s) * 1.6) ease-in-out infinite;
 }
 .trk-app.sticky .trk-pot-fire::after {
@@ -968,7 +947,6 @@
   margin-left: -22px;
   border-radius: 50%;
   background: radial-gradient(closest-side, #ffd23c, #e2560f 62%, transparent);
-  filter: blur(1.5px);
   animation: trk-ember-glow calc(var(--boil-dur, 1.3s) * 0.9) ease-in-out infinite;
 }
 @keyframes trk-ember-glow {
@@ -986,7 +964,7 @@
   height: 48px;
   margin-left: -18px;
   background: linear-gradient(200deg, #ff9a2e 0%, #ff5b1f 55%, #c62a0c 100%);
-  filter: drop-shadow(0 0 9px rgba(255, 122, 26, 0.6));
+  box-shadow: 0 0 10px rgba(255, 122, 26, 0.55);
   animation: trk-flame-back var(--boil-dur, 1.3s) ease-in-out infinite;
 }
 .trk-app.sticky .trk-flame-mid {
@@ -1027,10 +1005,7 @@
   filter: grayscale(0.6);
 }
 
-/* Fumée existante : plus dense/visible en mode sticky (même mécanique). */
-.trk-app.sticky .trk-focus-smoke i {
-  filter: blur(0.5px);
-}
+/* Fumée existante : plus dense/visible en mode sticky (100% GPU sans filter blur). */
 .trk-app.sticky .trk-focus-smoke i:nth-child(1) { --size: 24px; --peak: 0.62; }
 .trk-app.sticky .trk-focus-smoke i:nth-child(2) { --size: 32px; --peak: 0.68; }
 .trk-app.sticky .trk-focus-smoke i:nth-child(3) { --size: 21px; --peak: 0.58; }
@@ -1140,49 +1115,25 @@
   border-radius: 50%;
 }
 
-/* ── Braise qui court le long du bord ──
-   Le seul élément animé de la note : un dégradé conique dont l'angle tourne,
-   masqué pour ne laisser que le liseré (mask content-box exclude) — d'où une
-   braise unique qui fait le tour du papier en 4,8 s, la respiration de la
-   marmite. Rien ne déborde de la note : ni la liste ni la colonne kanban
-   (toutes deux en overflow auto) n'ont de quoi rogner.
-   @supports : sans mask-composite, le dégradé couvrirait toute la note — on
-   s'en tient alors au liseré fixe. */
-@property --trk-ember-a {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
+/* ── Halo de braise GPU-only (remplace conic-gradient @property animé sur CPU) ── */
+.trk-app.sticky .trk-task-row.trk-focused::after,
+.trk-app.sticky .trk-kanban-card.trk-focused::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 1.5px solid var(--note-ember-hi);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--note-ember) 45%, transparent);
+  will-change: opacity;
+  transform: translateZ(0);
+  animation: trk-focus-glow-pulse 4.2s ease-in-out infinite;
 }
-@keyframes trk-ember-run { to { --trk-ember-a: 360deg; } }
-@supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+@media (prefers-reduced-motion: reduce) {
   .trk-app.sticky .trk-task-row.trk-focused::after,
   .trk-app.sticky .trk-kanban-card.trk-focused::after {
-    content: "";
-    position: absolute;
-    inset: -2.5px;
-    z-index: -1;
-    border-radius: inherit;
-    padding: 2.5px;
-    pointer-events: none;
-    background: conic-gradient(from var(--trk-ember-a),
-      transparent 0deg 252deg,
-      color-mix(in srgb, var(--note-ember) 30%, transparent) 306deg,
-      var(--note-ember) 338deg,
-      var(--note-ember-hi) 351deg,
-      #fff4dc 357deg,
-      transparent 360deg);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    animation: trk-ember-run 4.8s linear infinite;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .trk-app.sticky .trk-task-row.trk-focused::after,
-    .trk-app.sticky .trk-kanban-card.trk-focused::after {
-      /* Braise figée sur le bord haut : le point chaud reste, la course part. */
-      --trk-ember-a: 200deg;
-      animation: none;
-    }
+    animation: none;
+    opacity: 0.85;
   }
 }

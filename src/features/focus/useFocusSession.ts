@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { Task, TimeLog } from "../../lib/types";
 import { isTaskDone, isSimpleTask, statusesForTask } from "../../lib/statuses";
 import { focusMinutes } from "../../lib/time";
@@ -103,37 +103,84 @@ export function useFocusSession({ loading, tasks, tasksRef, saveTasks, moveTask,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTask]);
 
-  const focusOnTask = (id: string) => {
+  const focusIdRef = useRef(focusId);
+  focusIdRef.current = focusId;
+  const focusTaskRef = useRef(focusTask);
+  focusTaskRef.current = focusTask;
+  const focusLeavingRef = useRef(focusLeaving);
+  focusLeavingRef.current = focusLeaving;
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  const focusOnTask = useCallback((id: string) => {
     const task = tasksRef.current.find((tk) => tk.id === id);
-    if (!task || isTaskDone(task) || focusLeaving || id === focusId) return;
+    if (!task || isTaskDone(task) || focusLeavingRef.current || id === focusIdRef.current) return;
     // Échange : le temps de la tâche sortante est pointé avant de la remplacer.
-    if (focusId && focusStartedAt) saveTasks(logFocusTime(tasksRef.current, focusId, focusStartedAt));
+    const prevId = focusIdRef.current;
+    const prevStart = focusStartedAtRef.current;
+    if (prevId && prevStart) {
+      const minutes = focusMinutes(prevStart, Date.now());
+      if (minutes >= 1) {
+        const entry: TimeLog = {
+          id: uid(),
+          minutes,
+          note: tRef.current("focus_log_note"),
+          date: new Date().toISOString().slice(0, 10),
+        };
+        saveTasks(
+          tasksRef.current.map((tk) =>
+            tk.id === prevId ? { ...tk, timeLogs: [...(tk.timeLogs || []), entry] } : tk
+          )
+        );
+      }
+    }
     setFocusId(id);
     setFocusStartedAt(Date.now());
     setFocusEnterKey((k) => k + 1);
-  };
+  }, [tasksRef, saveTasks, setFocusId, setFocusStartedAt]);
 
   // Tâche simple : passe directement à « done ». Tâche workflow : avance
   // d'un seul statut (la sortie n'a lieu qu'en atteignant « terminé »).
-  const advanceFocusTask = () => {
-    if (!focusTask) return;
-    const seq = statusesForTask(focusTask);
-    const idx = seq.findIndex((s) => s.id === focusTask.statut);
-    const nextId = isSimpleTask(focusTask)
+  const advanceFocusTask = useCallback(() => {
+    const curTask = focusTaskRef.current;
+    if (!curTask) return;
+    const seq = statusesForTask(curTask);
+    const idx = seq.findIndex((s) => s.id === curTask.statut);
+    const nextId = isSimpleTask(curTask)
       ? "done"
       : seq[Math.min(idx + 1, seq.length - 1)]!.id;
-    moveTask(focusTask.id, nextId);
-  };
+    moveTask(curTask.id, nextId);
+  }, [moveTask]);
 
-  const releaseFocus = () => {
-    if (focusId && focusStartedAt) saveTasks(logFocusTime(tasksRef.current, focusId, focusStartedAt));
+  const releaseFocus = useCallback(() => {
+    const prevId = focusIdRef.current;
+    const prevStart = focusStartedAtRef.current;
+    if (prevId && prevStart) {
+      const minutes = focusMinutes(prevStart, Date.now());
+      if (minutes >= 1) {
+        const entry: TimeLog = {
+          id: uid(),
+          minutes,
+          note: tRef.current("focus_log_note"),
+          date: new Date().toISOString().slice(0, 10),
+        };
+        saveTasks(
+          tasksRef.current.map((tk) =>
+            tk.id === prevId ? { ...tk, timeLogs: [...(tk.timeLogs || []), entry] } : tk
+          )
+        );
+      }
+    }
     setFocusId(null);
     setFocusStartedAt(null);
     setFocusLeaving(false);
-  };
+  }, [tasksRef, saveTasks, setFocusId, setFocusStartedAt]);
 
-  return {
-    focusId, focusStartedAt, focusTask, focusLeaving, focusEnterKey,
-    focusOnTask, advanceFocusTask, releaseFocus,
-  };
+  return useMemo(
+    () => ({
+      focusId, focusStartedAt, focusTask, focusLeaving, focusEnterKey,
+      focusOnTask, advanceFocusTask, releaseFocus,
+    }),
+    [focusId, focusStartedAt, focusTask, focusLeaving, focusEnterKey, focusOnTask, advanceFocusTask, releaseFocus]
+  );
 }

@@ -7,6 +7,7 @@ import { useLang } from "../../i18n.jsx";
 import { CHART_STATUSES, isTaskDone, formatDuration, projectColor } from "../../utils";
 import { ChartCard } from "../../components/ChartCard.jsx";
 import { GanttChart } from "./GanttChart.jsx";
+import { useChartData } from "./useChartData";
 
 const pct = (n, total) => (total ? `${Math.round((n / total) * 100)}%` : "0%");
 
@@ -18,12 +19,13 @@ const tooltipStyle = {
 
 // Les quatre graphiques de synthèse + le Gantt, chacun dans une ChartCard
 // (agrandissable en modal avec tableau de détails).
-export const ChartsSection = React.memo(function ChartsSection({ tasks, projects, chartData, onEditTask }) {
+export const ChartsSection = React.memo(function ChartsSection({ tasks, projects, chartData: providedChartData, onEditTask }) {
   const { t } = useLang();
+  const computedChartData = useChartData(tasks, projects);
   const {
     statusDistribution, perProjectStacked, projectTimeDistribution,
     priorityDistribution, projectProgress,
-  } = chartData;
+  } = providedChartData || computedChartData;
 
   return (
     <>
@@ -46,7 +48,7 @@ export const ChartsSection = React.memo(function ChartsSection({ tasks, projects
                 <Pie
                   data={statusDistribution} dataKey="value" nameKey="name"
                   innerRadius={focused ? 85 : 45} outerRadius={focused ? 135 : 70}
-                  paddingAngle={2} label={focused}
+                  paddingAngle={2} label={focused} isAnimationActive={false}
                 >
                   {statusDistribution.map((d, i) => <Cell key={i} fill={d.color} stroke="none" />)}
                 </Pie>
@@ -80,7 +82,7 @@ export const ChartsSection = React.memo(function ChartsSection({ tasks, projects
                 <Tooltip contentStyle={tooltipStyle.contentStyle} labelStyle={tooltipStyle.labelStyle} />
                 {focused && <Legend wrapperStyle={{ fontSize: 11 }} />}
                 {CHART_STATUSES.map((s) => (
-                  <Bar key={s.id} dataKey={s.id} name={t(`status_${s.id}`)} stackId="a" fill={s.color} />
+                  <Bar key={s.id} dataKey={s.id} name={t(`status_${s.id}`)} stackId="a" fill={s.color} isAnimationActive={false} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
@@ -103,7 +105,7 @@ export const ChartsSection = React.memo(function ChartsSection({ tasks, projects
                 <XAxis dataKey="name" tick={{ fill: "var(--text-dim)", fontSize: 11 }} />
                 <YAxis tick={{ fill: "var(--text-dim)", fontSize: 11 }} allowDecimals={false} />
                 <Tooltip {...tooltipStyle} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                   {priorityDistribution.map((d, i) => <Cell key={i} fill={d.fill} />)}
                 </Bar>
               </BarChart>
@@ -143,7 +145,7 @@ export const ChartsSection = React.memo(function ChartsSection({ tasks, projects
                   {...tooltipStyle}
                   formatter={(value) => [formatDuration(value), t("time_tooltip")]}
                 />
-                <Bar dataKey="minutes" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="minutes" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                   {projectTimeDistribution.map((d, i) => (
                     <Cell key={i} fill={projectColor(d.projet)} />
                   ))}

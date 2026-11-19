@@ -1,8 +1,22 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLang } from "../../i18n.jsx";
 
+// Formatters Intl mis en cache (évite d'allouer un Intl.DateTimeFormat chaque seconde)
+const DATE_FORMATTERS = {
+  fr: new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" }),
+  en: new Intl.DateTimeFormat("en-US", { weekday: "short", day: "numeric", month: "short" }),
+};
+const MONTH_DAY_FORMATTERS = {
+  fr: new Intl.DateTimeFormat("fr-FR", { month: "short", day: "numeric" }),
+  en: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }),
+};
+const WEEKDAY_FORMATTERS = {
+  fr: new Intl.DateTimeFormat("fr-FR", { weekday: "long" }),
+  en: new Intl.DateTimeFormat("en-US", { weekday: "long" }),
+};
+
 // Tuile Flip mécanique individuelle avec volet 3D et cadrage parfait (zéro décalage vertical)
-export function FlipDigit({ value, size = "compact" }) {
+export const FlipDigit = React.memo(function FlipDigit({ value, size = "compact" }) {
   const [currentVal, setCurrentVal] = useState(value);
   const [prevVal, setPrevVal] = useState(value);
   const [isFlipping, setIsFlipping] = useState(false);
@@ -21,20 +35,16 @@ export function FlipDigit({ value, size = "compact" }) {
 
   return (
     <div className={`trk-flip-tile ${size}`}>
-      {/* Ligne médiane de rainure mécanique */}
       <div className="trk-flip-tile-divider" />
 
-      {/* Demi-tuile supérieure statique */}
       <div className="trk-flip-tile-half top">
         <span className="trk-flip-num">{currentVal}</span>
       </div>
 
-      {/* Demi-tuile inférieure statique */}
       <div className="trk-flip-tile-half bottom">
         <span className="trk-flip-num">{isFlipping ? prevVal : currentVal}</span>
       </div>
 
-      {/* Volets 3D en rotation mécanique */}
       {isFlipping && (
         <>
           <div className="trk-flip-tile-flap flap-top">
@@ -49,55 +59,63 @@ export function FlipDigit({ value, size = "compact" }) {
       )}
     </div>
   );
-}
+});
 
-// Horloge compacte ultra-nette pour l'encoche (gauche)
-export function DigitalClock({ className = "" }) {
+// Horloge compacte ultra-nette pour l'encoche (gauche), mise en veille fenêtre cachée
+export const DigitalClock = React.memo(function DigitalClock({ className = "" }) {
   const { lang } = useLang();
   const [time, setTime] = useState(() => new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      setTime(new Date());
+    };
+    const timer = setInterval(tick, 1000);
+    const onVis = () => {
+      if (!document.hidden) setTime(new Date());
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   const hours24 = String(time.getHours()).padStart(2, "0");
   const minutes = String(time.getMinutes()).padStart(2, "0");
   const seconds = String(time.getSeconds()).padStart(2, "0");
+  const dayKey = `${time.getFullYear()}-${time.getMonth()}-${time.getDate()}`;
 
-  const dateStr = time.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+  const dateStr = useMemo(
+    () => (DATE_FORMATTERS[lang] || DATE_FORMATTERS.fr).format(time),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lang, dayKey]
+  );
 
   return (
     <div
       className={"trk-clean-flip-clock " + className}
       title={`${dateStr} · ${hours24}:${minutes}:${seconds}`}
     >
-      {/* Tuile Heures */}
       <FlipDigit value={hours24} size="compact" />
-
-      {/* Deux points séparateurs */}
       <span className="trk-flip-colon">:</span>
-
-      {/* Tuile Minutes */}
       <FlipDigit value={minutes} size="compact" />
-
-      {/* Micro-secondes nettes */}
       <span className="trk-flip-sec-badge trk-mono">{seconds}</span>
     </div>
   );
-}
+});
 
 // Grande Horloge Flip mécanique complète (design haut de gamme avec date, jour, AM/PM et secondes)
-export function LargeFlipClock() {
+export const LargeFlipClock = React.memo(function LargeFlipClock() {
   const { lang } = useLang();
   const [time, setTime] = useState(() => new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
+    const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      setTime(new Date());
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -108,32 +126,33 @@ export function LargeFlipClock() {
   const minutesStr = String(time.getMinutes()).padStart(2, "0");
   const secondsStr = String(time.getSeconds()).padStart(2, "0");
   const ampm = isPM ? "PM" : "AM";
+  const dayKey = `${time.getFullYear()}-${time.getMonth()}-${time.getDate()}`;
 
-  const monthDay = time.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
-    month: "short",
-    day: "numeric",
-  });
+  const monthDay = useMemo(
+    () => (MONTH_DAY_FORMATTERS[lang] || MONTH_DAY_FORMATTERS.fr).format(time),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lang, dayKey]
+  );
 
-  const weekday = time.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
-    weekday: "long",
-  });
+  const weekday = useMemo(
+    () => (WEEKDAY_FORMATTERS[lang] || WEEKDAY_FORMATTERS.fr).format(time),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lang, dayKey]
+  );
 
   return (
     <div className="trk-large-flip-clock">
-      {/* Carte Heures avec Mois/Jour (haut-gauche) et AM/PM (bas-gauche) */}
       <div className="trk-large-flip-card">
         <span className="trk-large-card-label top-left">{monthDay}</span>
         <FlipDigit value={hoursStr} size="large" />
         <span className="trk-large-card-label bottom-left trk-mono">{ampm}</span>
       </div>
 
-      {/* Séparateur mécanique subtil */}
       <div className="trk-large-flip-sep" aria-hidden="true">
         <span />
         <span />
       </div>
 
-      {/* Carte Minutes avec Jour (haut-droite) et Secondes (bas-droite) */}
       <div className="trk-large-flip-card">
         <span className="trk-large-card-label top-right">{weekday}</span>
         <FlipDigit value={minutesStr} size="large" />
@@ -141,4 +160,4 @@ export function LargeFlipClock() {
       </div>
     </div>
   );
-}
+});

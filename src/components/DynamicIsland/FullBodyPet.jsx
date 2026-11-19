@@ -9,28 +9,30 @@ import {
 } from "../../lib/petAnimation";
 
 // Compagnon Cyber-Agent 2.5D Pixel-Art Full-Body.
-// Parité visuelle et chromatique totale avec PixelHelper (Dynamic Island) :
-// même tête ADN, mêmes couleurs anodisées et animations de caractère uniques.
+// Parité visuelle et chromatique totale avec PixelHelper (Dynamic Island),
+// avec suspension totale hors écran (`active === false` ou `document.hidden`)
+// et plafonnement ~20 FPS suffisant pour du pixel-art 52×64.
 
 const VIRTUAL_W = 52;
 const VIRTUAL_H = 64;
+const FRAME_MS = 50;
 
-export function FullBodyPet({
+export const FullBodyPet = React.memo(function FullBodyPet({
   size = 110,
   className = "",
   mood = "normal", // "normal" | "happy" | "focused" | "love" | "sleepy" | "visor" | "radar" | "eating"
   onClick,
   dna = null,
   showNativeTooltip = true,
+  active = true,
 }) {
   const canvasRef = useRef(null);
   const [currentMood, setCurrentMood] = useState(mood);
   const [isHovered, setIsHovered] = useState(false);
   const [bounceActive, setBounceActive] = useState(false);
 
-  const petDna = useMemo(() => {
-    return dna || getOrCreatePetDna();
-  }, [dna]);
+  const petDna = useMemo(() => dna || getOrCreatePetDna(), [dna]);
+  const palette = useMemo(() => resolveHeadPalette(petDna), [petDna]);
 
   const animState = useRef({
     targetGazeX: 0,
@@ -39,10 +41,12 @@ export function FullBodyPet({
     currentGazeY: 0,
     blinkProgress: 0,
     isBlinking: false,
+    blinkStartTime: 0,
     lastBlink: 0,
     nextBlinkInterval: 3200,
     lastInteraction: 0,
     bounceProgress: 0,
+    bounceStartTime: 0,
     bouncing: false,
     scanPos: 0,
     munchFrame: 0,
@@ -65,8 +69,9 @@ export function FullBodyPet({
     animState.current.lastInteraction = Date.now();
   }, [mood]);
 
-  // Suivi de curseur global fluide
+  // Suivi de curseur actif uniquement quand la fenêtre du pet est visible
   useEffect(() => {
+    if (!active) return undefined;
     let cachedCenter = null;
     let rafId = null;
 
@@ -118,20 +123,22 @@ export function FullBodyPet({
       window.removeEventListener("resize", updateCenter);
       window.removeEventListener("mousemove", onMouseMove);
     };
-  }, []);
+  }, [active]);
 
-  // Détection d'inactivité -> mode endormi après 45s
+  // Détection d'inactivité -> mode endormi après 45s (uniquement si visible)
   useEffect(() => {
+    if (!active || currentMood !== "normal") return undefined;
     const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       const idleTime = Date.now() - animState.current.lastInteraction;
-      if (idleTime > 45000 && currentMood === "normal") {
+      if (idleTime > 45000) {
         setCurrentMood("sleepy");
       }
-    }, 4000);
+    }, 5000);
     return () => clearInterval(timer);
-  }, [currentMood]);
+  }, [active, currentMood]);
 
-  // Boucle de rendu haute définition 60fps
+  // Boucle de rendu pixel-art 20 FPS, totalement suspendue quand cachée ou en reduced-motion
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -142,9 +149,48 @@ export function FullBodyPet({
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
-    let rafId;
+    let rafId = null;
+    let lastDraw = 0;
+    let pxScaleX = 1;
+    let pxScaleY = 1;
+    const c = palette;
 
-    const render = (time) => {
+    const px = (x, y, color) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(
+        Math.floor(x * pxScaleX),
+        Math.floor(y * pxScaleY),
+        Math.ceil(pxScaleX),
+        Math.ceil(pxScaleY)
+      );
+    };
+
+    const fillBox = (x, y, w, h, color) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(
+        Math.floor(x * pxScaleX),
+        Math.floor(y * pxScaleY),
+        Math.ceil(w * pxScaleX),
+        Math.ceil(h * pxScaleY)
+      );
+    };
+
+    const drawFoot = (fx, baseY) => {
+      fillBox(fx, baseY + 38, 5, 7, "#020610");
+      fillBox(fx + 1, baseY + 39, 3, 5, c.chassisMid);
+      fillBox(fx + 1, baseY + 39, 3, 1, c.chassisDark);
+      fillBox(fx + 1, baseY + 43, 3, 1, c.neon);
+    };
+
+    const drawArm = (ax, ay, activeGlow) => {
+      fillBox(ax + 1, ay, 3, 9, "#020610");
+      fillBox(ax, ay + 1, 5, 7, "#020610");
+      fillBox(ax + 1, ay + 1, 3, 7, c.chassisMid);
+      fillBox(ax + 1, ay + 1, 3, 2, c.chassisLight);
+      fillBox(ax + 1, ay + 6, 3, 2, activeGlow ? c.antenna : c.neon);
+    };
+
+    const drawFrame = (time) => {
       const s = animState.current;
 
       const dpr = typeof window !== "undefined" ? Math.max(1, window.devicePixelRatio || 1) : 1;
@@ -159,17 +205,18 @@ export function FullBodyPet({
         canvas.height = physicalH;
       }
 
-      const pxScaleX = physicalW / VIRTUAL_W;
-      const pxScaleY = physicalH / VIRTUAL_H;
+      pxScaleX = physicalW / VIRTUAL_W;
+      pxScaleY = physicalH / VIRTUAL_H;
 
-      s.currentGazeX += (s.targetGazeX - s.currentGazeX) * 0.16;
-      s.currentGazeY += (s.targetGazeY - s.currentGazeY) * 0.16;
+      s.currentGazeX += (s.targetGazeX - s.currentGazeX) * 0.24;
+      s.currentGazeY += (s.targetGazeY - s.currentGazeY) * 0.24;
 
       s.scanPos = reduceMotion ? 8 : (time * 0.018) % 16;
       s.munchFrame = reduceMotion ? 0 : Math.floor(time * 0.006) % 4;
 
+      const now = Date.now();
       if (s.bouncing) {
-        const bounceElapsed = Date.now() - s.bounceStartTime;
+        const bounceElapsed = now - s.bounceStartTime;
         if (bounceElapsed < 300) {
           const p = bounceElapsed / 300;
           s.bounceProgress = Math.sin(p * Math.PI) * -4.5;
@@ -180,7 +227,6 @@ export function FullBodyPet({
         }
       }
 
-      const now = Date.now();
       if (!s.isBlinking && now - s.lastBlink > s.nextBlinkInterval && currentMood !== "sleepy") {
         s.isBlinking = true;
         s.blinkStartTime = now;
@@ -199,7 +245,6 @@ export function FullBodyPet({
         }
       }
 
-      // Déclenchement périodique de l'animation propre à l'ADN du compagnon
       if (!reduceMotion && currentMood !== "sleepy" && currentMood !== "visor" && currentMood !== "eating") {
         if (!s.activeQuirk && now >= s.nextQuirkAt) {
           const picked = pickNextQuirk(petDna, s.lastQuirk);
@@ -242,28 +287,6 @@ export function FullBodyPet({
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, physicalW, physicalH);
 
-      const px = (x, y, color) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(
-          Math.floor(x * pxScaleX),
-          Math.floor(y * pxScaleY),
-          Math.ceil(pxScaleX),
-          Math.ceil(pxScaleY)
-        );
-      };
-
-      const fillBox = (x, y, w, h, color) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(
-          Math.floor(x * pxScaleX),
-          Math.floor(y * pxScaleY),
-          Math.ceil(w * pxScaleX),
-          Math.ceil(h * pxScaleY)
-        );
-      };
-
-      const c = resolveHeadPalette(petDna);
-
       // ── 0. Ombre portée douce au sol ──
       const shadowY = 56;
       const shadowScale = 1 - (hoverY + 1.5) * 0.045;
@@ -275,21 +298,15 @@ export function FullBodyPet({
       const baseY = Math.round(6 + hoverY);
 
       // ── 1. Pieds cybernétiques compacts avec semelle néon ──
-      const drawFoot = (fx) => {
-        fillBox(fx, baseY + 38, 5, 7, "#020610");
-        fillBox(fx + 1, baseY + 39, 3, 5, c.chassisMid);
-        fillBox(fx + 1, baseY + 39, 3, 1, c.chassisDark);
-        fillBox(fx + 1, baseY + 43, 3, 1, c.neon);
-      };
-      drawFoot(19);
-      drawFoot(28);
+      drawFoot(19, baseY);
+      drawFoot(28, baseY);
 
       // ── 2. Torse cybernétique anodisé assorti au châssis de la tête ──
       fillBox(18, baseY + 26, 16, 13, "#020610");
       fillBox(17, baseY + 27, 18, 11, "#020610");
       fillBox(18, baseY + 27, 16, 11, c.chassisMid);
-      fillBox(19, baseY + 27, 14, 1, c.chassisDark); // Ombre sous la tête
-      fillBox(19, baseY + 28, 14, 1, c.chassisLight); // Reflet supérieur
+      fillBox(19, baseY + 27, 14, 1, c.chassisDark);
+      fillBox(19, baseY + 28, 14, 1, c.chassisLight);
       fillBox(19, baseY + 36, 14, 2, c.chassisDark);
       fillBox(18, baseY + 30, 1, 5, c.neon);
       fillBox(33, baseY + 30, 1, 5, c.neon);
@@ -305,15 +322,6 @@ export function FullBodyPet({
 
       // ── 4. Bras articulés assortis avec manchettes néon ──
       const armSway = reduceMotion ? 0 : Math.sin(time * 0.0028) * 1.0;
-
-      const drawArm = (ax, ay, activeGlow = false) => {
-        fillBox(ax + 1, ay, 3, 9, "#020610");
-        fillBox(ax, ay + 1, 5, 7, "#020610");
-        fillBox(ax + 1, ay + 1, 3, 7, c.chassisMid);
-        fillBox(ax + 1, ay + 1, 3, 2, c.chassisLight);
-        fillBox(ax + 1, ay + 6, 3, 2, activeGlow ? c.antenna : c.neon);
-      };
-
       const armsUp =
         currentMood === "happy" ||
         bounceActive ||
@@ -332,7 +340,7 @@ export function FullBodyPet({
         drawArm(36, baseY + 27 - Math.round(armSway), false);
       }
 
-      // ── 5. Tête identique à PixelHelper (parité ADN & couleurs) ──
+      // ── 5. Tête identique à PixelHelper ──
       drawPetHead(px, fillBox, 8, baseY, petDna, {
         time,
         currentMood,
@@ -345,19 +353,64 @@ export function FullBodyPet({
         activeQuirk: s.activeQuirk,
         quirkProgress,
         reduceMotion,
+        palette,
       });
 
       // ── 6. Particules / Effets de caractère ──
       if (s.activeQuirk && !reduceMotion) {
-        drawQuirkEffects(px, fillBox, 8, baseY, petDna, s.activeQuirk, quirkProgress, true);
+        drawQuirkEffects(px, fillBox, 8, baseY, petDna, s.activeQuirk, quirkProgress, true, palette);
       }
-
-      rafId = requestAnimationFrame(render);
     };
 
-    rafId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(rafId);
-  }, [currentMood, isHovered, size, petDna, bounceActive]);
+    if (!active) {
+      return undefined;
+    }
+
+    // Premier rendu immédiat ; en reduced-motion inutile de boucler
+    drawFrame(typeof performance !== "undefined" ? performance.now() : 0);
+    if (reduceMotion) return undefined;
+
+    const tick = (time) => {
+      if (typeof document !== "undefined" && document.hidden) {
+        rafId = null;
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+      if (lastDraw && time - lastDraw < FRAME_MS) return;
+      lastDraw = time;
+      drawFrame(time);
+    };
+
+    const start = () => {
+      if (rafId === null && !(typeof document !== "undefined" && document.hidden)) {
+        lastDraw = 0;
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      } else {
+        start();
+      }
+    };
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+    start();
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+    };
+  }, [active, currentMood, isHovered, size, petDna, palette, bounceActive]);
 
   const handleClick = (e) => {
     const now = Date.now();
@@ -366,7 +419,6 @@ export function FullBodyPet({
     s.bouncing = true;
     s.bounceStartTime = now;
 
-    // Joue immédiatement une animation de caractère au clic
     const picked = pickNextQuirk(petDna, s.lastQuirk);
     s.activeQuirk = picked.type;
     s.quirkDuration = picked.duration;
@@ -416,4 +468,4 @@ export function FullBodyPet({
       />
     </div>
   );
-}
+});
