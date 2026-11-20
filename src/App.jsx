@@ -179,12 +179,19 @@ export default function App() {
   });
   const toggleStickyMode = useCallback(() => setStickyMode((v) => !v), [setStickyMode]);
 
-  // Charge la police manuscrite Patrick Hand uniquement lorsque le mode sticky est activé.
+  // Charge la feuille sticky.css (52 Ko) et la police Patrick Hand uniquement lorsque le mode sticky est activé.
   useEffect(() => {
     if (!stickyMode) return;
+    void import("./styles/sticky.css");
     void import("@fontsource/patrick-hand/latin-400.css");
     void import("@fontsource/patrick-hand/latin-ext-400.css");
   }, [stickyMode]);
+
+  // Charge les motifs du thème aléatoire uniquement lorsque ce thème est actif.
+  useEffect(() => {
+    if (theme !== "random") return;
+    void import("./styles/random.css");
+  }, [theme]);
 
   const [celebration, setCelebration] = useState(null);
   const [miniCeleb, setMiniCeleb] = useState(null);
@@ -207,11 +214,15 @@ export default function App() {
   const celebrateTaskDone = useCallback((statut, nextTasks, origin) => {
     if (!celebrationsOn) return;
     if (!isDoneStatus(statut)) return;
-    playTaskDoneSound();
-    if (nextTasks.length > 0 && nextTasks.every(isTaskDone)) {
+    const activeNext = nextTasks.filter((tk) => !tk.archived);
+    if (activeNext.length > 0 && activeNext.every(isTaskDone)) {
+      // Marque déjà allDone=true pour empêcher l'effet [allDone] de déclencher
+      // une seconde célébration (et un second son) dans la foulée.
+      prevAllDone.current = true;
       setCelebration(pickCelebrationVariant());
       return;
     }
+    playTaskDoneSound();
     setMiniCeleb({
       key: Date.now(),
       x: origin?.x,
@@ -311,6 +322,34 @@ export default function App() {
   useEffect(() => {
     if (celebration) setMiniCeleb(null);
   }, [celebration]);
+
+  // Précharge le chunk de célébration (et ses sprites lumineux) en temps mort
+  // après le démarrage, pour une ouverture instantanée (0 ms) dès la dernière
+  // tâche terminée.
+  useEffect(() => {
+    if (loading || !celebrationsOn) return undefined;
+    let cancelled = false;
+    const warm = () => {
+      if (cancelled) return;
+      import("./celebration.jsx")
+        .then((m) => {
+          if (!cancelled) m.prewarmCelebration?.();
+        })
+        .catch(() => {});
+    };
+    if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm, { timeout: 2500 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(id);
+      };
+    }
+    const timer = setTimeout(warm, 800);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [loading, celebrationsOn]);
 
   // ── Dérivés ──
   const sortTasks = useCallback(
@@ -461,8 +500,9 @@ export default function App() {
     onDelete: handleDeleteTask,
     onArchive: handleArchiveTask,
     onUnarchive: handleUnarchiveTask,
+    stickyMode,
     ...confirmProps,
-  }), [moveTask, openEditTask, handleDeleteTask, handleArchiveTask, handleUnarchiveTask, confirmProps]);
+  }), [moveTask, openEditTask, handleDeleteTask, handleArchiveTask, handleUnarchiveTask, stickyMode, confirmProps]);
 
   const rowProps = useMemo(() => ({
     onEdit: openEditTask,

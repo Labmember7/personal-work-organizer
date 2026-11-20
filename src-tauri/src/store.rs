@@ -2,7 +2,8 @@ use parking_lot::{Condvar, Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
@@ -33,7 +34,7 @@ pub struct StorageListResult {
 }
 
 pub struct StoreInner {
-    pub cache: HashMap<String, Value>,
+    pub cache: HashMap<String, Arc<Value>>,
     pub file_path: PathBuf,
     pub dirty: bool,
 }
@@ -64,7 +65,7 @@ impl Store {
             if candidate.exists() {
                 if let Ok(content) = fs::read_to_string(candidate) {
                     if let Ok(parsed) = serde_json::from_str::<HashMap<String, Value>>(&content) {
-                        cache = parsed;
+                        cache = parsed.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
                         break;
                     }
                 }
@@ -109,13 +110,13 @@ impl Store {
 
     pub fn get(&self, key: &str) -> Option<Value> {
         let inner = self.inner.read();
-        inner.cache.get(key).cloned()
+        inner.cache.get(key).map(|v| (**v).clone())
     }
 
     pub fn set(&self, key: String, value: Value) {
         {
             let mut inner = self.inner.write();
-            inner.cache.insert(key, value);
+            inner.cache.insert(key, Arc::new(value));
             inner.dirty = true;
         }
         self.schedule_write();
@@ -176,7 +177,7 @@ impl Store {
         }
     }
 
-    fn write_to_disk(file: &Path, cache: &HashMap<String, Value>) {
+    fn write_to_disk(file: &Path, cache: &HashMap<String, Arc<Value>>) {
         let tmp = PathBuf::from(format!("{}.tmp", file.display()));
         let bak = PathBuf::from(format!("{}.bak", file.display()));
 
@@ -184,14 +185,22 @@ impl Store {
             let _ = fs::create_dir_all(parent);
         }
 
-        // JSON compact : plus rapide à sérialiser/relire et plus petit sur disque.
-        if let Ok(json_str) = serde_json::to_string(cache) {
-            if fs::write(&tmp, json_str).is_ok() {
-                if file.exists() {
-                    let _ = fs::copy(file, &bak);
-                }
-                let _ = fs::rename(&tmp, file);
+        // Sérialisation directe en flux vers le fichier temporaire (évite un tampon
+        // String intermédiaire de plusieurs Mo et le clonage profond des valeurs).
+        let wrote_ok = File::create(&tmp)
+            .and_then(|f| {
+                let mut writer = BufWriter::new(f);
+                serde_json::to_writer(&mut writer, cache)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                writer.flush()
+            })
+            .is_ok();
+
+        if wrote_ok {
+            if file.exists() {
+                let _ = fs::copy(file, &bak);
             }
+            let _ = fs::rename(&tmp, file);
         }
     }
 }

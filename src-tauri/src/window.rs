@@ -1,6 +1,8 @@
 use parking_lot::Mutex;
 #[cfg(target_os = "linux")]
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 use tauri::{
     AppHandle, Emitter, LogicalPosition, Manager, Position, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, Window,
@@ -8,6 +10,9 @@ use tauri::{
 
 static PET_DRAG_ORIGIN: Mutex<Option<(f64, f64, f64, f64)>> = Mutex::new(None);
 static PET_WINDOW_SIZE: Mutex<(f64, f64)> = Mutex::new((96.0, 104.0));
+static PET_LAST_POS: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+static PET_HIDE_GEN: AtomicU64 = AtomicU64::new(0);
+const PET_IDLE_DESTROY_SECS: u64 = 45;
 #[cfg(target_os = "linux")]
 static PET_LEAVE_WIRED: AtomicBool = AtomicBool::new(false);
 
@@ -222,18 +227,76 @@ pub fn window_is_maximized(window: Window) -> bool {
     window.is_maximized().unwrap_or(false)
 }
 
+fn save_pet_position(pet_win: &WebviewWindow) {
+    if let Ok(phys_pos) = pet_win.outer_position() {
+        let scale = pet_win.scale_factor().unwrap_or(1.0);
+        let logical = phys_pos.to_logical::<f64>(scale);
+        *PET_LAST_POS.lock() = Some((logical.x, logical.y));
+    }
+}
+
+fn restore_or_center_pet(app: &AppHandle, pet_win: &WebviewWindow, width: f64, height: f64) {
+    if let Some((x, y)) = *PET_LAST_POS.lock() {
+        let _ = pet_win.set_position(Position::Logical(LogicalPosition::new(x, y)));
+        #[cfg(target_os = "linux")]
+        {
+            let win_clone = pet_win.clone();
+            let x_i32 = x.round() as i32;
+            let y_i32 = y.round() as i32;
+            let _ = pet_win.run_on_main_thread(move || {
+                use gtk::prelude::*;
+                if let Ok(gtk_win) = win_clone.gtk_window() {
+                    gtk_win.move_(x_i32, y_i32);
+                }
+            });
+        }
+    } else {
+        center_pet_on_screen(app, pet_win, width, height);
+    }
+}
+
+/// Détruit la WebView secondaire du compagnon après une période d'inactivité
+/// pour libérer 40 à 80 Mo de RAM tant que la fenêtre principale est active.
+fn schedule_pet_idle_destroy(app: &AppHandle) {
+    let gen = PET_HIDE_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let app_clone = app.clone();
+    let _ = std::thread::Builder::new()
+        .name("trk-pet-idle-reaper".into())
+        .spawn(move || {
+            std::thread::sleep(Duration::from_secs(PET_IDLE_DESTROY_SECS));
+            if PET_HIDE_GEN.load(Ordering::SeqCst) != gen {
+                return;
+            }
+            let app_main = app_clone.clone();
+            let _ = app_clone.run_on_main_thread(move || {
+                if PET_HIDE_GEN.load(Ordering::SeqCst) != gen {
+                    return;
+                }
+                if let Some(pet_win) = app_main.get_webview_window("pet") {
+                    if !pet_win.is_visible().unwrap_or(true) {
+                        #[cfg(target_os = "linux")]
+                        PET_LEAVE_WIRED.store(false, Ordering::SeqCst);
+                        let _ = pet_win.destroy();
+                    }
+                }
+            });
+        });
+}
+
 #[tauri::command]
 pub fn pet_show(app: AppHandle) {
+    // Annule toute destruction différée en attente.
+    PET_HIDE_GEN.fetch_add(1, Ordering::SeqCst);
     if let Some(pet_win) = ensure_pet_window(&app) {
         let (cur_w, cur_h) = *PET_WINDOW_SIZE.lock();
         apply_pet_size(&pet_win, cur_w, cur_h);
         enforce_pet_topmost(&pet_win);
-        center_pet_on_screen(&app, &pet_win, cur_w, cur_h);
+        restore_or_center_pet(&app, &pet_win, cur_w, cur_h);
         let _ = pet_win.show();
         let _ = pet_win.emit("pet:visibility", true);
         apply_pet_size(&pet_win, cur_w, cur_h);
         enforce_pet_topmost(&pet_win);
-        center_pet_on_screen(&app, &pet_win, cur_w, cur_h);
+        restore_or_center_pet(&app, &pet_win, cur_w, cur_h);
     }
 }
 
@@ -241,8 +304,23 @@ pub fn pet_show(app: AppHandle) {
 pub fn pet_hide(app: AppHandle) {
     *PET_DRAG_ORIGIN.lock() = None;
     if let Some(pet_win) = app.get_webview_window("pet") {
+        save_pet_position(&pet_win);
         let _ = pet_win.emit("pet:visibility", false);
         let _ = pet_win.hide();
+        schedule_pet_idle_destroy(&app);
+    }
+}
+
+#[tauri::command]
+pub fn pet_destroy(app: AppHandle) {
+    *PET_DRAG_ORIGIN.lock() = None;
+    PET_HIDE_GEN.fetch_add(1, Ordering::SeqCst);
+    if let Some(pet_win) = app.get_webview_window("pet") {
+        save_pet_position(&pet_win);
+        let _ = pet_win.emit("pet:visibility", false);
+        #[cfg(target_os = "linux")]
+        PET_LEAVE_WIRED.store(false, Ordering::SeqCst);
+        let _ = pet_win.destroy();
     }
 }
 
@@ -250,8 +328,10 @@ pub fn pet_hide(app: AppHandle) {
 pub fn pet_restore_main(app: AppHandle) {
     *PET_DRAG_ORIGIN.lock() = None;
     if let Some(pet_win) = app.get_webview_window("pet") {
+        save_pet_position(&pet_win);
         let _ = pet_win.emit("pet:visibility", false);
         let _ = pet_win.hide();
+        schedule_pet_idle_destroy(&app);
     }
     if let Some(main_win) = app.get_webview_window("main") {
         let _ = main_win.unminimize();

@@ -112,11 +112,19 @@ export const LargeFlipClock = React.memo(function LargeFlipClock() {
   const [time, setTime] = useState(() => new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    const tick = () => {
       if (typeof document !== "undefined" && document.hidden) return;
       setTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
+    };
+    const timer = setInterval(tick, 1000);
+    const onVis = () => {
+      if (!document.hidden) setTime(new Date());
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   const rawHours = time.getHours();

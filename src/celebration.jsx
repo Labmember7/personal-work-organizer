@@ -1,4 +1,5 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useLayoutEffect, useRef } from "react";
+import "./styles/celebration.css";
 import { getAudioContext, playTaskDoneSound } from "./lib/audioFx";
 
 // Célébration quand toutes les tâches sont terminées.
@@ -83,14 +84,28 @@ function bell(ctx, dest, { freq, at, dur = 1.6, vol = 0.16 }) {
   tone(ctx, dest, { freq: freq * 2.99, at, dur: dur * 0.35, type: "sine", vol: vol * 0.15 });
 }
 
-// Bruit filtré : sert de montée (riser) ou de cymbale/souffle.
-function noise(ctx, dest, { at, dur, from, to, vol = 0.1, type = "bandpass", q = 1, swell = true }) {
-  const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+// Tampon de bruit blanc partagé (construit une seule fois par AudioContext) :
+// évite d'allouer et remplir 70 000+ échantillons sur le thread principal au
+// lancement d'une célébration.
+let sharedNoiseBuf = null;
+let sharedNoiseRate = 0;
+function getNoiseBuffer(ctx) {
+  const rate = ctx.sampleRate || 44100;
+  if (sharedNoiseBuf && sharedNoiseRate === rate) return sharedNoiseBuf;
+  const len = Math.max(1, Math.floor(rate * 2));
+  const buf = ctx.createBuffer(1, len, rate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  sharedNoiseBuf = buf;
+  sharedNoiseRate = rate;
+  return buf;
+}
+
+// Bruit filtré : sert de montée (riser) ou de cymbale/souffle.
+function noise(ctx, dest, { at, dur, from, to, vol = 0.1, type = "bandpass", q = 1, swell = true }) {
   const src = ctx.createBufferSource();
-  src.buffer = buf;
+  src.buffer = getNoiseBuffer(ctx);
+  src.loop = dur > 2;
   const filter = ctx.createBiquadFilter();
   filter.type = type;
   filter.Q.value = q;
@@ -493,6 +508,13 @@ function getGlowSprite(color) {
   return sprite;
 }
 
+// Pré-chauffe les sprites lumineux en temps mort pour éviter 6 créations de
+// canvas + gradients radiaux sur la toute première frame de célébration.
+export function prewarmCelebration() {
+  if (typeof document === "undefined") return;
+  for (const color of PALETTE) getGlowSprite(color);
+}
+
 function drawParticle(g, p, age) {
   const fade = Math.max(0, 1 - age / p.life);
   g.globalAlpha = fade;
@@ -767,20 +789,6 @@ export function MiniCelebration({ onDone, origin, playSound = true }) {
 
   return (
     <div className="trk-mini-celebration" aria-hidden="true">
-      <style>{`
-        .trk-mini-celebration {
-          position: fixed;
-          inset: 0;
-          z-index: 70;
-          pointer-events: none;
-        }
-        .trk-mini-celebration canvas {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-        }
-      `}</style>
       <canvas ref={canvasRef} />
     </div>
   );
@@ -797,7 +805,7 @@ export function CelebrationOverlay({ variant, legendary, title, subtitle, onDone
   onDoneRef.current = onDone;
   const soundedVariant = useRef(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Idempotent : un seul son par variante, même si l'effet est ré-exécuté.
     if (soundedVariant.current !== variant) {
       soundedVariant.current = variant;
@@ -826,11 +834,22 @@ export function CelebrationOverlay({ variant, legendary, title, subtitle, onDone
 
     if (!reduced) {
       const canvas = canvasRef.current;
-      const g = canvas.getContext("2d");
-      const dpr = window.devicePixelRatio || 1;
+      const g = canvas?.getContext?.("2d");
+      if (!canvas || !g) {
+        return () => {
+          closed = true;
+          clearTimeout(fade);
+          clearTimeout(end);
+        };
+      }
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      let w = canvas.clientWidth || window.innerWidth;
+      let h = canvas.clientHeight || window.innerHeight;
       const resize = () => {
-        canvas.width = canvas.clientWidth * dpr;
-        canvas.height = canvas.clientHeight * dpr;
+        w = canvas.clientWidth || window.innerWidth;
+        h = canvas.clientHeight || window.innerHeight;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
       };
       resize();
       window.addEventListener("resize", resize);
@@ -848,8 +867,6 @@ export function CelebrationOverlay({ variant, legendary, title, subtitle, onDone
         const t = now - start;
         const dt = Math.min(now - last, 50);
         last = now;
-        const w = canvas.clientWidth;
-        const h = canvas.clientHeight;
         anim.spawn(t, dt, add, w, h, state);
 
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -884,114 +901,6 @@ export function CelebrationOverlay({ variant, legendary, title, subtitle, onDone
 
   return (
     <div ref={rootRef} className={"trk-celebration" + (legendary ? " legendary" : "")} aria-hidden="true">
-      <style>{`
-        .trk-celebration {
-          position: fixed;
-          inset: 0;
-          z-index: 80;
-          pointer-events: none;
-          animation: trk-celebration-fade 0.4s ease;
-          opacity: 1;
-          transition: opacity 0.7s ease;
-        }
-        .trk-celebration.closing { opacity: 0; }
-        .trk-celebration.legendary {
-          background: radial-gradient(ellipse at 50% 42%, rgba(255, 216, 107, 0.16), transparent 62%);
-        }
-        .trk-celebration canvas {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-        }
-        @keyframes trk-celebration-fade {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .trk-celebration-msg {
-          position: absolute;
-          left: 50%;
-          top: 42%;
-          transform: translate(-50%, -50%);
-          text-align: center;
-          padding: 34px 70px;
-          animation: trk-celebration-msg-in 0.7s cubic-bezier(0.18, 0.9, 0.3, 1.15) backwards;
-        }
-        /* Voile sombre sous le texte, fondu sur les bords pour la lisibilité. */
-        .trk-celebration-msg::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          z-index: -1;
-          background: radial-gradient(ellipse closest-side,
-            rgba(0, 0, 0, 0.5) 0%,
-            rgba(0, 0, 0, 0.44) 30%,
-            rgba(0, 0, 0, 0.32) 50%,
-            rgba(0, 0, 0, 0.18) 68%,
-            rgba(0, 0, 0, 0.07) 84%,
-            rgba(0, 0, 0, 0) 100%);
-        }
-        .trk-celebration.legendary .trk-celebration-msg {
-          animation-delay: 0.9s;
-          animation-duration: 1s;
-        }
-        @keyframes trk-celebration-msg-in {
-          from { opacity: 0; transform: translate(-50%, -30%) scale(0.82); filter: blur(6px); }
-          to { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
-        }
-        .trk-celebration-title {
-          font-family: 'Space Grotesk', sans-serif;
-          font-size: 32px;
-          font-weight: 700;
-          letter-spacing: 0.5px;
-          color: var(--text);
-          text-shadow: 0 2px 18px var(--shadow);
-          margin: 0;
-        }
-        .trk-celebration-sub {
-          font-family: 'IBM Plex Mono', monospace;
-          font-size: 12px;
-          letter-spacing: 2.5px;
-          color: var(--text-dim);
-          margin: 10px 0 0;
-        }
-        .trk-celebration-ornament {
-          display: none;
-          font-size: 15px;
-          color: #E5C07B;
-          letter-spacing: 6px;
-          margin: 0 0 10px;
-          animation: trk-ornament-glow 2.2s ease-in-out infinite;
-        }
-        .trk-celebration.legendary .trk-celebration-ornament { display: block; }
-        @keyframes trk-ornament-glow {
-          0%, 100% { opacity: 0.55; text-shadow: 0 0 6px rgba(229, 192, 123, 0.4); }
-          50% { opacity: 1; text-shadow: 0 0 18px rgba(255, 216, 107, 0.9); }
-        }
-        .trk-celebration.legendary .trk-celebration-title {
-          font-size: 42px;
-          letter-spacing: 1.5px;
-          background: linear-gradient(100deg, #E8A020, #FFF3C4 30%, #FFD86B 50%, #FFF3C4 70%, #E8A020);
-          background-size: 200% 100%;
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-          animation: trk-gold-shimmer 2.4s linear infinite;
-          text-shadow: none;
-          filter: drop-shadow(0 2px 16px rgba(232, 160, 32, 0.6));
-        }
-        .trk-celebration.legendary .trk-celebration-sub {
-          color: #E5C07B;
-          letter-spacing: 3.5px;
-        }
-        @keyframes trk-gold-shimmer {
-          from { background-position: 200% 0; }
-          to { background-position: -200% 0; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .trk-celebration, .trk-celebration * { animation: none !important; }
-        }
-      `}</style>
       <canvas ref={canvasRef} />
       <div className="trk-celebration-msg">
         <p className="trk-celebration-ornament">✦ ✦ ✦</p>

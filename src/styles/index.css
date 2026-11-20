@@ -1,11 +1,12 @@
 /* Feuilles de style de l'app, dans l'ordre d'origine : l'ordre des @import
-   est significatif (cascade), ne pas le réorganiser sans vérifier. */
+   est significatif (cascade), ne pas le réorganiser sans vérifier.
+   Les feuilles optionnelles ou liées à des modules lazy (charts, gantt,
+   markdown, tips, sticky, random) sont chargées à la demande. */
 @import "./tokens.css";
 @import "./base.css";
 @import "./titlebar.css";
 @import "./header.css";
 @import "./progress.css";
-@import "./tips.css";
 @import "./toast.css";
 @import "./sidebar.css";
 @import "./toolbar.css";
@@ -15,14 +16,9 @@
 @import "./plugins.css";
 @import "./kanban.css";
 @import "./shared.css";
-@import "./charts.css";
-@import "./gantt.css";
 @import "./modal.css";
-@import "./markdown.css";
 @import "./buttons.css";
 @import "./focus.css";
-@import "./random.css";
-@import "./sticky.css";
 @import "./debug.css";
 @import "./island.css";
 @import "./neomorphism.css";

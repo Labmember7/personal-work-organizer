@@ -45,23 +45,23 @@
   transition: border-radius 0.15s ease, background 0.25s ease, color 0.25s ease;
 }
 .trk-app.light {
-  /* Design tokens — light (Albâtre) */
-  --bg: #EFF2F6;
-  --panel: #FFFFFF;
-  --panel-alt: #EDF0F4;
-  --border: #D7DDE5;
-  --text: #1B2430;
-  --text-dim: #5B6675;
-  --accent: #1E8C85;
-  --accent-contrast: #FFFFFF;
-  --inset: #E1E6EC;
-  --gauge-track: #E1E6EC;
-  --titlebar-bg: #E6EAEF;
-  --overlay: rgba(27, 36, 48, 0.45);
-  --shadow: rgba(20, 30, 42, 0.14);
-  --danger: #C23A3A;
-  --warn: #B26B22;
-  --ok: #35855A;
+  /* Design tokens — light (Albâtre chaud & doux) */
+  --bg: #DCD6CC;
+  --panel: #E5DFD5;
+  --panel-alt: #D2CBC0;
+  --border: #C2B9AC;
+  --text: #262320;
+  --text-dim: #564F47;
+  --accent: #1E7C76;
+  --accent-contrast: #F7F3EC;
+  --inset: #CFC8BC;
+  --gauge-track: #CFC8BC;
+  --titlebar-bg: #D5CFC4;
+  --overlay: rgba(38, 35, 32, 0.45);
+  --shadow: rgba(48, 40, 30, 0.14);
+  --danger: #B63E3A;
+  --warn: #9F5D1D;
+  --ok: #2E744E;
   color-scheme: light;
 }
 .trk-app.theme-nebula {
@@ -113,21 +113,21 @@
   color-scheme: dark;
 }
 .trk-app.theme-sand {
-  /* Design tokens — Sable Zen (Cairn d'équilibre) */
-  --bg: #EFEAE0;
-  --panel: #F8F4EC;
-  --panel-alt: #E7E0D3;
-  --border: #D5CBB9;
-  --text: #241F1A;
-  --text-dim: #5F564B;
-  --accent: #A84E2E;
-  --accent-contrast: #FFFFFF;
-  --inset: #E3DBCC;
-  --gauge-track: #E3DBCC;
-  --titlebar-bg: #E8E1D5;
-  --overlay: rgba(36, 31, 26, 0.42);
-  --shadow: rgba(58, 46, 34, 0.14);
-  --ok: #2F7A52;
+  /* Design tokens — Sable Zen (Parchemin chaud) */
+  --bg: #D9CEBE;
+  --panel: #E2D8C9;
+  --panel-alt: #CFC2AF;
+  --border: #BFB09B;
+  --text: #292119;
+  --text-dim: #594D3F;
+  --accent: #9E4728;
+  --accent-contrast: #F7F2EA;
+  --inset: #CBBFA9;
+  --gauge-track: #CBBFA9;
+  --titlebar-bg: #D2C6B5;
+  --overlay: rgba(41, 33, 25, 0.44);
+  --shadow: rgba(62, 46, 30, 0.16);
+  --ok: #2C6F4A;
   color-scheme: light;
 }
 .trk-app.trk-app-maximized {

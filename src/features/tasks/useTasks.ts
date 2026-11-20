@@ -116,7 +116,10 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
     })();
   }, []);
 
-  const persist = useCallback(async (nextTasks: Task[], nextProjects: Project[], syncConfig = false) => {
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPersistRef = useRef<{ tasks: Task[]; projects: Project[]; syncConfig: boolean } | null>(null);
+
+  const persistNow = useCallback(async (nextTasks: Task[], nextProjects: Project[], syncConfig = false) => {
     try {
       const ok = await saveValue(STORAGE_KEY, { tasks: nextTasks, projects: nextProjects });
       setSaveError(!ok);
@@ -131,6 +134,49 @@ export function useTasks({ onTaskDone }: UseTasksOptions = {}): TaskStore {
       }
     }
   }, []);
+
+  const flushPendingPersist = useCallback(() => {
+    if (persistTimerRef.current !== null) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+    const pending = pendingPersistRef.current;
+    if (pending) {
+      pendingPersistRef.current = null;
+      void persistNow(pending.tasks, pending.projects, pending.syncConfig);
+    }
+  }, [persistNow]);
+
+  // Regroupe les mutations rapprochées (ex. rafale de drag/undo) avant sérialisation
+  // IPC, tout en vidant immédiatement sur masquage/fermeture de fenêtre (et sans délai en test).
+  const persist = useCallback((nextTasks: Task[], nextProjects: Project[], syncConfig = false) => {
+    const mode = (import.meta as unknown as { env?: { MODE?: string } }).env?.MODE;
+    if (mode === "test") {
+      void persistNow(nextTasks, nextProjects, syncConfig);
+      return;
+    }
+    const prevSync = pendingPersistRef.current?.syncConfig ?? false;
+    pendingPersistRef.current = {
+      tasks: nextTasks,
+      projects: nextProjects,
+      syncConfig: prevSync || syncConfig,
+    };
+    if (persistTimerRef.current !== null) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(flushPendingPersist, 120);
+  }, [flushPendingPersist, persistNow]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) flushPendingPersist();
+    };
+    window.addEventListener("beforeunload", flushPendingPersist);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("beforeunload", flushPendingPersist);
+      document.removeEventListener("visibilitychange", onVis);
+      flushPendingPersist();
+    };
+  }, [flushPendingPersist]);
 
   // Empile l'état courant avant de le remplacer, pour permettre un undo.
   // Toute nouvelle action invalide la pile de redo (comme un traitement de

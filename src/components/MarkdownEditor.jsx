@@ -1,4 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import "../styles/markdown.css";
 import {
   HelpCircle, Pilcrow, Eye,
   Bold, Italic, Underline, Strikethrough, Heading1, Heading2, Heading3, Quote,

@@ -52,6 +52,7 @@
 .trk-app.sticky .trk-kanban-col {
   background: color-mix(in srgb, var(--col-color, var(--border)) 7%, var(--panel));
   border: none;
+  contain: none;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--col-color, var(--border)) 40%, transparent);
 }
 .trk-app.sticky .trk-kanban-col-header {
@@ -62,6 +63,22 @@
   box-shadow: inset 0 0 0 2.5px var(--col-color, var(--accent)),
     0 0 16px color-mix(in srgb, var(--col-color, var(--accent)) 42%, transparent);
 }
+.trk-app.sticky .trk-kanban-col-body.is-sticky-canvas {
+  position: relative;
+  padding: 0;
+  gap: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.trk-app.sticky .trk-kanban-col-body.is-sticky-canvas .trk-kanban-drop-hint {
+  margin: 14px 12px;
+}
+.trk-app.sticky .trk-sticky-stage {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  flex: 1 0 auto;
+}
 
 /* ── Post-it : fond papier + encre toujours lisible ──
    Redéfinit --text/--text-dim/--accent/--panel-alt localement : tout le
@@ -70,81 +87,172 @@
    actif en dessous. */
 .trk-app.sticky .trk-kanban-card,
 .trk-app.sticky .trk-task-row {
-  --text: #241a10;
-  --text-dim: #6f5a42;
-  --accent: #b5541f;
-  --panel-alt: rgba(59, 42, 26, 0.1);
+  --text: #251c12;
+  --text-dim: #5c4b37;
+  --accent: #a64a1a;
+  --panel-alt: rgba(59, 42, 26, 0.09);
   color: var(--text);
 }
 
-/* ── Cartes kanban : post-it ── */
-.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(3n) { --note-rot: 1.6deg; }
-.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(3n+1) { --note-rot: -1.4deg; }
-.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(3n+2) { --note-rot: 0.8deg; }
+/* ── Cartes kanban : post-it compacts, réalistes et librement posés ── */
+.trk-app.sticky .trk-sticky-stage > .trk-kanban-card:nth-child(4n),
+.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(4n) { --note-rot: 1.4deg; }
+.trk-app.sticky .trk-sticky-stage > .trk-kanban-card:nth-child(4n+1),
+.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(4n+1) { --note-rot: -1.5deg; }
+.trk-app.sticky .trk-sticky-stage > .trk-kanban-card:nth-child(4n+2),
+.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(4n+2) { --note-rot: 0.9deg; }
+.trk-app.sticky .trk-sticky-stage > .trk-kanban-card:nth-child(4n+3),
+.trk-app.sticky .trk-kanban-col-body > .trk-kanban-card:nth-child(4n+3) { --note-rot: -0.7deg; }
 
 .trk-app.sticky .trk-kanban-card {
-  background: color-mix(in srgb, var(--note-color, var(--accent)) 18%, #fffdf0);
-  border: 2px solid var(--rail-color, var(--border));
-  border-left: 2px solid var(--rail-color, var(--border));
-  border-radius: 2px 10px 10px 2px;
-  box-shadow: 2px 4px 8px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  --sticky-w: min(204px, calc(100% - 24px));
+  --paper-base: color-mix(in srgb, var(--note-color, #e5c07b) 22%, #fbf4d7);
+  position: relative;
+  width: var(--sticky-w);
+  min-height: 112px;
+  padding: 22px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  contain: none;
+  background:
+    /* Bande adhésive supérieure (légèrement plus mate/chaude) */
+    linear-gradient(
+      180deg,
+      rgba(110, 82, 34, 0.09) 0px,
+      rgba(110, 82, 34, 0.03) 18px,
+      rgba(110, 82, 34, 0.08) 19px,
+      transparent 20px
+    ),
+    /* Modelé lumineux du papier + légère courbure bas-droite */
+    linear-gradient(
+      148deg,
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(255, 255, 255, 0.08) 42%,
+      rgba(110, 82, 36, 0.09) 100%
+    ),
+    var(--paper-base);
+  border: 1px solid color-mix(in srgb, var(--note-color, #c2ad7c) 32%, rgba(120, 94, 52, 0.24));
+  border-left: 1px solid color-mix(in srgb, var(--note-color, #c2ad7c) 32%, rgba(120, 94, 52, 0.24));
+  border-radius: 2px 2px 4px 2px;
+  box-shadow:
+    0 1px 1px rgba(40, 28, 12, 0.12),
+    2px 6px 12px -2px rgba(40, 28, 12, 0.2),
+    6px 12px 18px -8px rgba(40, 28, 12, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62);
   transform: rotate(var(--note-rot, -1deg));
-  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  transform-origin: 50% 10px;
+  transition:
+    transform 0.22s cubic-bezier(0.32, 1.25, 0.32, 1),
+    box-shadow 0.2s ease,
+    opacity 0.16s ease;
 }
+.trk-app.sticky .trk-kanban-card.trk-sticky-placed {
+  position: absolute;
+  left: calc(12px + (100% - var(--sticky-w) - 24px) * var(--sticky-x, 0));
+  top: var(--sticky-y, 14px);
+}
+/* Punaise 3D posée DANS la bande supérieure (top: 5px) : ne dépasse jamais du
+   bord supérieur et ne peut donc jamais être coupée par la colonne. */
 .trk-app.sticky .trk-kanban-card::before {
   content: "";
   position: absolute;
-  top: -7px;
+  top: 5px;
   left: 50%;
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   transform: translateX(-50%);
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.85), transparent 45%),
-    var(--rail-color, var(--border));
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35);
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.15) 42%, transparent 55%),
+    radial-gradient(circle at 68% 72%, rgba(0, 0, 0, 0.28), transparent 60%),
+    var(--rail-color, var(--accent));
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.14),
+    1.5px 2.5px 3px rgba(32, 20, 8, 0.34);
+  pointer-events: none;
 }
-.trk-app.sticky .trk-kanban-card:hover {
-  transform: rotate(0deg) translateY(-4px) scale(1.03);
-  box-shadow: 4px 10px 18px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+.trk-app.sticky .trk-kanban-card .trk-kanban-card-title {
+  font-size: 14.5px;
+  line-height: 1.22;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+.trk-app.sticky .trk-kanban-card .trk-kanban-card-meta {
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.trk-app.sticky .trk-kanban-card .trk-tag,
+.trk-app.sticky .trk-kanban-card .trk-prio-tag,
+.trk-app.sticky .trk-kanban-card .trk-type-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(59, 42, 26, 0.08);
+  border: 1px solid rgba(59, 42, 26, 0.12);
+}
+.trk-app.sticky .trk-kanban-card .trk-kanban-card-info {
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+}
+.trk-app.sticky .trk-kanban-card:hover,
+.trk-app.sticky .trk-kanban-card:focus-within {
+  z-index: 60 !important;
+  transform: rotate(0deg) translateY(-2px) scale(1.02);
+  box-shadow:
+    0 2px 3px rgba(40, 28, 12, 0.14),
+    4px 10px 20px -4px rgba(40, 28, 12, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+.trk-app.sticky .trk-kanban-card:active {
+  transform: rotate(0deg) scale(0.985);
 }
 .trk-app.sticky .trk-kanban-card.dragging {
-  transform: rotate(var(--note-rot, 0deg)) scale(1.08) translateY(-6px);
-  box-shadow: 6px 16px 26px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
-  opacity: 0.6;
+  transform: rotate(var(--note-rot, 0deg)) scale(1.015);
+  box-shadow:
+    0 10px 22px -4px rgba(40, 28, 12, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  opacity: 0.45;
 }
 
 /* Atterrissage sur la colonne cible : petit rebond de papier qui se pose. */
 @keyframes trk-sticky-land {
   0% {
-    transform: translateY(-20px) rotate(calc(var(--note-rot, 0deg) * 2.4)) scale(1.12);
-    box-shadow: 4px 18px 24px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+    transform: translateY(-10px) rotate(calc(var(--note-rot, 0deg) * 1.8)) scale(1.04);
+    box-shadow: 0 14px 24px -4px rgba(40, 28, 12, 0.28);
   }
   55% {
-    transform: translateY(3px) rotate(calc(var(--note-rot, 0deg) * -1)) scale(0.97);
-  }
-  78% {
-    transform: translateY(-1px) rotate(calc(var(--note-rot, 0deg) * 0.6));
+    transform: translateY(2px) rotate(calc(var(--note-rot, 0deg) * -0.6)) scale(0.985);
   }
   100% {
     transform: translateY(0) rotate(var(--note-rot, 0deg)) scale(1);
-    box-shadow: 2px 4px 8px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
   }
 }
 .trk-app.sticky .trk-kanban-card.trk-sticky-landed {
-  animation: trk-sticky-land 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: trk-sticky-land 0.48s cubic-bezier(0.32, 1.25, 0.32, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .trk-app.sticky .trk-kanban-card,
+  .trk-app.sticky .trk-kanban-card:hover,
+  .trk-app.sticky .trk-kanban-card.dragging,
+  .trk-app.sticky .trk-kanban-card.trk-sticky-landed {
+    transform: none;
+    animation: none;
+  }
 }
 
 /* ── Liste de tâches : même papier, sans la bascule de rotation ── */
 .trk-app.sticky .trk-task-row {
-  background: color-mix(in srgb, var(--note-color, var(--accent)) 13%, #fffdf0);
-  border: 2px solid var(--rail-color, var(--border));
-  border-left: 2px solid var(--rail-color, var(--border));
-  border-radius: 2px 8px 8px 2px;
-  box-shadow: 2px 3px 7px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  background:
+    linear-gradient(148deg, rgba(255, 255, 255, 0.36) 0%, transparent 48%, rgba(110, 82, 36, 0.06) 100%),
+    color-mix(in srgb, var(--note-color, #e5c07b) 16%, #fbf4d7);
+  border: 1px solid color-mix(in srgb, var(--note-color, #c2ad7c) 28%, rgba(120, 94, 52, 0.22));
+  border-left: 3px solid var(--rail-color, var(--border));
+  border-radius: 3px 8px 8px 3px;
+  box-shadow: 0 2px 6px rgba(40, 28, 12, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 .trk-app.sticky .trk-task-row:hover {
-  box-shadow: 3px 6px 12px var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  box-shadow: 0 5px 12px rgba(40, 28, 12, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 /* ── Carte de la zone de focus : note SUBMERGÉE ──

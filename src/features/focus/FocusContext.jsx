@@ -25,8 +25,20 @@ export function useLiveMinutes(task) {
   const isFocused = !!(task && focusId === task.id && focusStartedAt);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (isFocused) setNow(Date.now());
+    if (!isFocused) return undefined;
+    setNow(Date.now());
+    const onVis = () => {
+      if (!document.hidden) setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [isFocused, focusStartedAt]);
-  useInterval(() => setNow(Date.now()), isFocused ? 10000 : null);
+  useInterval(
+    () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      setNow(Date.now());
+    },
+    isFocused ? 10000 : null
+  );
   return liveTaskMinutes(task, focusId, focusStartedAt, now);
 }

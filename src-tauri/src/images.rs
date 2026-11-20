@@ -1,12 +1,21 @@
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::OnceLock;
 use uuid::Uuid;
+
+/// Vérifie qu'un nom de fichier correspond à `^[\w-]+<ext>$` sans dépendre de `regex`.
+pub fn is_safe_ascii_filename(name: &str, ext: &str) -> bool {
+    let Some(stem) = name.strip_suffix(ext) else {
+        return false;
+    };
+    !stem.is_empty()
+        && stem
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
 
 const MAX_IMAGE_DIMENSION: u32 = 1600;
 const JPEG_QUALITY: u8 = 82;
@@ -62,9 +71,7 @@ pub fn save_image(images_dir: &PathBuf, buffer: &[u8]) -> Result<ImageSaveResult
 }
 
 pub fn prune_images(images_dir: &PathBuf, used_files: Vec<String>) -> ImagePruneResult {
-    static RE: OnceLock<Regex> = OnceLock::new();
     let keep: HashSet<String> = used_files.into_iter().collect();
-    let re = RE.get_or_init(|| Regex::new(r"^[\w-]+\.jpg$").unwrap());
     let mut removed = 0;
 
     if let Ok(entries) = fs::read_dir(images_dir) {
@@ -72,7 +79,7 @@ pub fn prune_images(images_dir: &PathBuf, used_files: Vec<String>) -> ImagePrune
             if let Ok(file_type) = entry.file_type() {
                 if file_type.is_file() {
                     let name = entry.file_name().to_string_lossy().to_string();
-                    if re.is_match(&name) && !keep.contains(&name) {
+                    if is_safe_ascii_filename(&name, ".jpg") && !keep.contains(&name) {
                         if fs::remove_file(entry.path()).is_ok() {
                             removed += 1;
                         }
@@ -83,5 +90,21 @@ pub fn prune_images(images_dir: &PathBuf, used_files: Vec<String>) -> ImagePrune
     }
 
     ImagePruneResult { removed }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_safe_ascii_filename() {
+        assert!(is_safe_ascii_filename("abc-123_XYZ.jpg", ".jpg"));
+        assert!(is_safe_ascii_filename("mindmap.html", ".html"));
+        assert!(!is_safe_ascii_filename(".jpg", ".jpg"));
+        assert!(!is_safe_ascii_filename("../secret.jpg", ".jpg"));
+        assert!(!is_safe_ascii_filename("dir/file.jpg", ".jpg"));
+        assert!(!is_safe_ascii_filename("file.png", ".jpg"));
+        assert!(!is_safe_ascii_filename("file name.jpg", ".jpg"));
+    }
 }
 

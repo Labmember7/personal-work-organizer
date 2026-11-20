@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { Select } from "../../components/Select.jsx";
 import { Search, X } from "lucide-react";
@@ -9,6 +9,10 @@ import { Pagination } from "../../components/Pagination.jsx";
 import { KanbanCard } from "./KanbanCard.jsx";
 
 const KANBAN_PAGE_SIZE = 4;
+const STICKY_NOTE_W = 204;
+const STICKY_NOTE_H = 118;
+const STICKY_PAD = 12;
+const STICKY_DEFAULT_X = [0.06, 0.56, 0.28, 0.72];
 
 // Colonne kanban : un statut, avec recherche et filtre priorité à la demande,
 // pagination et dépôt par drag & drop.
@@ -19,15 +23,20 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   setOverCol,
   dragId,
   dragIdRef,
+  grabOffsetRef,
   setDragId,
   onMove,
   endDrag,
+  stickyMode = false,
+  stickyPositions,
+  onPlaceSticky,
   justMovedId,
   confirmId,
   confirmAction,
   cardProps,
 }) {
   const { t } = useLang();
+  const bodyRef = useRef(null);
   const [query, setQuery] = useState("");
   const [prio, setPrio] = useState("");
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -44,24 +53,58 @@ export const KanbanColumn = React.memo(function KanbanColumn({
     visible, KANBAN_PAGE_SIZE, `${query}|${prio}`
   );
 
+  // En mode sticky, calcule une hauteur minimale de toile pour que les post-it
+  // posés en absolu restent tous accessibles au scroll sans jamais être rognés.
+  const stickyCanvasMinHeight = useMemo(() => {
+    if (!stickyMode || pageItems.length === 0) return undefined;
+    let maxBottom = 0;
+    pageItems.forEach((tk, idx) => {
+      const saved = stickyPositions?.[tk.id];
+      const y = saved && typeof saved.y === "number" ? saved.y : 14 + idx * 130;
+      if (y + STICKY_NOTE_H + STICKY_PAD > maxBottom) {
+        maxBottom = y + STICKY_NOTE_H + STICKY_PAD;
+      }
+    });
+    return maxBottom;
+  }, [stickyMode, pageItems, stickyPositions]);
+
   return (
     <div
       className={"trk-kanban-col" + (isOver ? " drag-over" : "")}
       style={{ "--col-color": status.color }}
       onDragOver={(e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
         if (!isOver) setOverCol(status.id);
       }}
       onDragLeave={(e) => {
-        if (isOver && !e.currentTarget.contains(e.relatedTarget)) setOverCol(null);
+        if (isOver && !(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) {
+          setOverCol(null);
+        }
       }}
       onDrop={(e) => {
         e.preventDefault();
-        const id = e.dataTransfer.getData("text/plain") || dragId || dragIdRef?.current;
+        const id = e.dataTransfer?.getData("text/plain") || dragId || dragIdRef?.current;
         const hasCoords = typeof e.clientX === "number" && typeof e.clientY === "number" && !isNaN(e.clientX) && !isNaN(e.clientY) && (e.clientX > 0 || e.clientY > 0);
         const origin = hasCoords ? { x: e.clientX, y: e.clientY } : undefined;
         if (id) {
+          if (stickyMode && onPlaceSticky && hasCoords && bodyRef.current) {
+            const rect = bodyRef.current.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              const noteW = Math.min(STICKY_NOTE_W, Math.max(120, rect.width - STICKY_PAD * 2));
+              const availW = Math.max(0, rect.width - noteW - STICKY_PAD * 2);
+              const grab = grabOffsetRef?.current || { x: noteW / 2, y: 40 };
+              const rawLeft = e.clientX - rect.left - grab.x;
+              const xRatio = availW > 0 ? Math.max(0, Math.min(1, (rawLeft - STICKY_PAD) / availW)) : 0;
+              const rawTop = e.clientY - rect.top + bodyRef.current.scrollTop - grab.y;
+              const maxY = Math.max(
+                STICKY_PAD,
+                Math.max(rect.height, bodyRef.current.scrollHeight) - STICKY_NOTE_H - STICKY_PAD
+              );
+              const yPx = Math.round(Math.max(STICKY_PAD, Math.min(rawTop, maxY)));
+              onPlaceSticky(id, Number(xRatio.toFixed(4)), yPx);
+            }
+          }
           if (origin) onMove(id, status.id, origin);
           else onMove(id, status.id);
         }
@@ -110,23 +153,55 @@ export const KanbanColumn = React.memo(function KanbanColumn({
           </Select>
         </div>
       )}
-      <div className="trk-kanban-col-body">
+      <div
+        ref={bodyRef}
+        className={"trk-kanban-col-body" + (stickyMode ? " is-sticky-canvas" : "")}
+      >
         {pageItems.length === 0 && (
           <div className="trk-kanban-drop-hint">{t("kanban_empty_col")}</div>
         )}
-        {pageItems.map((task) => (
-          <KanbanCard
-            key={task.id}
-            task={task}
-            dragging={dragId === task.id}
-            justMoved={justMovedId === task.id}
-            onDragStart={setDragId}
-            onDragEnd={endDrag}
-            confirmId={confirmId === task.id ? confirmId : null}
-            confirmAction={confirmId === task.id ? confirmAction : null}
-            {...cardProps}
-          />
-        ))}
+        {stickyMode && stickyCanvasMinHeight ? (
+          <div className="trk-sticky-stage" style={{ minHeight: `${stickyCanvasMinHeight}px` }}>
+            {pageItems.map((task, idx) => {
+              const saved = stickyPositions?.[task.id];
+              const stickyPos = saved
+                ? saved
+                : {
+                    x: STICKY_DEFAULT_X[idx % STICKY_DEFAULT_X.length],
+                    y: 14 + idx * 130,
+                    z: idx + 1,
+                  };
+              return (
+                <KanbanCard
+                  key={task.id}
+                  task={task}
+                  dragging={dragId === task.id}
+                  justMoved={justMovedId === task.id}
+                  stickyPos={stickyPos}
+                  onDragStart={setDragId}
+                  onDragEnd={endDrag}
+                  confirmId={confirmId === task.id ? confirmId : null}
+                  confirmAction={confirmId === task.id ? confirmAction : null}
+                  {...cardProps}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          pageItems.map((task) => (
+            <KanbanCard
+              key={task.id}
+              task={task}
+              dragging={dragId === task.id}
+              justMoved={justMovedId === task.id}
+              onDragStart={setDragId}
+              onDragEnd={endDrag}
+              confirmId={confirmId === task.id ? confirmId : null}
+              confirmAction={confirmId === task.id ? confirmAction : null}
+              {...cardProps}
+            />
+          ))
+        )}
       </div>
       {totalPages > 1 && (
         <div className="trk-kanban-col-footer">

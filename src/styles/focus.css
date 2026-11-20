@@ -1,4 +1,13 @@
 /* ── Zone de focus ── */
+/* Les éléments décoratifs de la marmite (mode sticky) doivent rester masqués
+   par défaut même avant le chargement paresseux de sticky.css. */
+.trk-pot-frame,
+.trk-pot-water,
+.trk-pot-water-front,
+.trk-pot-fire {
+  display: none;
+}
+
 @keyframes trk-focus-spin { to { transform: rotate(360deg); } }
 @keyframes trk-focus-glow-pulse {
   0%, 100% { opacity: 0.3; }

@@ -8,7 +8,7 @@ import { useFocusInfo, useLiveMinutes } from "../focus/FocusContext.jsx";
 // Carte de tâche du kanban : draggable vers les autres colonnes ou la zone
 // de focus. Le temps affiché suit la session de focus en direct.
 export const KanbanCard = React.memo(function KanbanCard({
-  task, dragging, justMoved, onDragStart, onDragEnd, onEdit, onDelete, onArchive, onUnarchive,
+  task, dragging, justMoved, stickyPos, onDragStart, onDragEnd, onEdit, onDelete, onArchive, onUnarchive,
   confirmId, confirmAction, onAskDelete, onAskArchive, onAskUnarchive, onCancelConfirm,
 }) {
   const { t } = useLang();
@@ -19,10 +19,32 @@ export const KanbanCard = React.memo(function KanbanCard({
   const isFocused = focusId === task.id;
 
   const handleDragStart = (e) => {
-    e.dataTransfer.setData("text/plain", task.id);
-    e.dataTransfer.effectAllowed = "move";
-    if (onDragStart) onDragStart(task.id);
+    if (e.dataTransfer) {
+      e.dataTransfer.setData("text/plain", task.id);
+      e.dataTransfer.effectAllowed = "move";
+    }
+    let grabOffset;
+    if (e.currentTarget && typeof e.clientX === "number" && typeof e.clientY === "number") {
+      const r = e.currentTarget.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        grabOffset = {
+          x: Math.max(12, Math.min(r.width - 12, e.clientX - r.left)),
+          y: Math.max(12, Math.min(r.height - 12, e.clientY - r.top)),
+        };
+      }
+    }
+    if (onDragStart) onDragStart(task.id, grabOffset);
   };
+
+  const cardStyle = stickyPos
+    ? {
+        "--rail-color": pr.color,
+        "--note-color": pc,
+        "--sticky-x": stickyPos.x,
+        "--sticky-y": `${stickyPos.y}px`,
+        zIndex: stickyPos.z || 1,
+      }
+    : { "--rail-color": pr.color, "--note-color": pc };
 
   return (
     <div
@@ -31,7 +53,8 @@ export const KanbanCard = React.memo(function KanbanCard({
         (dragging ? " dragging" : "") +
         (isTaskDone(task) ? " done" : "") +
         (isFocused ? " trk-focused" : "") +
-        (justMoved ? " trk-sticky-landed" : "")
+        (justMoved ? " trk-sticky-landed" : "") +
+        (stickyPos ? " trk-sticky-placed" : "")
       }
       draggable
       onDragStart={handleDragStart}
@@ -40,7 +63,7 @@ export const KanbanCard = React.memo(function KanbanCard({
         if (confirmId === task.id || e.target.closest("button, a, input")) return;
         onEdit(task);
       }}
-      style={{ "--rail-color": pr.color, "--note-color": pc }}
+      style={cardStyle}
     >
       {isFocused && (
         <span className="trk-focused-flame" role="img" title={t("focus_cooking")} aria-label={t("focus_cooking")}>

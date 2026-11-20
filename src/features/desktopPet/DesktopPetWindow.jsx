@@ -137,7 +137,7 @@ export function DesktopPetWindow() {
           }
         })
         .catch(() => {});
-    }, 100);
+    }, 250);
     return () => {
       active = false;
       clearInterval(timer);

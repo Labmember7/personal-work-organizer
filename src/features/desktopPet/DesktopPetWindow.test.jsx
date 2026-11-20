@@ -402,7 +402,7 @@ describe("DesktopPetWindow", () => {
     fireEvent.mouseEnter(petContainer);
     expect(petContainer.classList.contains("is-hovered")).toBe(true);
     await act(async () => {
-      vi.advanceTimersByTime(130);
+      vi.advanceTimersByTime(260);
       await Promise.resolve();
     });
     expect(petContainer.classList.contains("is-hovered")).toBe(false);

@@ -1,4 +1,6 @@
 import React from "react";
+import "../../styles/charts.css";
+import "../../styles/gantt.css";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Legend, CartesianGrid,

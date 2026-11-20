@@ -14,17 +14,25 @@ const FOCUS_REDUCED_STORAGE_KEY = "suivi-travaux-focus-reduced";
 // Type MIME custom marquant un drag initié depuis la carte de la zone de focus.
 export const FOCUS_DRAG_TYPE = "application/x-trk-focus";
 
-// Image 1x1 transparente : masque le fantôme natif du drag, remplacé par
-// la pilule « verre liquide » custom qui suit le curseur.
+// Image 1x1 transparente pré-initialisée au chargement du module : masque le
+// fantôme natif du drag, remplacé par la pilule « verre liquide » custom qui
+// suit le curseur. Pré-décoder dès le chargement garantit une image prête dès
+// le tout premier drag (Chromium & WebKitGTK).
 let emptyDragImage = null;
 const getEmptyDragImage = () => {
-  if (!emptyDragImage) {
+  if (!emptyDragImage && typeof Image !== "undefined") {
     emptyDragImage = new Image();
     emptyDragImage.src =
       "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
   }
   return emptyDragImage;
 };
+if (typeof window !== "undefined") {
+  getEmptyDragImage();
+}
+
+const isTauriRuntime = () =>
+  typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
 
 // ── Tracés de la surface de l'eau (mode marmite) ──
 // Échantillonnage d'une somme de trois sinusoïdes de périodes 200/100/66,6
@@ -55,8 +63,25 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
   const pointerRef = useRef({ x: 0, y: 0 });
   const dragTitleRef = useRef("");
   const popTimerRef = useRef(null);
+  const releaseTimerRef = useRef(null);
 
-  useEffect(() => () => clearTimeout(popTimerRef.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(popTimerRef.current);
+      clearTimeout(releaseTimerRef.current);
+    },
+    []
+  );
+
+  // Si la tâche focalisée disparaît pendant un drag (ex. terminée ou libérée
+  // ailleurs), on nettoie immédiatement dragOut pour ne jamais laisser la
+  // boucle rAF ou le portail fantôme actifs.
+  useEffect(() => {
+    if (!task && dragOut) {
+      setDragOut(false);
+      setDragHome(true);
+    }
+  }, [task, dragOut]);
 
   // Pilote la goutte fantôme pendant le drag : elle court après le curseur
   // avec inertie (ressort) et s'étire dans le sens du déplacement, comme une
@@ -68,8 +93,19 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
         pointerRef.current = { x: e.clientX, y: e.clientY };
       }
     };
-    window.addEventListener("dragover", updateCoord, { capture: true, passive: true });
+    const onWinDragOver = (e) => {
+      // Autorise le dépôt partout pendant un drag-out : garantit un flux continu
+      // de coordonnées clientX/clientY et évite le retour élastique natif au lâcher.
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      updateCoord(e);
+    };
+    const onWinDragEnd = () => {
+      setDragOut(false);
+    };
+    window.addEventListener("dragover", onWinDragOver, { capture: true });
     window.addEventListener("drag", updateCoord, { capture: true, passive: true });
+    window.addEventListener("dragend", onWinDragEnd, { capture: true });
     // Rect figé au début du drag (la zone est fixe et non transformée) :
     // sert à signaler si le lâcher garderait la tâche (dedans) ou la
     // libérerait (dehors), sans getBoundingClientRect par frame.
@@ -111,8 +147,9 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
     };
     raf = requestAnimationFrame(loop);
     return () => {
-      window.removeEventListener("dragover", updateCoord, { capture: true });
+      window.removeEventListener("dragover", onWinDragOver, { capture: true });
       window.removeEventListener("drag", updateCoord, { capture: true });
+      window.removeEventListener("dragend", onWinDragEnd, { capture: true });
       cancelAnimationFrame(raf);
     };
   }, [dragOut]);
@@ -122,11 +159,23 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
   });
   const [now, setNow] = useState(() => Date.now());
 
-  // Rafraîchit l'affichage du temps de focus écoulé.
+  // Rafraîchit l'affichage du temps de focus écoulé (en pause fenêtre cachée).
   useEffect(() => {
-    if (task && startedAt) setNow(Date.now());
+    if (!task || !startedAt) return undefined;
+    setNow(Date.now());
+    const onVis = () => {
+      if (!document.hidden) setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [task, task?.id, startedAt]);
-  useInterval(() => setNow(Date.now()), task && startedAt ? 10000 : null);
+  useInterval(
+    () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      setNow(Date.now());
+    },
+    task && startedAt ? 10000 : null
+  );
 
   const st = task ? statusOf(task.statut) : null;
   const pr = task ? prioOf(task.priorite) : null;
@@ -182,7 +231,7 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
       if (isExternalDrag(e) && !over) setOver(true);
     },
     onDragLeave: (e) => {
-      if (e.currentTarget.contains(e.relatedTarget)) return;
+      if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
       // Sur WebKitGTK / Chromium, dragleave peut se déclencher avec
       // relatedTarget === null pendant le reflow d'ouverture ou le survol d'un
       // enfant alors que le pointeur reste DANS la zone. Vérifie la géométrie
@@ -350,10 +399,19 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
                 title={t("edit_task")}
                 draggable
                 onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", task.id);
-                  e.dataTransfer.setData(FOCUS_DRAG_TYPE, "1");
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setDragImage(getEmptyDragImage(), 0, 0);
+                  if (e.dataTransfer) {
+                    e.dataTransfer.setData("text/plain", task.id);
+                    e.dataTransfer.setData(FOCUS_DRAG_TYPE, "1");
+                    e.dataTransfer.effectAllowed = "move";
+                    const blank = getEmptyDragImage();
+                    if (blank && typeof e.dataTransfer.setDragImage === "function") {
+                      try {
+                        e.dataTransfer.setDragImage(blank, 0, 0);
+                      } catch {
+                        // Certains moteurs (WebKitGTK) peuvent refuser un dragImage synthétique
+                      }
+                    }
+                  }
                   pointerRef.current = { x: e.clientX, y: e.clientY };
                   dragTitleRef.current = task.titre;
                   clearTimeout(popTimerRef.current);
@@ -376,7 +434,17 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
                   const inside =
                     clientX >= r.left && clientX <= r.right &&
                     clientY >= r.top && clientY <= r.bottom;
-                  if (!inside) onRelease();
+                  if (!inside) {
+                    // Sous Tauri/WebKitGTK (GTK3), démonter la source du drag de
+                    // façon synchrone dans le callback drag-end peut faire planter
+                    // WebKit : on diffère la libération au tick suivant.
+                    if (isTauriRuntime()) {
+                      clearTimeout(releaseTimerRef.current);
+                      releaseTimerRef.current = setTimeout(() => onRelease(), 0);
+                    } else {
+                      onRelease();
+                    }
+                  }
                 }}
               >
                 <p className="trk-focus-title">{task.titre}</p>
@@ -465,7 +533,7 @@ export const FocusZone = React.memo(function FocusZone({ task, leaving, enterKey
             </span>
           </div>
         </div>,
-        document.body
+        zoneRef.current?.closest(".trk-app") || document.body
       )}
     </div>
   );

@@ -121,6 +121,8 @@ export const DesktopPetSync = React.memo(function DesktopPetSync({
     if (shouldShow) {
       desktopPet.show();
       if (stateRef.current) desktopPet.sendState(stateRef.current);
+    } else if (!enabled && typeof desktopPet.destroy === "function") {
+      desktopPet.destroy();
     } else {
       desktopPet.hide();
     }

@@ -1,17 +1,23 @@
-use crate::paths::{get_images_dir, get_plugin_dirs, resolve_base_dir};
+use crate::images::is_safe_ascii_filename;
+use crate::paths::{get_images_dir, get_plugin_dirs, resolve_base_dir, PluginDir};
 use crate::plugins::{
     read_plugin_html, read_plugin_resource, wrap_plugin_html, PLUGIN_CSP,
     PLUGIN_CSP_V2,
 };
-use regex::Regex;
 use std::fs;
+use std::path::PathBuf;
 use std::sync::OnceLock;
 use tauri::http::{header, Request, Response, StatusCode};
 use tauri::AppHandle;
 
-fn image_name_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[\w-]+\.jpg$").unwrap())
+fn cached_images_dir(app: &AppHandle) -> &'static PathBuf {
+    static DIR: OnceLock<PathBuf> = OnceLock::new();
+    DIR.get_or_init(|| get_images_dir(Some(app)))
+}
+
+fn cached_plugin_dirs(app: &AppHandle) -> &'static Vec<PluginDir> {
+    static DIRS: OnceLock<Vec<PluginDir>> = OnceLock::new();
+    DIRS.get_or_init(|| get_plugin_dirs(Some(app)))
 }
 
 pub fn handle_app_image(
@@ -21,7 +27,7 @@ pub fn handle_app_image(
     let path = request.uri().path();
     let file_name = path.trim_start_matches('/');
 
-    if !image_name_regex().is_match(file_name) {
+    if !is_safe_ascii_filename(file_name, ".jpg") {
         return Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
@@ -29,19 +35,17 @@ pub fn handle_app_image(
             .unwrap();
     }
 
-    let images_dir = get_images_dir(Some(app));
+    let images_dir = cached_images_dir(app);
     let target = images_dir.join(file_name);
 
-    if target.exists() {
-        if let Ok(bytes) = fs::read(&target) {
-            return Response::builder()
-                .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, "image/jpeg")
-                .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
-                .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-                .body(bytes)
-                .unwrap();
-        }
+    if let Ok(bytes) = fs::read(&target) {
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "image/jpeg")
+            .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
+            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+            .body(bytes)
+            .unwrap();
     }
 
     Response::builder()
@@ -60,7 +64,7 @@ pub fn handle_app_plugin(
     let path = uri.path();
     let rel_path = path.trim_start_matches('/');
 
-    let dirs = get_plugin_dirs(Some(app));
+    let dirs = cached_plugin_dirs(app);
 
     if host == "local" {
         if let Some(html) = read_plugin_html(&dirs, rel_path) {
@@ -95,7 +99,7 @@ pub fn handle_app_plugin(
     }
 
     // Locate plugin root for host
-    for pdir in &dirs {
+    for pdir in dirs {
         let candidate = pdir.dir.join(host);
         if candidate.is_dir() {
             if let Some((data, mime)) = read_plugin_resource(&candidate, rel_path) {

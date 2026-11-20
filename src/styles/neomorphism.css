@@ -28,12 +28,12 @@
   border: none;
 }
 .trk-app.light {
-  --bg: #E4E9F0;
-  --panel-alt: color-mix(in srgb, var(--bg) 85%, white);
-  --border: color-mix(in srgb, var(--bg) 85%, #8a96a8);
-  --neo-light: rgba(255, 255, 255, 0.85);
-  --neo-dark: rgba(150, 165, 188, 0.45);
-  --neo-rim: inset 0 1px 1px rgba(255, 255, 255, 0.9);
+  --bg: #DBD5CB;
+  --panel-alt: #E3DDD3;
+  --border: #C4BCAE;
+  --neo-light: rgba(250, 244, 234, 0.58);
+  --neo-dark: rgba(134, 122, 106, 0.38);
+  --neo-rim: inset 0 1px 1px rgba(250, 244, 234, 0.62);
 }
 .trk-app.theme-nebula {
   --bg: #131628;
@@ -57,12 +57,12 @@
   --neo-dark: rgba(5, 5, 9, 0.5);
 }
 .trk-app.theme-sand {
-  --bg: #EDE7DC;
-  --panel-alt: #F6F2EA;
-  --border: #D4C8B4;
-  --neo-light: rgba(255, 252, 245, 0.88);
-  --neo-dark: rgba(145, 128, 102, 0.36);
-  --neo-rim: inset 0 1px 1px rgba(255, 252, 245, 0.92);
+  --bg: #D8CDBC;
+  --panel-alt: #E1D7C7;
+  --border: #BEB09B;
+  --neo-light: rgba(250, 241, 226, 0.52);
+  --neo-dark: rgba(126, 108, 84, 0.38);
+  --neo-rim: inset 0 1px 1px rgba(250, 241, 226, 0.56);
 }
 
 /* ═════════ Surfaces flottantes / Modales en relief ═════════ */

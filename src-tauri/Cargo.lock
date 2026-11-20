@@ -3008,10 +3008,8 @@ version = "2.0.0"
 dependencies = [
  "gtk",
  "image",
- "log",
  "notify",
  "parking_lot",
- "regex",
  "serde",
  "serde_json",
  "tauri",

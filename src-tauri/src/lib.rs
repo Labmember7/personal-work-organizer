@@ -180,8 +180,8 @@ async fn data_import(app: AppHandle) -> data_io::ImportResult {
 }
 
 use window::{
-    enforce_pet_topmost, pet_end_drag, pet_hide, pet_is_cursor_inside, pet_restore_main,
-    pet_show, pet_start_drag, pet_sync_bounds, pet_update_drag, window_close,
+    enforce_pet_topmost, pet_destroy, pet_end_drag, pet_hide, pet_is_cursor_inside,
+    pet_restore_main, pet_show, pet_start_drag, pet_sync_bounds, pet_update_drag, window_close,
     window_is_maximized, window_minimize, window_toggle_maximize,
 };
 
@@ -296,11 +296,19 @@ pub fn run() {
                 }
             }
         })
-        .register_uri_scheme_protocol("app-image", |ctx, request| {
-            protocols::handle_app_image(ctx.app_handle(), &request)
+        .register_asynchronous_uri_scheme_protocol("app-image", |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let response = protocols::handle_app_image(&app, &request);
+                responder.respond(response);
+            });
         })
-        .register_uri_scheme_protocol("app-plugin", |ctx, request| {
-            protocols::handle_app_plugin(ctx.app_handle(), &request)
+        .register_asynchronous_uri_scheme_protocol("app-plugin", |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let response = protocols::handle_app_plugin(&app, &request);
+                responder.respond(response);
+            });
         })
         .invoke_handler(tauri::generate_handler![
             storage_get,
@@ -322,6 +330,7 @@ pub fn run() {
             window_is_maximized,
             pet_show,
             pet_hide,
+            pet_destroy,
             pet_restore_main,
             pet_sync_bounds,
             pet_start_drag,

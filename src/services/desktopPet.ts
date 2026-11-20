@@ -78,6 +78,11 @@ export const desktopPet = {
     if (isTauri()) return invoke<void>("pet_hide").catch(() => {});
     return Promise.resolve();
   },
+  /** Détruit immédiatement la WebView du compagnon (libère la RAM lorsque désactivé). */
+  destroy(): Promise<void> {
+    if (isTauri()) return invoke<void>("pet_destroy").catch(() => {});
+    return Promise.resolve();
+  },
   /** Ramène la fenêtre principale au premier plan et masque le pet. */
   restoreMain(): Promise<void> {
     if (isTauri()) return invoke<void>("pet_restore_main").catch(() => {});

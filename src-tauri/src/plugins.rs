@@ -1,11 +1,10 @@
+use crate::images::is_safe_ascii_filename;
 use crate::paths::PluginDir;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::sync::OnceLock;
 
 pub const PLUGIN_CSP: &str =
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; \
@@ -35,18 +34,64 @@ pub struct RawPluginEntry {
     pub panel_specs: Option<HashMap<String, String>>,
 }
 
-pub fn extract_manifest_block(html: &str) -> Option<String> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| {
-        Regex::new(r#"(?i)<script[^>]*\bid=["']trk-plugin["'][^>]*>([\s\S]*?)</script>"#).unwrap()
-    });
-    let caps = re.captures(html)?;
-    let body = caps.get(1)?.as_str().trim();
-    if body.is_empty() {
-        None
-    } else {
-        Some(body.to_string())
+/// Recherche insensible à la casse d'une sous-chaîne ASCII dans `haystack` à partir de `from`.
+fn find_ascii_ci(haystack: &str, needle: &str, from: usize) -> Option<usize> {
+    let h = haystack.as_bytes();
+    let n = needle.as_bytes();
+    if n.is_empty() || from + n.len() > h.len() {
+        return None;
     }
+    for i in from..=h.len() - n.len() {
+        if h[i..i + n.len()].eq_ignore_ascii_case(n) {
+            return Some(i);
+        }
+    }
+    None
+}
+
+fn has_trk_plugin_id(attrs: &str) -> bool {
+    for pattern in ["id=\"trk-plugin\"", "id='trk-plugin'"] {
+        let mut pos = 0;
+        while let Some(idx) = find_ascii_ci(attrs, pattern, pos) {
+            let boundary_ok = idx == 0
+                || !attrs.as_bytes()[idx - 1].is_ascii_alphanumeric()
+                    && attrs.as_bytes()[idx - 1] != b'_';
+            if boundary_ok {
+                return true;
+            }
+            pos = idx + pattern.len();
+        }
+    }
+    false
+}
+
+pub fn extract_manifest_block(html: &str) -> Option<String> {
+    let mut pos = 0;
+    while let Some(open_start) = find_ascii_ci(html, "<script", pos) {
+        let after_tag = open_start + "<script".len();
+        let next_b = html.as_bytes().get(after_tag).copied();
+        if !matches!(next_b, Some(b' ' | b'\t' | b'\r' | b'\n' | b'>')) {
+            pos = after_tag;
+            continue;
+        }
+        let Some(rel_end) = html[after_tag..].find('>') else {
+            break;
+        };
+        let open_end = after_tag + rel_end;
+        let attrs = &html[after_tag..open_end];
+        if has_trk_plugin_id(attrs) {
+            let content_start = open_end + 1;
+            let close_start = find_ascii_ci(html, "</script>", content_start)?;
+            let body = html[content_start..close_start].trim();
+            return if body.is_empty() {
+                None
+            } else {
+                Some(body.to_string())
+            };
+        }
+        pos = open_end + 1;
+    }
+    None
 }
 
 pub fn list_plugins(dirs: &[PluginDir]) -> Vec<RawPluginEntry> {
@@ -176,9 +221,7 @@ pub fn list_plugins(dirs: &[PluginDir]) -> Vec<RawPluginEntry> {
 }
 
 pub fn read_plugin_html(dirs: &[PluginDir], file: &str) -> Option<String> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"^[\w-]+\.html$").unwrap());
-    if !re.is_match(file) {
+    if !is_safe_ascii_filename(file, ".html") {
         return None;
     }
 
@@ -195,15 +238,21 @@ pub fn read_plugin_html(dirs: &[PluginDir], file: &str) -> Option<String> {
 }
 
 pub fn wrap_plugin_html(html: &str, sdk_source: &str) -> String {
-    static HEAD_RE: OnceLock<Regex> = OnceLock::new();
     let inject = format!("<meta charset=\"utf-8\">\n<script>{}</script>\n", sdk_source);
-    let head_re = HEAD_RE.get_or_init(|| Regex::new(r"(?i)<head[^>]*>").unwrap());
-    if let Some(mat) = head_re.find(html) {
-        let end = mat.end();
-        format!("{}{}{}", &html[..end], inject, &html[end..])
-    } else {
-        format!("{}{}", inject, html)
+    let mut pos = 0;
+    while let Some(start) = find_ascii_ci(html, "<head", pos) {
+        let after = start + "<head".len();
+        let next_b = html.as_bytes().get(after).copied();
+        if matches!(next_b, Some(b' ' | b'\t' | b'\r' | b'\n' | b'>' | b'/')) {
+            if let Some(rel_end) = html[after..].find('>') {
+                let end = after + rel_end + 1;
+                return format!("{}{}{}", &html[..end], inject, &html[end..]);
+            }
+            break;
+        }
+        pos = after;
     }
+    format!("{}{}", inject, html)
 }
 
 pub fn read_plugin_resource(root: &Path, rel_path: &str) -> Option<(Vec<u8>, String)> {

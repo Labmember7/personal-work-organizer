@@ -19,7 +19,8 @@ import type { RawPluginEntry } from "./storage";
 // d'importer toute la surface de `vite/client`.
 declare global {
   interface ImportMeta {
-    glob(pattern: string, options: { query?: string; import?: string; eager?: boolean }): Record<string, string>;
+    glob(pattern: string, options: { query?: string; import?: string; eager: true }): Record<string, string>;
+    glob(pattern: string, options?: { query?: string; import?: string; eager?: false }): Record<string, () => Promise<string>>;
   }
 }
 
@@ -141,12 +142,13 @@ export function buildFromCandidates(
  * La découverte réellement dynamique (déposer un dossier à côté de
  * l'exécutable) demande d'étendre l'IPC `plugins:list` aux dossiers.
  */
-function discoverDeclarative(): PluginSource[] {
-  const manifests = import.meta.glob("/plugins/*/manifest.json", { query: "?raw", import: "default", eager: true });
-  const specs = import.meta.glob("/plugins/*/views/*.trkv", { query: "?raw", import: "default", eager: true });
+async function discoverDeclarative(): Promise<PluginSource[]> {
+  const manifestLoaders = import.meta.glob("/plugins/*/manifest.json", { query: "?raw", import: "default" });
+  const specLoaders = import.meta.glob("/plugins/*/views/*.trkv", { query: "?raw", import: "default" });
 
   const out: PluginSource[] = [];
-  for (const [modulePath, json] of Object.entries(manifests)) {
+  for (const [modulePath, loadJson] of Object.entries(manifestLoaders)) {
+    const json = await loadJson();
     const v2 = parseManifestV2(json as string);
     if (!v2.ok) continue;
 
@@ -155,16 +157,21 @@ function discoverDeclarative(): PluginSource[] {
     if (!view || typeof view.spec !== "string") continue;
 
     const dir = modulePath.slice(0, modulePath.lastIndexOf("/"));
-    const raw = specs[`${dir}/${view.spec}`];
+    const loadSpec = specLoaders[`${dir}/${view.spec}`];
+    if (!loadSpec) continue;
+    const raw = await loadSpec();
     if (typeof raw !== "string") continue;
     const spec = parseDeclarativeSpec(raw);
 
-    // Panneaux déclaratifs de tâche : specs lues depuis le même glob.
+    // Panneaux déclaratifs de tâche : specs lues depuis le même glob paresseux.
     const panelSpecs: Record<string, string> = {};
     for (const p of contributes?.taskPanels ?? []) {
       if (p && p.kind === "declarative" && typeof p.spec === "string") {
-        const praw = specs[`${dir}/${p.spec}`];
-        if (typeof praw === "string") panelSpecs[p.id] = praw;
+        const loadPanel = specLoaders[`${dir}/${p.spec}`];
+        if (loadPanel) {
+          const praw = await loadPanel();
+          if (typeof praw === "string") panelSpecs[p.id] = praw;
+        }
       }
     }
 
@@ -183,13 +190,17 @@ function discoverDeclarative(): PluginSource[] {
 }
 
 export async function discoverPlugins(): Promise<{ plugins: PluginSource[]; errors: PluginLoadError[] }> {
-  const declarative = discoverDeclarative();
-
   if (hasIpc()) {
     const raw = await window.plugins!.list();
     const found = buildFromCandidates(raw, (file) => `app-plugin://local/${file}`);
-    // Déduplication : en dev, l'IPC (dossiers v2) et le repli `import.meta.glob`
-    // découvrent le même plugin. L'IPC prime (racine réelle, CSP par hôte).
+    // En Tauri, l'IPC découvre déjà tous les plugins v1 et v2 sur disque.
+    // On n'invoque le repli `import.meta.glob` paresseux que si aucun plugin v2
+    // déclaratif n'a été trouvé via IPC (ex. environnement de dev partiel).
+    const hasDeclarative = found.plugins.some((p) => p.format === 2 && p.declarative);
+    if (hasDeclarative) {
+      return found;
+    }
+    const declarative = await discoverDeclarative();
     const byId = new Map(found.plugins.map((p) => [p.manifest.id, p]));
     for (const d of declarative) {
       if (!byId.has(d.manifest.id)) byId.set(d.manifest.id, d);
@@ -197,15 +208,20 @@ export async function discoverPlugins(): Promise<{ plugins: PluginSource[]; erro
     return { plugins: [...byId.values()], errors: found.errors };
   }
 
-  // Hors Tauri : Vite sert la racine du projet, `plugins/*.html` y est
-  // accessible directement. Pas de dossier "user" distinct en dev.
-  const modules = import.meta.glob("/plugins/*.html", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
-  const candidates: RawPluginEntry[] = Object.entries(modules).map(([modulePath, html]) => {
-    const file = modulePath.split("/").pop() ?? modulePath;
-    const manifestJson = extractManifestBlock(html);
-    return manifestJson ? { file, origin: "builtin", manifestJson } : { file, origin: "builtin", manifestJson: null, error: "no-manifest" };
-  });
-  const found = buildFromCandidates(candidates, (file) => `/plugins/${file}`);
+  // Hors Tauri : chargement paresseux des plugins embarqués (n'alourdit jamais main.js).
+  const declarative = await discoverDeclarative();
+  const loaders = import.meta.glob("/plugins/*.html", { query: "?raw", import: "default" });
+  const entries = await Promise.all(
+    Object.entries(loaders).map(async ([modulePath, loadHtml]) => {
+      const html = await loadHtml();
+      const file = modulePath.split("/").pop() ?? modulePath;
+      const manifestJson = extractManifestBlock(html);
+      return manifestJson
+        ? { file, origin: "builtin" as const, manifestJson }
+        : { file, origin: "builtin" as const, manifestJson: null, error: "no-manifest" };
+    })
+  );
+  const found = buildFromCandidates(entries, (file) => `/plugins/${file}`);
   return { plugins: [...found.plugins, ...declarative], errors: found.errors };
 }
 

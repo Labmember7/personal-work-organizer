@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import "./styles/tips.css";
 import {
   HelpCircle, X, ChevronLeft, ChevronRight, Lightbulb,
   Sparkles, FolderPlus, ClipboardList, Columns3, Target, Clock,

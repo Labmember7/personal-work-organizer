@@ -257,6 +257,14 @@ const DynamicIslandInner = React.memo(function DynamicIslandInner({
     }
   }, [isCooking, pomoRunning, pomoPhase, setPetMood]);
 
+  // Si la tâche focalisée est libérée alors que l'onglet Focus de l'îlot est
+  // ouvert, revenir automatiquement sur Timer pour éviter un panneau vide.
+  useEffect(() => {
+    if (!isCooking && mode === "focus") {
+      setMode("timer");
+    }
+  }, [isCooking, mode]);
+
   useEffect(() => {
     if (!open && !hovered) return;
     const onKey = (e) => {

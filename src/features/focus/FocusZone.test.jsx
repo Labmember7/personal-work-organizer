@@ -191,5 +191,46 @@ describe("FocusZone (Drag & Drop Task Tracking)", () => {
     fireEvent.dragEnd(window);
     expect(zone.classList.contains("over")).toBe(false);
   });
+
+  it("nettoie le portail fantôme si la tâche disparaît en cours de drag et tolère un dragleave hors-Node", () => {
+    const { container, rerender, onDropTask, onAdvance, onRelease, onEdit } = renderZone({
+      task: sampleTask,
+      startedAt: Date.now(),
+    });
+    const zone = container.querySelector(".trk-focus-zone");
+    const taskBtn = container.querySelector(".trk-focus-task-btn");
+
+    fireEvent.dragStart(taskBtn, {
+      clientX: 400,
+      clientY: 300,
+      dataTransfer: {
+        setData: vi.fn(),
+        setDragImage: vi.fn(),
+      },
+    });
+    expect(document.body.querySelector(".trk-focus-ghost")).toBeTruthy();
+
+    // La tâche est libérée avant dragend : le fantôme doit disparaître proprement
+    rerender(
+      <LanguageProvider>
+        <FocusZone
+          task={null}
+          leaving={false}
+          enterKey={1}
+          startedAt={null}
+          onDropTask={onDropTask}
+          onAdvance={onAdvance}
+          onRelease={onRelease}
+          onEdit={onEdit}
+        />
+      </LanguageProvider>
+    );
+    expect(document.body.querySelector(".trk-focus-ghost")).toBeNull();
+
+    // Un dragleave avec relatedTarget non-Node ne doit jamais lever d'exception
+    expect(() =>
+      fireEvent.dragLeave(zone, { relatedTarget: window })
+    ).not.toThrow();
+  });
 });
 

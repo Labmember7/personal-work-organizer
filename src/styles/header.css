@@ -4,19 +4,18 @@
 }
 
 .trk-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(280px, 580px) minmax(180px, 1fr);
   align-items: center;
-  gap: 28px;
+  column-gap: 28px;
+  row-gap: var(--space-4);
   padding-bottom: 26px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 32px;
-  flex-wrap: wrap;
-  row-gap: var(--space-4);
 }
 .trk-header-brand {
-  flex: 0 1 auto;
-  min-width: 180px;
+  justify-self: start;
+  min-width: 0;
 }
 .trk-eyebrow {
   font-family: 'IBM Plex Mono', monospace;
@@ -32,12 +31,33 @@
   margin: 3px 0 0 0;
 }
 .trk-gauge-block {
-  flex: 1 1 380px;
+  justify-self: center;
+  width: 100%;
   max-width: 580px;
-  min-width: 280px;
-  margin: 0 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
+}
+@media (max-width: 980px) {
+  .trk-header {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-4) 24px;
+  }
+  .trk-header-brand {
+    flex: 0 1 auto;
+    min-width: 160px;
+  }
+  .trk-gauge-block {
+    order: 3;
+    flex: 1 1 100%;
+    max-width: 580px;
+    margin: 0 auto;
+  }
+  .trk-header-actions {
+    margin-left: auto;
+  }
 }
 .trk-lang-switch {
   display: flex;
@@ -72,11 +92,11 @@
 }
 
 .trk-header-actions {
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-left: auto;
 }
 /* Les actions de l'en-tête sont réparties en petits blocs par famille
    (données, historique, apparence, aide) : une seule coque par bloc, les
