@@ -1,7 +1,7 @@
 // Plugin d'exemple du tier `app` (v2). Démontre le chargement isolé : module
 // ES servi par l'hôte, sandbox `allow-scripts allow-same-origin`, CSP
 // `script-src 'self'` (aucun `unsafe-inline`), et pont `postMessage`.
-import trk from "trk:sdk";
+import trk from "/@trk/sdk.js";
 
 function render() {
   const tasks = trk.tasks();

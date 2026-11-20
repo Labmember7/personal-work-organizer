@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatedNumber } from "../../components/AnimatedNumber.jsx";
 import { Select } from "../../components/Select.jsx";
 import {
@@ -110,7 +110,7 @@ import { projectSnapshot, themeSnapshot } from "../../lib/plugins/projection";
 import { isLightTheme } from "../../lib/themes";
 import { usePluginSettings } from "./usePluginSettings";
 import { savePluginSettings } from "../../lib/plugins/settings";
-import { discoverPlugins } from "../../services/plugins";
+import { discoverPlugins, getCachedPlugins } from "../../services/plugins";
 import { DeclarativeView } from "./DeclarativeView.jsx";
 import { NodeGlyph } from "./NodeGlyph.jsx";
 import { PluginDocBar } from "./PluginDocBar.jsx";
@@ -185,16 +185,18 @@ function PluginSettingsEditor({ defs, values, onChange, lang }) {
 // et afficher (cf. PLUGIN_PLAN.md, § Deux décisions arbitrées).
 export const PluginsSection = React.memo(function PluginsSection({ tasks, projects, theme, randomSeed, onRevealTask, onToast }) {
   const { t, lang } = useLang();
-  const [discovering, setDiscovering] = useState(true);
-  const [plugins, setPlugins] = useState([]);
-  const [loadErrors, setLoadErrors] = useState([]);
+  const initialDiscovery = getCachedPlugins();
+  const [discovering, setDiscovering] = useState(() => !initialDiscovery);
+  const [plugins, setPlugins] = useState(() => initialDiscovery?.plugins ?? []);
+  const [loadErrors, setLoadErrors] = useState(() => initialDiscovery?.errors ?? []);
   const [selectedId, setSelectedId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
+  const autoCreatedRef = useRef(new Set());
 
   const refreshPlugins = (bump) => {
-    setDiscovering(true);
-    return discoverPlugins().then((result) => {
+    if (!plugins.length) setDiscovering(true);
+    return discoverPlugins(Boolean(bump)).then((result) => {
       if (bump) setReloadKey((k) => k + 1);
       setPlugins(result.plugins);
       setLoadErrors(result.errors);
@@ -203,6 +205,7 @@ export const PluginsSection = React.memo(function PluginsSection({ tasks, projec
   };
 
   useEffect(() => {
+    if (getCachedPlugins()) return undefined;
     let cancelled = false;
     (async () => {
       const result = await discoverPlugins();
@@ -233,14 +236,22 @@ export const PluginsSection = React.memo(function PluginsSection({ tasks, projec
   const activePlugin = plugins.find((p) => p.manifest.id === selectedId) ?? plugins[0] ?? null;
   const pluginId = activePlugin?.manifest.id ?? null;
 
+  useEffect(() => {
+    if (!window.plugins || typeof window.plugins.watch !== "function") return;
+    if (!activePlugin?.root || !pluginId) return;
+    void window.plugins.watch(pluginId, activePlugin.root);
+  }, [pluginId, activePlugin?.root]);
+
   const docsStore = usePluginDocs(pluginId, activePlugin?.manifest.version);
   const scopes = activePlugin ? scopesOf(activePlugin.manifest) : ["global", "project"];
 
-  // Un plugin "singleton" (une carte, pas une liste) n'a pas d'affordance
-  // pour créer son propre document : l'hôte lui en garantit un.
+  // Garantit un premier document à l'ouverture d'un plugin `app` (évite un
+  // écran vide au premier clic tout en permettant la gestion multi-documents).
   useEffect(() => {
-    if (activePlugin?.declarative) return; // une vue déclarative n'a pas de document
-    if (activePlugin?.manifest.singleton && !docsStore.loading && docsStore.docs.length === 0) {
+    if (!activePlugin || activePlugin.declarative) return;
+    if (!docsStore.loading && docsStore.docs.length === 0) {
+      if (!activePlugin.manifest.singleton && autoCreatedRef.current.has(activePlugin.manifest.id)) return;
+      autoCreatedRef.current.add(activePlugin.manifest.id);
       docsStore.createDoc(localized(activePlugin.manifest.name, lang), { kind: "global" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -439,7 +450,7 @@ export const PluginsSection = React.memo(function PluginsSection({ tasks, projec
           <PluginFrame
             iframeRef={host.iframeRef}
             ready={host.ready}
-            src={activePlugin.url}
+            src={reloadKey > 0 && activePlugin.url ? `${activePlugin.url}?v=${reloadKey}` : activePlugin.url}
             title={localized(activePlugin.manifest.name, lang)}
             reloadKey={reloadKey}
             onReload={() => setReloadKey((k) => k + 1)}

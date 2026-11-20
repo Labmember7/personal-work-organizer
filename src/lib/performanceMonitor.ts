@@ -38,6 +38,7 @@ let installed = false;
 const subscribers = new Set<(state: PerfState) => void>();
 
 function notify(): void {
+  if (subscribers.size === 0) return;
   const state = getPerfState();
   subscribers.forEach((cb) => cb(state));
 }
@@ -89,7 +90,8 @@ export function recordInteraction(type: string, targetName: string, durationMs: 
   if (interactions.length > MAX_INTERACTIONS) interactions.pop();
 
   // Seules les actions utilisateur directes (clics, touches, drop) émettent une alerte INP
-  if (rounded > 50 && INP_ACTION_TYPES.has(type.toLowerCase())) {
+  // lorsque l'outil de performance est activement ouvert/abonné.
+  if (subscribers.size > 0 && rounded > 50 && INP_ACTION_TYPES.has(type.toLowerCase())) {
     pushLog("perf", "warn", `⚠️ Slow interaction [${type}] on <${targetName}> took ${rounded}ms`);
   }
 
@@ -105,7 +107,9 @@ export function recordLongTask(durationMs: number): void {
   });
   if (longTasks.length > MAX_LONG_TASKS) longTasks.pop();
 
-  pushLog("perf", "warn", `🚨 Main thread blocked for ${rounded}ms (Long Task)`);
+  if (subscribers.size > 0) {
+    pushLog("perf", "warn", `🚨 Main thread blocked for ${rounded}ms (Long Task)`);
+  }
   notify();
 }
 
@@ -117,6 +121,11 @@ export function clearPerfMetrics(): void {
 }
 
 let fpsRafId: number | null = null;
+let observersActive = false;
+let eventObserver: PerformanceObserver | null = null;
+let longTaskObserver: PerformanceObserver | null = null;
+let fallbackMonitorHandler: ((e: Event) => void) | null = null;
+const FALLBACK_EVENTS = ["click", "keydown", "drop", "dragend"] as const;
 
 function stopFpsSampler(): void {
   if (fpsRafId !== null && typeof cancelAnimationFrame === "function") {
@@ -147,30 +156,13 @@ function startFpsSampler(): void {
   fpsRafId = requestAnimationFrame(sampleFps);
 }
 
-export function subscribePerf(cb: (state: PerfState) => void): () => void {
-  subscribers.add(cb);
-  cb(getPerfState());
-  if (installed) startFpsSampler();
-  return () => {
-    subscribers.delete(cb);
-    if (subscribers.size === 0) stopFpsSampler();
-  };
-}
+function startObservers(): void {
+  if (observersActive || typeof window === "undefined") return;
+  observersActive = true;
 
-/**
- * Installe les observateurs de performance natifs (Event Timing API, Long Tasks API).
- * L'échantillonneur FPS RAF ne tourne que lorsqu'un panneau de perf est ouvert.
- */
-export function initPerformanceMonitoring(): void {
-  if (installed || typeof window === "undefined") return;
-  installed = true;
-
-  if (subscribers.size > 0) startFpsSampler();
-
-  // 2. PerformanceObserver pour les interactions (INP / Event Timing)
   if (typeof PerformanceObserver !== "undefined") {
     try {
-      const eventObserver = new PerformanceObserver((list) => {
+      eventObserver = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           const type = entry.name || "event";
           if (type === "pointerdown" || type === "mousedown" || type === "dragover" || type === "dragenter" || type === "dragleave") continue;
@@ -181,32 +173,30 @@ export function initPerformanceMonitoring(): void {
       eventObserver.observe({
         type: "event",
         buffered: false,
-        durationThreshold: 8, // Écoute toute interaction > 8ms
+        durationThreshold: 8,
       } as PerformanceObserverInit);
     } catch {
-      // Les types d'observateurs non supportés sont ignorés silencieusement
+      eventObserver = null;
     }
 
-    // 3. PerformanceObserver pour les Long Tasks (> 50ms bloquants)
     try {
-      const longTaskObserver = new PerformanceObserver((list) => {
+      longTaskObserver = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           recordLongTask(entry.duration);
         }
       });
       longTaskObserver.observe({ entryTypes: ["longtask"] });
     } catch {
-      // Ignoré si non supporté
+      longTaskObserver = null;
     }
   }
 
-  // 4. Capture passive des clics / touches / drag pour mesurer le temps de réponse (secours ou complément)
   const hasNativeEventTiming = typeof PerformanceObserver !== "undefined" &&
     Array.isArray(PerformanceObserver.supportedEntryTypes) &&
     PerformanceObserver.supportedEntryTypes.includes("event");
 
   if (!hasNativeEventTiming) {
-    const monitorEvent = (e: Event) => {
+    fallbackMonitorHandler = (e: Event) => {
       const start = performance.now();
       const type = e.type;
       const targetEl = e.target as HTMLElement | null;
@@ -214,7 +204,6 @@ export function initPerformanceMonitoring(): void {
         ? `${targetEl.tagName.toLowerCase()}${targetEl.className ? `.${String(targetEl.className).split(" ")[0]}` : ""}`
         : "window";
 
-      // Mesure au microtask suivant (une fois le traitement d'événement terminé)
       queueMicrotask(() => {
         const duration = performance.now() - start;
         if (duration >= 2) {
@@ -223,9 +212,60 @@ export function initPerformanceMonitoring(): void {
       });
     };
 
-    ["click", "keydown", "drop", "dragend"].forEach((evt) => {
-      window.addEventListener(evt, monitorEvent, { passive: true, capture: true });
+    FALLBACK_EVENTS.forEach((evt) => {
+      window.addEventListener(evt, fallbackMonitorHandler!, { passive: true, capture: true });
     });
+  }
+}
+
+function stopObservers(): void {
+  if (!observersActive) return;
+  observersActive = false;
+
+  if (eventObserver) {
+    eventObserver.disconnect();
+    eventObserver = null;
+  }
+  if (longTaskObserver) {
+    longTaskObserver.disconnect();
+    longTaskObserver = null;
+  }
+  if (fallbackMonitorHandler && typeof window !== "undefined") {
+    FALLBACK_EVENTS.forEach((evt) => {
+      window.removeEventListener(evt, fallbackMonitorHandler!, { capture: true });
+    });
+    fallbackMonitorHandler = null;
+  }
+}
+
+export function subscribePerf(cb: (state: PerfState) => void): () => void {
+  subscribers.add(cb);
+  cb(getPerfState());
+  if (installed) {
+    startFpsSampler();
+    startObservers();
+  }
+  return () => {
+    subscribers.delete(cb);
+    if (subscribers.size === 0) {
+      stopFpsSampler();
+      stopObservers();
+    }
+  };
+}
+
+/**
+ * Prépare la surveillance de performance à la demande : les PerformanceObserver,
+ * écouteurs et l'échantillonneur FPS RAF ne tournent que lorsqu'un panneau de
+ * performance est activement ouvert/abonné.
+ */
+export function initPerformanceMonitoring(): void {
+  if (installed || typeof window === "undefined") return;
+  installed = true;
+
+  if (subscribers.size > 0) {
+    startFpsSampler();
+    startObservers();
   }
 }
 

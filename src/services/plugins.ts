@@ -132,17 +132,11 @@ export function buildFromCandidates(
 }
 
 /**
- * PoC du format `trk.extension/2` : un plugin est un dossier `plugins/<id>/`
- * avec un `manifest.json`. Seules les vues déclaratives sont gérées ici — elles
- * n'ont besoin d'aucune iframe, d'aucune origine et d'aucun protocole, donc
- * d'aucune modification du processus principal.
- *
- * Raccourci assumé de la démonstration : `import.meta.glob` embarque le contenu
- * des fichiers au build, ce qui rend la démo visible aussi dans l'app packagée.
- * La découverte réellement dynamique (déposer un dossier à côté de
- * l'exécutable) demande d'étendre l'IPC `plugins:list` aux dossiers.
+ * Découverte des plugins v2 (`trk.extension/2`) hors Tauri (repli navigateur
+ * pour `npm run dev`) : gère les vues déclaratives (`.trkv`) ainsi que les
+ * vues `app` (`entry: "index.html"`), servies depuis `/plugins/<id>/`.
  */
-async function discoverDeclarative(): Promise<PluginSource[]> {
+async function discoverV2InBrowser(): Promise<PluginSource[]> {
   const manifestLoaders = import.meta.glob("/plugins/*/manifest.json", { query: "?raw", import: "default" });
   const specLoaders = import.meta.glob("/plugins/*/views/*.trkv", { query: "?raw", import: "default" });
 
@@ -153,43 +147,73 @@ async function discoverDeclarative(): Promise<PluginSource[]> {
     if (!v2.ok) continue;
 
     const contributes = v2.manifest.contributes;
-    const view = contributes?.views?.find((v) => v.kind === "declarative");
-    if (!view || typeof view.spec !== "string") continue;
-
+    const views = contributes?.views ?? [];
+    const declView = views.find((v) => v.kind === "declarative" && typeof v.spec === "string");
+    const appView = views.find((v) => v.kind === "app" && typeof v.entry === "string");
     const dir = modulePath.slice(0, modulePath.lastIndexOf("/"));
-    const loadSpec = specLoaders[`${dir}/${view.spec}`];
-    if (!loadSpec) continue;
-    const raw = await loadSpec();
-    if (typeof raw !== "string") continue;
-    const spec = parseDeclarativeSpec(raw);
 
-    // Panneaux déclaratifs de tâche : specs lues depuis le même glob paresseux.
-    const panelSpecs: Record<string, string> = {};
-    for (const p of contributes?.taskPanels ?? []) {
-      if (p && p.kind === "declarative" && typeof p.spec === "string") {
-        const loadPanel = specLoaders[`${dir}/${p.spec}`];
-        if (loadPanel) {
-          const praw = await loadPanel();
-          if (typeof praw === "string") panelSpecs[p.id] = praw;
+    if (declView && typeof declView.spec === "string") {
+      const loadSpec = specLoaders[`${dir}/${declView.spec}`];
+      if (!loadSpec) continue;
+      const raw = await loadSpec();
+      if (typeof raw !== "string") continue;
+      const spec = parseDeclarativeSpec(raw);
+
+      const panelSpecs: Record<string, string> = {};
+      for (const p of contributes?.taskPanels ?? []) {
+        if (p && p.kind === "declarative" && typeof p.spec === "string") {
+          const loadPanel = specLoaders[`${dir}/${p.spec}`];
+          if (loadPanel) {
+            const praw = await loadPanel();
+            if (typeof praw === "string") panelSpecs[p.id] = praw;
+          }
         }
       }
+
+      out.push({
+        manifest: normalizeV2Manifest(v2.manifest),
+        url: "",
+        origin: "builtin",
+        file: `${v2.manifest.id}/manifest.json`,
+        format: 2,
+        root: dir,
+        ...(spec ? { declarative: spec } : {}),
+        ...(Object.keys(panelSpecs).length ? { panelSpecs } : {}),
+      });
+      continue;
     }
 
-    out.push({
-      manifest: normalizeV2Manifest(v2.manifest),
-      url: "",
-      origin: "builtin",
-      file: `${v2.manifest.id}/manifest.json`,
-      format: 2,
-      root: dir,
-      ...(spec ? { declarative: spec } : {}),
-      ...(Object.keys(panelSpecs).length ? { panelSpecs } : {}),
-    });
+    if (appView && typeof appView.entry === "string") {
+      out.push({
+        manifest: normalizeV2Manifest(v2.manifest),
+        url: `${dir}/${appView.entry}`,
+        origin: "builtin",
+        file: `${v2.manifest.id}/manifest.json`,
+        format: 2,
+        root: dir,
+      });
+    }
   }
   return out;
 }
 
-export async function discoverPlugins(): Promise<{ plugins: PluginSource[]; errors: PluginLoadError[] }> {
+export type PluginDiscoveryResult = { plugins: PluginSource[]; errors: PluginLoadError[] };
+
+let cachedResult: PluginDiscoveryResult | null = null;
+let inflightPromise: Promise<PluginDiscoveryResult> | null = null;
+
+/** Renvoie la dernière découverte mise en cache (synchrone, pour éviter le flash de chargement). */
+export function getCachedPlugins(): PluginDiscoveryResult | null {
+  return cachedResult;
+}
+
+/** Invalide le cache de découverte (ex. rechargement à chaud en dev). */
+export function invalidatePluginsCache(): void {
+  cachedResult = null;
+  inflightPromise = null;
+}
+
+async function runDiscoverPlugins(): Promise<PluginDiscoveryResult> {
   if (hasIpc()) {
     const raw = await window.plugins!.list();
     const found = buildFromCandidates(raw, (file) => `app-plugin://local/${file}`);
@@ -200,16 +224,16 @@ export async function discoverPlugins(): Promise<{ plugins: PluginSource[]; erro
     if (hasDeclarative) {
       return found;
     }
-    const declarative = await discoverDeclarative();
+    const v2Browser = await discoverV2InBrowser();
     const byId = new Map(found.plugins.map((p) => [p.manifest.id, p]));
-    for (const d of declarative) {
-      if (!byId.has(d.manifest.id)) byId.set(d.manifest.id, d);
+    for (const d of v2Browser) {
+      if (d.declarative && !byId.has(d.manifest.id)) byId.set(d.manifest.id, d);
     }
     return { plugins: [...byId.values()], errors: found.errors };
   }
 
   // Hors Tauri : chargement paresseux des plugins embarqués (n'alourdit jamais main.js).
-  const declarative = await discoverDeclarative();
+  const v2Plugins = await discoverV2InBrowser();
   const loaders = import.meta.glob("/plugins/*.html", { query: "?raw", import: "default" });
   const entries = await Promise.all(
     Object.entries(loaders).map(async ([modulePath, loadHtml]) => {
@@ -222,7 +246,26 @@ export async function discoverPlugins(): Promise<{ plugins: PluginSource[]; erro
     })
   );
   const found = buildFromCandidates(entries, (file) => `/plugins/${file}`);
-  return { plugins: [...found.plugins, ...declarative], errors: found.errors };
+  return { plugins: [...found.plugins, ...v2Plugins], errors: found.errors };
+}
+
+export async function discoverPlugins(forceRefresh = false): Promise<PluginDiscoveryResult> {
+  if (!forceRefresh) {
+    if (cachedResult) return cachedResult;
+    if (inflightPromise) return inflightPromise;
+  }
+
+  const promise = runDiscoverPlugins()
+    .then((res) => {
+      cachedResult = res;
+      return res;
+    })
+    .finally(() => {
+      if (inflightPromise === promise) inflightPromise = null;
+    });
+
+  inflightPromise = promise;
+  return promise;
 }
 
 export interface PluginFilePayload {

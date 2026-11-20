@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en" class="trk-plugin-dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="trk-plugin-id" content="action-plan" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Action Plan &amp; Gantt</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- Top Command Bar -->
+  <header class="topbar" role="toolbar" aria-label="Action Plan toolbar">
+    <div class="tb-cluster">
+      <div class="brand">
+        <span class="brand-dot" aria-hidden="true"></span>
+        <div class="brand-text">
+          <strong id="brandTitle">Action Plan</strong>
+          <span id="brandSub" class="mono-meta">—</span>
+        </div>
+      </div>
+
+      <div class="seg" role="tablist" aria-label="Workspace view">
+        <button type="button" class="seg-btn on" data-view="map" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M7.5 11.2 16.5 7M7.5 12.8 16.5 17"/></svg>
+          <span data-i18n="view_map">Mind Map</span>
+        </button>
+        <button type="button" class="seg-btn" data-view="split" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+          <span data-i18n="view_split">Split</span>
+        </button>
+        <button type="button" class="seg-btn" data-view="gantt" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="8" height="3.5" rx="1.2"/><rect x="8" y="10.25" width="10" height="3.5" rx="1.2"/><rect x="13" y="15.5" width="8" height="3.5" rx="1.2"/></svg>
+          <span data-i18n="view_gantt">Gantt</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="tb-cluster">
+      <button type="button" class="btn btn-primary" id="btnAddQuick">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span id="btnAddQuickLabel" data-i18n="btn_add_phase">Phase</span>
+      </button>
+
+      <button type="button" class="btn" id="btnAddSeq" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+        <span data-i18n="btn_sequence">Next Step</span>
+      </button>
+
+      <span class="tb-sep" aria-hidden="true"></span>
+
+      <button type="button" class="btn btn-toggle on" id="btnCritical" aria-pressed="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span data-i18n="btn_critical">Critical Path</span>
+      </button>
+
+      <button type="button" class="btn btn-toggle on" id="btnDeps" aria-pressed="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        <span data-i18n="btn_deps">Dependencies</span>
+      </button>
+    </div>
+
+    <div class="tb-spacer"></div>
+
+    <div class="tb-cluster">
+      <div class="search-box" id="searchBox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+        <input id="qSearch" type="search" autocomplete="off" placeholder="Search…" />
+        <span class="search-count" id="searchCount"></span>
+      </div>
+
+      <button type="button" class="btn btn-icon" id="btnUndo" disabled aria-label="Undo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+      </button>
+      <button type="button" class="btn btn-icon" id="btnRedo" disabled aria-label="Redo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+      </button>
+      <button type="button" class="btn btn-icon" id="btnFit" aria-label="Fit view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/></svg>
+      </button>
+
+      <!-- Calendar / Schedule Popover -->
+      <div class="pop-host">
+        <button type="button" class="btn btn-icon" id="btnCal" aria-expanded="false" aria-label="Schedule settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2.5"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </button>
+        <div class="pop" id="popCal" role="dialog" aria-label="Schedule settings">
+          <div class="pop-title" data-i18n="cal_title">Schedule Settings</div>
+          <label class="pop-field">
+            <span data-i18n="cal_start_date">Plan Start Date</span>
+            <input type="date" id="calStartDate" />
+          </label>
+          <label class="pop-field">
+            <span data-i18n="cal_hours_day">Work hours / day</span>
+            <input type="number" id="calHoursDay" min="1" max="24" step="1" value="8" />
+          </label>
+          <label class="pop-check">
+            <input type="checkbox" id="calSkipWeekends" checked />
+            <span data-i18n="cal_skip_weekends">Skip weekends (Sat/Sun)</span>
+          </label>
+          <label class="pop-field">
+            <span data-i18n="cal_layout_dir">Map layout</span>
+            <select id="calLayoutDir">
+              <option value="balanced" data-i18n="cal_dir_balanced">Balanced (L / R)</option>
+              <option value="right" data-i18n="cal_dir_right">Flow left → right</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <!-- Export / File Popover -->
+      <div class="pop-host">
+        <button type="button" class="btn btn-icon" id="btnExport" aria-expanded="false" aria-label="Export">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <div class="pop" id="popExport" role="menu">
+          <button type="button" class="pop-item" id="actExpGanttSvg" data-i18n="exp_gantt_svg">Export Gantt (SVG)</button>
+          <button type="button" class="pop-item" id="actExpGanttPng" data-i18n="exp_gantt_png">Export Gantt (PNG)</button>
+          <button type="button" class="pop-item" id="actExpMermaid" data-i18n="exp_mermaid">Copy Mermaid Gantt</button>
+          <div class="pop-sep"></div>
+          <button type="button" class="pop-item" id="actExpJson" data-i18n="exp_json">Export plan (JSON)</button>
+          <button type="button" class="pop-item" id="actImpJson" data-i18n="exp_import">Import plan (JSON)</button>
+          <div class="pop-sep"></div>
+          <button type="button" class="pop-item" id="actLoadSample" data-i18n="act_load_sample">Load sample plan</button>
+          <button type="button" class="pop-item danger" id="actBlankPlan" data-i18n="act_blank_plan">Blank action plan</button>
+        </div>
+      </div>
+
+      <button type="button" class="btn btn-icon" id="btnHelp" aria-label="Keyboard shortcuts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </button>
+
+      <button type="button" class="btn btn-icon" id="btnFull" aria-label="Fullscreen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Live Schedule KPI Strip -->
+  <section class="kpi-strip" aria-label="Schedule summary">
+    <div class="kpi-item">
+      <span class="kpi-label" data-i18n="kpi_duration">Total Span</span>
+      <strong class="kpi-val" id="kpiSpan">—</strong>
+    </div>
+    <div class="kpi-item">
+      <span class="kpi-label" data-i18n="kpi_effort">Total Effort</span>
+      <strong class="kpi-val" id="kpiEffort">—</strong>
+    </div>
+    <div class="kpi-item">
+      <span class="kpi-label" data-i18n="kpi_end">Est. Finish</span>
+      <strong class="kpi-val" id="kpiEnd">—</strong>
+    </div>
+    <div class="kpi-item">
+      <span class="kpi-label" data-i18n="kpi_critical">Critical</span>
+      <strong class="kpi-val kpi-warn" id="kpiCrit">0</strong>
+    </div>
+    <div class="kpi-item kpi-prog-wrap">
+      <span class="kpi-label" data-i18n="kpi_progress">Progress</span>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="kpiProgBar"></div></div>
+      <strong class="kpi-val" id="kpiProg">0%</strong>
+    </div>
+    <div class="kpi-cycle-alert" id="cycleBanner" role="alert" hidden></div>
+  </section>
+
+  <!-- Main Workspace (Mindmap / Split / Gantt) -->
+  <main class="workspace mode-map" id="workspace">
+    <!-- Mindmap Pane -->
+    <div class="pane pane-map" id="paneMap" tabindex="0">
+      <svg id="mapSvg" xmlns="http://www.w3.org/2000/svg">
+        <g id="mapScene"></g>
+      </svg>
+
+      <!-- Floating Zoom HUD -->
+      <div class="zoom-hud" aria-label="Zoom controls">
+        <button type="button" id="zOut" aria-label="Zoom out">−</button>
+        <span id="zPct" class="mono-meta">100%</span>
+        <button type="button" id="zIn" aria-label="Zoom in">+</button>
+        <button type="button" id="zFit" aria-label="Fit">◎</button>
+      </div>
+
+      <!-- Inline Canvas Text Editor Overlay -->
+      <input id="inlineEditor" class="inline-editor" type="text" hidden />
+    </div>
+
+    <!-- Draggable Split Divider -->
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" tabindex="0"></div>
+
+    <!-- Gantt Pane -->
+    <div class="pane pane-gantt" id="paneGantt"></div>
+  </main>
+
+  <!-- Slide-in Inspector Drawer -->
+  <aside class="inspector" id="inspector" aria-label="Action inspector">
+    <header class="insp-head">
+      <span class="insp-stripe" id="inspStripe"></span>
+      <div class="insp-head-info">
+        <span class="insp-kind" id="inspKind">Action</span>
+        <h2 class="insp-title" id="inspTitle">—</h2>
+      </div>
+      <button type="button" class="btn btn-icon" id="inspClose" aria-label="Close inspector">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+    <div class="insp-body" id="inspBody"></div>
+  </aside>
+
+  <!-- Custom Context Menu -->
+  <div class="ctx" id="ctx" role="menu" tabindex="-1"></div>
+
+  <!-- Floating Status / Undo Pill -->
+  <div class="pill" id="pill" role="status" aria-live="polite">
+    <span id="pillText"></span>
+    <button type="button" id="pillBtn" hidden></button>
+  </div>
+
+  <!-- Shortcuts Modal -->
+  <div class="modal-backdrop" id="helpModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <header class="modal-head">
+        <h3 id="helpTitle" data-i18n="shortcuts_title">Keyboard Shortcuts</h3>
+        <button type="button" class="btn btn-icon" id="helpClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </header>
+      <div class="shortcuts-list" id="shortcutsList"></div>
+    </div>
+  </div>
+
+  <input type="file" id="fileImport" accept=".json,application/json" hidden />
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

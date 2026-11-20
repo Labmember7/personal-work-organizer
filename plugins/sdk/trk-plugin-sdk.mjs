@@ -153,7 +153,7 @@ function handleHostMessage(raw) {
       state.ready = true;
       if (state.theme) applyTheme(state.theme);
       for (const r of readyResolvers) r(message);
-      readyResolvers = [];
+      readyResolvers.length = 0;
       emit("settings", state.settings);
       break;
     case "host:doc":

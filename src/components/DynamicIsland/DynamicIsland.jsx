@@ -208,9 +208,9 @@ const DynamicIslandInner = React.memo(function DynamicIslandInner({
   const [perfState, setPerfState] = useState(() => (isDev ? getPerfState() : null));
 
   useEffect(() => {
-    if (!isDev || !open) return;
+    if (!isDev || !open || mode !== "perf") return;
     return subscribePerf(setPerfState);
-  }, [isDev, open]);
+  }, [isDev, open, mode]);
 
   const {
     focusTask,

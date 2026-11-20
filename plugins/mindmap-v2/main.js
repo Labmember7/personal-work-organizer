@@ -1,4 +1,4 @@
-import trk from "trk:sdk";
+import trk from "/@trk/sdk.js";
 
 /* ============================================================
    DONNÉES — le contenu vit dans le document du plugin
@@ -385,12 +385,37 @@ function render(){
   scene.innerHTML=`<defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
     <path d="M0,1 L7,4 L0,7 z" fill="${muted()}"/></marker></defs>
     <g>${edges}</g><g opacity=".85">${dep}</g><g>${nodes}</g><g>${hnd}</g><g id="ghost"></g>`;
-  scene.setAttribute("transform",`translate(${S.vx},${S.vy}) scale(${S.k})`);
+  applyView();
 }
 function isShown(n){let c=n;while(c&&c._d>0){if(!visible(c))return false;if(c!==n&&S.folded.has(c.id))return false;c=c._p}return true}
 
 /* ---------- vue ---------- */
-function applyView(){scene.setAttribute("transform",`translate(${S.vx},${S.vy}) scale(${S.k})`)}
+let rafId=null, rafFn=null, wheelBase=null, wheelTimer=null;
+function scheduleRaf(fn){
+  rafFn=fn;
+  if(rafId!==null)return;
+  rafId=requestAnimationFrame(()=>{rafId=null;const fnNow=rafFn;rafFn=null;if(fnNow)fnNow()});
+}
+function cancelRaf(){
+  if(rafId!==null){cancelAnimationFrame(rafId);rafId=null}
+  rafFn=null;
+}
+function resetGpu(){
+  svg.style.transform="";
+  svg.style.transformOrigin="";
+  wheelBase=null;
+}
+function applyZoomGpu(){
+  if(!wheelBase){applyView();return}
+  const relK=S.k/wheelBase.k, tx=S.vx-wheelBase.vx*relK, ty=S.vy-wheelBase.vy*relK;
+  svg.style.transformOrigin="0 0";
+  svg.style.transform=`translate3d(${tx.toFixed(2)}px,${ty.toFixed(2)}px,0) scale(${relK.toFixed(4)})`;
+}
+function applyView(){
+  clearTimeout(wheelTimer);wheelTimer=null;
+  resetGpu();
+  scene.setAttribute("transform",`translate(${S.vx},${S.vy}) scale(${S.k})`);
+}
 function fit(){
   render();const b=scene.getBBox(), r=canvas.getBoundingClientRect();
   if(!b.width||!b.height)return;
@@ -398,10 +423,15 @@ function fit(){
   S.vx=r.width/2-(b.x+b.width/2)*S.k;S.vy=r.height/2-(b.y+b.height/2)*S.k;
   applyView();
 }
-function zoomBy(f){
-  const r=canvas.getBoundingClientRect(), mx=r.width/2, my=r.height/2;
+function zoomBy(f,mx0=null,my0=null){
+  const mx=mx0!==null?mx0:canvas.clientWidth/2, my=my0!==null?my0:canvas.clientHeight/2;
   const k=Math.min(2.2,Math.max(.28,S.k*f));
-  S.vx=mx-(mx-S.vx)*k/S.k;S.vy=my-(my-S.vy)*k/S.k;S.k=k;applyView();
+  if(k===S.k)return;
+  if(!wheelBase)wheelBase={vx:S.vx,vy:S.vy,k:S.k};
+  S.vx=mx-(mx-S.vx)*k/S.k;S.vy=my-(my-S.vy)*k/S.k;S.k=k;
+  scheduleRaf(applyZoomGpu);
+  clearTimeout(wheelTimer);
+  wheelTimer=setTimeout(()=>{wheelTimer=null;applyView()},110);
 }
 function centerOn(n){
   if(!n||n.x==null)return;
@@ -824,6 +854,7 @@ function drawWire(p){
 }
 canvas.addEventListener("pointerdown",e=>{
   if(e.button)return;
+  if(wheelBase){clearTimeout(wheelTimer);wheelTimer=null;cancelRaf();applyView()}
   closeMenu();closePops();
   const t=hitOf(e.target);
   press={x:e.clientX,y:e.clientY,moved:false,kind:t.kind,id:t.id,end:t.end};
@@ -834,7 +865,7 @@ canvas.addEventListener("pointerdown",e=>{
   else if(edit&&t.kind==="handle"&&S.link)hd={end:t.end};
   else if(edit&&t.kind==="node"){const n=IDX.get(t.id);
     if(n&&n._d>0)nd={n,sx:e.clientX,sy:e.clientY,x0:n.dx||0,y0:n.dy||0}}
-  if(!rd&&!hd&&!nd&&!wire){pan={x:e.clientX-S.vx,y:e.clientY-S.vy};canvas.classList.add("drag")}
+  if(!rd&&!hd&&!nd&&!wire){pan={x:e.clientX-S.vx,y:e.clientY-S.vy,sx:e.clientX,sy:e.clientY};canvas.classList.add("drag")}
   try{canvas.setPointerCapture(e.pointerId)}catch(_){}
 });
 
@@ -850,7 +881,7 @@ canvas.addEventListener("pointermove",e=>{
   }
   if(rd){const n=rd.n;
     n.w0=Math.max(150,Math.min(540,rd.w0+(e.clientX-rd.sx)/S.k));
-    n.h0=Math.max(42,rd.h0+(e.clientY-rd.sy)/S.k);render();return}
+    n.h0=Math.max(42,rd.h0+(e.clientY-rd.sy)/S.k);scheduleRaf(render);return}
   if(hd&&S.link){
     const p=toScene(e);
     if(S.link.startsWith("d:")){
@@ -863,26 +894,30 @@ canvas.addEventListener("pointermove",e=>{
       else if(n._d>=2)n.link.from=nearestAnchor(n._p,p.x,p.y);
       else n.link.busDy=Math.max(-200,Math.min(200,p.y-n.y));
     }
-    render();return;
+    scheduleRaf(render);return;
   }
-  if(nd){nd.n.dx=nd.x0+(e.clientX-nd.sx)/S.k;nd.n.dy=nd.y0+(e.clientY-nd.sy)/S.k;render();return}
-  if(pan){S.vx=e.clientX-pan.x;S.vy=e.clientY-pan.y;applyView()}
+  if(nd){nd.n.dx=nd.x0+(e.clientX-nd.sx)/S.k;nd.n.dy=nd.y0+(e.clientY-nd.sy)/S.k;scheduleRaf(render);return}
+  if(pan){S.vx=e.clientX-pan.x;S.vy=e.clientY-pan.y;
+    const dx=e.clientX-pan.sx, dy=e.clientY-pan.sy;
+    scheduleRaf(()=>{svg.style.transformOrigin="0 0";svg.style.transform=`translate3d(${dx.toFixed(1)}px,${dy.toFixed(1)}px,0)`})}
 });
 
 function finish(e){
-  const p=press, wasWire=wire, wasDrag=nd, wasResize=rd, wasHandle=hd;
+  const p=press, wasWire=wire, wasDrag=nd, wasResize=rd, wasHandle=hd, wasPan=pan;
   press=null;nd=hd=rd=pan=wire=null;
+  cancelRaf();
   canvas.classList.remove("drag","wiring");
   try{if(e&&e.pointerId!=null&&canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId)}catch(_){}
+  if(wasPan)applyView();
   if(wasWire){
     const g=$("ghost");if(g)g.innerHTML="";
     if(wasWire.over)connect(wasWire.from,wasWire.over);else render();
     return;
   }
   if(p&&p.moved){
-    if(wasDrag)commit(H("move"));
-    else if(wasResize)commit(H("size"));
-    else if(wasHandle)commit(H("link"));
+    if(wasDrag){render();commit(H("move"))}
+    else if(wasResize){render();commit(H("size"))}
+    else if(wasHandle){render();commit(H("link"))}
     return;
   }
   if(!p)return;
@@ -924,10 +959,13 @@ canvas.addEventListener("contextmenu",e=>{
   }
 });
 
+let canvasRect=null;
+const getCanvasRect=()=>canvasRect||(canvasRect=canvas.getBoundingClientRect());
+canvas.addEventListener("pointerenter",()=>{canvasRect=canvas.getBoundingClientRect()});
+addEventListener("resize",()=>{canvasRect=null});
 canvas.addEventListener("wheel",e=>{e.preventDefault();
-  const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
-  const k=Math.min(2.2,Math.max(.28,S.k*(e.deltaY<0?1.12:.89)));
-  S.vx=mx-(mx-S.vx)*k/S.k;S.vy=my-(my-S.vy)*k/S.k;S.k=k;applyView()},{passive:false});
+  const r=getCanvasRect(), clamped=Math.max(-80,Math.min(80,e.deltaY));
+  zoomBy(Math.exp(-clamped*.0025),e.clientX-r.left,e.clientY-r.top)},{passive:false});
 
 /* ============================================================
    CLAVIER

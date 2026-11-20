@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -42,8 +43,33 @@ const stripLegacyWoff = () => ({
   },
 });
 
+// En mode dev navigateur (`npm run dev`), résout `trk:sdk` et sert
+// `/@trk/sdk.js` depuis `plugins/sdk/trk-plugin-sdk.mjs` pour que tous les
+// plugins v2 (`kind: "app"`) fonctionnent aussi hors Tauri.
+const servePluginSdkDev = () => {
+  const sdkPath = resolve(__dirname, "plugins/sdk/trk-plugin-sdk.mjs");
+  return {
+    name: "serve-plugin-sdk-dev",
+    apply: "serve",
+    resolveId(id) {
+      if (id === "trk:sdk" || id === "/@trk/sdk.js") return sdkPath;
+      return null;
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === "/@trk/sdk.js") {
+          res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+          res.end(readFileSync(sdkPath, "utf-8"));
+          return;
+        }
+        next();
+      });
+    },
+  };
+};
+
 export default defineConfig({
-  plugins: [react(), injectCsp(), stripLegacyWoff()],
+  plugins: [react(), injectCsp(), stripLegacyWoff(), servePluginSdkDev()],
   base: "./",
   optimizeDeps: {
     // Limite la pré-analyse Vite aux deux entrées de l'app (évite de scanner

@@ -25,6 +25,12 @@ pub fn resolve_base_dir() -> PathBuf {
                 let mut curr = parent.to_path_buf();
                 while let Some(up) = curr.parent() {
                     if curr.ends_with("target") {
+                        // In Tauri dev, `target/` lives inside `src-tauri/` — step up to workspace root
+                        if up.ends_with("src-tauri") {
+                            if let Some(root) = up.parent() {
+                                return root.to_path_buf();
+                            }
+                        }
                         return up.to_path_buf();
                     }
                     curr = up.to_path_buf();
@@ -84,22 +90,22 @@ pub fn get_plugin_dirs(app: Option<&AppHandle>) -> Vec<PluginDir> {
     let mut dirs = Vec::new();
     let base = resolve_base_dir();
 
-    // Builtin plugins:
-    let builtin_candidate = if let Some(a) = app {
+    // Builtin plugins: prefer live workspace `plugins/` in dev, then bundled resources
+    let mut builtin_candidates = Vec::new();
+    let workspace_plugins = base.join("plugins");
+    if workspace_plugins.exists() {
+        builtin_candidates.push(workspace_plugins.clone());
+    }
+    if let Some(a) = app {
         if let Ok(res_dir) = a.path().resource_dir() {
-            res_dir.join("plugins")
-        } else {
-            base.join("plugins")
+            builtin_candidates.push(res_dir.join("_up_").join("plugins"));
+            builtin_candidates.push(res_dir.join("plugins"));
         }
-    } else {
-        base.join("plugins")
-    };
-
-    let builtin_dir = if builtin_candidate.exists() {
-        builtin_candidate
-    } else {
-        base.join("plugins")
-    };
+    }
+    let builtin_dir = builtin_candidates
+        .into_iter()
+        .find(|p| p.exists())
+        .unwrap_or(workspace_plugins);
     dirs.push(PluginDir {
         dir: builtin_dir,
         origin: "builtin".to_string(),

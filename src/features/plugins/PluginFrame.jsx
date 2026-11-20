@@ -33,21 +33,29 @@ export function PluginFrame({ iframeRef, ready, src, title, reloadKey, onReload,
         allow=""
         referrerPolicy="no-referrer"
       />
-      {!ready && (
-        <div className="trk-plugin-loading" role="status" aria-live="polite">
-          <NodeGlyph pulse={!timedOut} />
-          {timedOut ? (
-            <>
-              <p>{t("plugin_load_timeout")}</p>
-              <button type="button" className="trk-btn-secondary" onClick={onReload}>
-                <RefreshCw size={13} /> {t("plugin_reload")}
-              </button>
-            </>
-          ) : (
-            <p>{t("plugin_loading")}</p>
-          )}
-        </div>
-      )}
+      <div
+        className={"trk-plugin-loading" + (ready ? " is-ready" : "")}
+        role="status"
+        aria-live="polite"
+        aria-hidden={ready}
+      >
+        <NodeGlyph pulse={!ready && !timedOut} />
+        {timedOut && !ready ? (
+          <>
+            <p>{t("plugin_load_timeout")}</p>
+            <button type="button" className="trk-btn-secondary" onClick={onReload}>
+              <RefreshCw size={13} /> {t("plugin_reload")}
+            </button>
+          </>
+        ) : (
+          <>
+            <p>{title ? `${t("plugin_loading")} — ${title}` : t("plugin_loading")}</p>
+            <div className="trk-plugin-loading-bar" aria-hidden="true">
+              <div className="trk-plugin-loading-fill" />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

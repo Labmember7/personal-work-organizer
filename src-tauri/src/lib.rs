@@ -248,6 +248,13 @@ fn sanitize_linux_env() {
         // ignorés ; on privilégie X11/XWayland quand DISPLAY est actif.
         std::env::set_var("GDK_BACKEND", "x11,wayland");
     }
+
+    if in_snap {
+        std::env::remove_var("WEBKIT_DISABLE_COMPOSITING_MODE");
+    }
+    if std::env::var_os("WEBKIT_FORCE_COMPOSITING_MODE").map_or(true, |v| v.is_empty()) {
+        std::env::set_var("WEBKIT_FORCE_COMPOSITING_MODE", "1");
+    }
 }
 
 pub fn run() {

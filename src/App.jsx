@@ -140,13 +140,20 @@ export default function App() {
   }, []);
   useEffect(() => {
     let cancelled = false;
+    let prewarmTimer = null;
     (async () => {
       const { plugins } = await discoverPlugins();
       if (cancelled) return;
       setTaskColumns(collectTaskColumns(plugins));
       setTaskPanels(collectTaskPanels(plugins));
+      prewarmTimer = setTimeout(() => {
+        void import("./features/plugins/PluginsSection.jsx");
+      }, 400);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (prewarmTimer) clearTimeout(prewarmTimer);
+    };
   }, []);
 
   // ── Thèmes (6 thèmes dédiés + aléatoire) et célébrations ──

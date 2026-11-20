@@ -1,0 +1,45 @@
+{
+  "$schema": "../../schema/trk-manifest-2.json",
+  "format": "trk.extension/2",
+  "id": "action-plan",
+  "version": "1.0.0",
+  "publisher": "suivi-travaux",
+  "license": "MIT",
+  "engines": { "api": 2 },
+  "name": {
+    "fr": "Plan d'action & Gantt",
+    "en": "Action Plan & Gantt"
+  },
+  "description": {
+    "fr": "Carte mentale de plan d'action avec séquences, dépendances, temps estimés et génération automatique de diagramme de Gantt avec chemin critique.",
+    "en": "Action plan mind map with sequences, dependencies, estimated durations, and live auto-scheduled Gantt chart with critical path."
+  },
+  "icon": "Workflow",
+  "categories": ["planning", "visualisation"],
+  "keywords": ["mindmap", "action-plan", "gantt", "dependencies", "critical-path"],
+  "permissions": [
+    "doc",
+    "tasks:read",
+    "task:reveal",
+    "file:save",
+    "toast",
+    "fullscreen",
+    "debug"
+  ],
+  "contributes": {
+    "views": [
+      {
+        "id": "action-plan",
+        "title": {
+          "fr": "Plan d'action & Gantt",
+          "en": "Action Plan & Gantt"
+        },
+        "icon": "Workflow",
+        "kind": "app",
+        "entry": "index.html",
+        "scopes": ["global", "project"],
+        "singleton": false
+      }
+    ]
+  }
+}

@@ -50,6 +50,8 @@
   border-radius: var(--radius-lg);
   background: var(--inset);
   overflow: hidden;
+  contain: layout paint;
+  transform: translateZ(0);
 }
 .trk-plugin-iframe {
   width: 100%;
@@ -57,6 +59,9 @@
   border: none;
   display: block;
   background: transparent;
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 /* Plein écran demandé par le plugin (capacité "fullscreen") : un changement
@@ -109,10 +114,45 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   color: var(--text-dim);
   font-size: 13px;
+  font-weight: 500;
   background: var(--inset);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.16s cubic-bezier(0.2, 0.85, 0.3, 1), visibility 0.16s linear;
+}
+.trk-plugin-loading.is-ready {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.trk-plugin-loading p {
+  margin: 0;
+}
+.trk-plugin-loading-bar {
+  width: 148px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.trk-plugin-loading-fill {
+  width: 45%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: trkPluginLoadSweep 1.15s cubic-bezier(0.32, 1.25, 0.32, 1) infinite;
+}
+@keyframes trkPluginLoadSweep {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(240%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trk-plugin-loading { transition: none; }
+  .trk-plugin-loading-fill { animation: none; width: 100%; opacity: 0.6; }
 }
 
 .trk-plugins-empty { border-style: dashed; }
